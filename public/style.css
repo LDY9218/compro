@@ -1,0 +1,926 @@
+/* ==================================================
+   COMTIME PRO
+   Modern School Timetable UI
+================================================== */
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    font-family:
+        "Pretendard",
+        "Noto Sans KR",
+        Arial,
+        sans-serif;
+
+    background:
+        linear-gradient(
+            180deg,
+            #f7f9fc 0%,
+            #ffffff 45%,
+            #f7f9fc 100%
+        );
+
+    color: #172033;
+}
+
+
+/* ==================================================
+   HEADER
+================================================== */
+
+header {
+    height: 82px;
+
+    display: flex;
+    align-items: center;
+
+    padding: 0 42px;
+
+    background: rgba(255, 255, 255, 0.92);
+
+    border-bottom: 1px solid #e8ebf2;
+
+    position: sticky;
+    top: 0;
+    z-index: 100;
+
+    backdrop-filter: blur(14px);
+}
+
+.logo {
+    width: 44px;
+    height: 44px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 13px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #647cff,
+            #8b6cff
+        );
+
+    color: white;
+
+    font-size: 22px;
+    font-weight: 900;
+
+    box-shadow:
+        0 7px 18px rgba(91, 103, 210, 0.18);
+}
+
+header > div:nth-child(2) {
+    margin-left: 13px;
+}
+
+header h1 {
+    margin: 0;
+
+    font-size: 20px;
+    line-height: 1.1;
+
+    letter-spacing: -0.6px;
+}
+
+header p {
+    margin: 4px 0 0;
+
+    color: #8a92a3;
+
+    font-size: 12px;
+}
+
+.clock {
+    margin-left: auto;
+
+    text-align: right;
+}
+
+.clock strong {
+    display: block;
+
+    font-size: 18px;
+
+    letter-spacing: 0.5px;
+}
+
+.clock span {
+    display: block;
+
+    margin-top: 3px;
+
+    color: #8991a3;
+
+    font-size: 11px;
+}
+
+
+/* ==================================================
+   MAIN
+================================================== */
+
+main {
+    width: min(1280px, calc(100% - 48px));
+
+    margin: 34px auto 70px;
+}
+
+
+/* ==================================================
+   SEARCH
+================================================== */
+
+.search-box {
+    padding: 26px;
+
+    background: white;
+
+    border: 1px solid #e7eaf1;
+
+    border-radius: 20px;
+
+    box-shadow:
+        0 8px 28px rgba(31, 43, 73, 0.045);
+}
+
+.search-box h2 {
+    margin: 0 0 17px;
+
+    font-size: 18px;
+
+    letter-spacing: -0.5px;
+}
+
+.search-row {
+    display: flex;
+
+    gap: 10px;
+}
+
+.search-row input {
+    flex: 1;
+
+    min-width: 0;
+
+    height: 48px;
+
+    padding: 0 16px;
+
+    border: 1px solid #dfe3ec;
+
+    border-radius: 12px;
+
+    outline: none;
+
+    font-size: 14px;
+
+    background: #fbfcfe;
+
+    transition:
+        border-color 0.2s,
+        box-shadow 0.2s;
+}
+
+.search-row input:focus {
+    border-color: #7888ff;
+
+    box-shadow:
+        0 0 0 4px rgba(120, 136, 255, 0.08);
+}
+
+.search-row button {
+    height: 48px;
+
+    padding: 0 24px;
+
+    border: 0;
+
+    border-radius: 12px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #637cff,
+            #826dff
+        );
+
+    color: white;
+
+    font-size: 14px;
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.15s,
+        box-shadow 0.15s;
+}
+
+.search-row button:hover {
+    transform: translateY(-1px);
+
+    box-shadow:
+        0 7px 18px rgba(101, 115, 236, 0.2);
+}
+
+#schoolResults {
+    margin-top: 14px;
+}
+
+.hint {
+    margin: 0;
+
+    color: #969dac;
+
+    font-size: 13px;
+}
+
+.school-result {
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 14px 16px;
+
+    margin-bottom: 7px;
+
+    background: #fafbfe;
+
+    border: 1px solid #e6e9f0;
+
+    border-radius: 12px;
+
+    cursor: pointer;
+
+    text-align: left;
+
+    transition:
+        background 0.15s,
+        border-color 0.15s,
+        transform 0.15s;
+}
+
+.school-result:hover {
+    background: white;
+
+    border-color: #bdc6ff;
+
+    transform: translateY(-1px);
+}
+
+.school-result strong {
+    color: #20283a;
+
+    font-size: 14px;
+}
+
+.school-result span {
+    color: #929aaa;
+
+    font-size: 12px;
+}
+
+
+/* ==================================================
+   HERO
+================================================== */
+
+.hero {
+    margin-top: 22px;
+
+    min-height: 190px;
+
+    padding: 30px;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    border-radius: 24px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #667dff 0%,
+            #7d70ee 55%,
+            #8d72df 100%
+        );
+
+    color: white;
+
+    box-shadow:
+        0 14px 36px rgba(91, 101, 204, 0.16);
+}
+
+.hero > div:first-child > span {
+    opacity: 0.72;
+
+    font-size: 13px;
+}
+
+.hero h2 {
+    margin: 8px 0 5px;
+
+    font-size: 29px;
+
+    letter-spacing: -1px;
+}
+
+.hero p {
+    margin: 0;
+
+    opacity: 0.82;
+
+    font-size: 13px;
+}
+
+.next {
+    display: inline-block;
+
+    margin-top: 19px;
+
+    padding: 9px 13px;
+
+    border-radius: 10px;
+
+    background: rgba(255, 255, 255, 0.13);
+
+    font-size: 12px;
+}
+
+.next strong {
+    margin-left: 5px;
+}
+
+.school-selected {
+    min-width: 210px;
+
+    padding: 18px 20px;
+
+    border-radius: 16px;
+
+    background: rgba(255, 255, 255, 0.12);
+
+    border: 1px solid rgba(255, 255, 255, 0.17);
+
+    backdrop-filter: blur(8px);
+}
+
+.school-selected strong {
+    display: block;
+
+    font-size: 15px;
+}
+
+.school-selected span {
+    display: block;
+
+    margin-top: 5px;
+
+    opacity: 0.72;
+
+    font-size: 12px;
+}
+
+
+/* ==================================================
+   SELECTOR
+================================================== */
+
+.selector {
+    margin-top: 18px;
+
+    display: flex;
+
+    gap: 12px;
+
+    padding: 17px 20px;
+
+    background: white;
+
+    border: 1px solid #e7eaf1;
+
+    border-radius: 17px;
+
+    box-shadow:
+        0 6px 20px rgba(31, 43, 73, 0.035);
+}
+
+.selector > div {
+    display: flex;
+    align-items: center;
+
+    gap: 9px;
+}
+
+.selector label {
+    color: #777f91;
+
+    font-size: 13px;
+}
+
+.selector select {
+    height: 38px;
+
+    padding: 0 32px 0 12px;
+
+    border: 1px solid #dfe3eb;
+
+    border-radius: 9px;
+
+    background: white;
+
+    color: #252d40;
+
+    outline: none;
+
+    font-size: 13px;
+
+    cursor: pointer;
+}
+
+
+/* ==================================================
+   SECTION
+================================================== */
+
+.section {
+    margin-top: 38px;
+}
+
+.section-title {
+    margin-bottom: 18px;
+}
+
+.section-title h2 {
+    margin: 0;
+
+    font-size: 21px;
+
+    letter-spacing: -0.7px;
+}
+
+.section-title p {
+    margin: 5px 0 0;
+
+    color: #9299a8;
+
+    font-size: 12px;
+}
+
+
+/* ==================================================
+   TIMETABLE
+================================================== */
+
+.timetable {
+    width: 100%;
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(5, minmax(0, 1fr));
+
+    gap: 12px;
+
+    padding: 14px;
+
+    background: #f5f7fb;
+
+    border: 1px solid #e5e8ef;
+
+    border-radius: 22px;
+
+    overflow-x: auto;
+}
+
+
+/* 요일 하나 */
+
+.day-column {
+    min-width: 155px;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 9px;
+}
+
+
+/* 요일 */
+
+.day-title {
+    height: 40px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 11px;
+
+    background: white;
+
+    border: 1px solid #e3e6ee;
+
+    color: #4b5365;
+
+    font-size: 13px;
+    font-weight: 800;
+
+    box-shadow:
+        0 2px 7px rgba(28, 37, 61, 0.025);
+}
+
+
+/* ==================================================
+   과목 카드
+================================================== */
+
+.lesson-card {
+    position: relative;
+
+    min-height: 78px;
+
+    padding: 12px 12px 11px;
+
+    display: flex;
+    flex-direction: column;
+
+    justify-content: center;
+
+    border-radius: 14px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #ffffff,
+            #fafbff
+        );
+
+    border: 1px solid transparent;
+
+    background-clip: padding-box;
+
+    box-shadow:
+        0 3px 10px rgba(29, 38, 62, 0.045);
+
+    overflow: hidden;
+
+    transition:
+        transform 0.16s,
+        box-shadow 0.16s;
+}
+
+
+/* 아주 은은한 그라데이션 테두리 */
+
+.lesson-card::before {
+    content: "";
+
+    position: absolute;
+
+    inset: 0;
+
+    padding: 1px;
+
+    border-radius: inherit;
+
+    background:
+        linear-gradient(
+            135deg,
+            rgba(113, 132, 255, 0.35),
+            rgba(170, 125, 235, 0.20),
+            rgba(255, 255, 255, 0.2)
+        );
+
+    -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+
+    -webkit-mask-composite: xor;
+
+    mask-composite: exclude;
+
+    pointer-events: none;
+}
+
+
+.lesson-card:hover {
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 7px 16px rgba(35, 45, 73, 0.08);
+}
+
+
+/* 교시 */
+
+.lesson-card .period {
+    margin-bottom: 5px;
+
+    color: #9299aa;
+
+    font-size: 10px;
+    font-weight: 600;
+}
+
+
+/* 과목 */
+
+.lesson-card strong {
+    color: #222b3d;
+
+    font-size: 14px;
+    font-weight: 800;
+
+    line-height: 1.3;
+
+    letter-spacing: -0.25px;
+}
+
+
+/* 선생님 */
+
+.lesson-card small {
+    margin-top: 4px;
+
+    color: #8991a2;
+
+    font-size: 10px;
+}
+
+
+/* ==================================================
+   MESSAGE
+================================================== */
+
+.message {
+    padding: 28px;
+
+    color: #9299a8;
+
+    text-align: center;
+
+    font-size: 13px;
+}
+
+.message.error {
+    color: #d45b67;
+}
+
+
+/* ==================================================
+   MEAL
+================================================== */
+
+.meal {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 13px;
+}
+
+.meal-card {
+    position: relative;
+
+    padding: 19px;
+
+    min-height: 150px;
+
+    background: white;
+
+    border: 1px solid #e5e8ef;
+
+    border-radius: 17px;
+
+    box-shadow:
+        0 5px 16px rgba(31, 43, 73, 0.035);
+
+    overflow: hidden;
+}
+
+.meal-card::after {
+    content: "";
+
+    position: absolute;
+
+    width: 80px;
+    height: 80px;
+
+    right: -30px;
+    bottom: -30px;
+
+    border-radius: 50%;
+
+    background:
+        linear-gradient(
+            135deg,
+            rgba(120, 133, 255, 0.08),
+            rgba(177, 113, 226, 0.06)
+        );
+}
+
+.meal-type {
+    display: inline-block;
+
+    padding: 5px 8px;
+
+    border-radius: 7px;
+
+    background: #f1f3ff;
+
+    color: #6875ce;
+
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.meal-menu {
+    margin-top: 13px;
+
+    color: #30384a;
+
+    font-size: 13px;
+
+    line-height: 1.75;
+}
+
+.meal-calories {
+    margin-top: 10px;
+
+    color: #9ba1ae;
+
+    font-size: 10px;
+}
+
+
+/* ==================================================
+   FOOTER
+================================================== */
+
+footer {
+    padding: 28px;
+
+    border-top: 1px solid #e9ebf1;
+
+    color: #a0a6b2;
+
+    text-align: center;
+
+    font-size: 11px;
+}
+
+
+/* ==================================================
+   RESPONSIVE
+================================================== */
+
+@media (max-width: 900px) {
+
+    header {
+        padding: 0 22px;
+    }
+
+    main {
+        width: min(
+            calc(100% - 28px),
+            700px
+        );
+
+        margin-top: 22px;
+    }
+
+    .hero {
+        align-items: flex-start;
+
+        gap: 22px;
+
+        flex-direction: column;
+    }
+
+    .school-selected {
+        width: 100%;
+    }
+
+    .timetable {
+        grid-template-columns:
+            repeat(5, 155px);
+
+        overflow-x: auto;
+    }
+
+    .meal {
+        grid-template-columns:
+            1fr;
+    }
+}
+
+
+@media (max-width: 560px) {
+
+    header {
+        height: 72px;
+
+        padding: 0 15px;
+    }
+
+    header h1 {
+        font-size: 17px;
+    }
+
+    header p {
+        display: none;
+    }
+
+    .logo {
+        width: 38px;
+        height: 38px;
+
+        border-radius: 11px;
+
+        font-size: 19px;
+    }
+
+    .clock strong {
+        font-size: 15px;
+    }
+
+    .clock span {
+        display: none;
+    }
+
+    main {
+        width: calc(100% - 20px);
+
+        margin-top: 15px;
+    }
+
+    .search-box {
+        padding: 19px;
+    }
+
+    .search-row {
+        flex-direction: column;
+    }
+
+    .search-row button {
+        width: 100%;
+    }
+
+    .hero {
+        padding: 23px;
+
+        border-radius: 19px;
+    }
+
+    .hero h2 {
+        font-size: 24px;
+    }
+
+    .selector {
+        flex-wrap: wrap;
+
+        padding: 14px;
+    }
+
+    .section {
+        margin-top: 29px;
+    }
+
+    .timetable {
+        padding: 10px;
+
+        border-radius: 17px;
+
+        gap: 9px;
+    }
+
+    .day-column {
+        min-width: 145px;
+    }
+
+    .lesson-card {
+        min-height: 72px;
+
+        padding: 10px;
+    }
+
+    .lesson-card strong {
+        font-size: 13px;
+    }
+}
