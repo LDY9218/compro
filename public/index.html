@@ -1,36 +1,73 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
     <title>COMTIME PRO</title>
-    <link rel="stylesheet" href="/style.css">
+
+    <link
+        rel="stylesheet"
+        href="/style.css"
+    >
 </head>
 
 <body>
 
 <header>
+
     <div class="logo">C</div>
 
-    <div>
-        <h1>COMTIME PRO</h1>
-        <p>스마트 학교 알리미</p>
+    <div class="brand-area">
+
+        <div class="brand-text">
+
+            <h1>COMTIME PRO</h1>
+
+            <p>스마트 학교 알리미</p>
+
+        </div>
+
+        <button
+            id="birdGameBtn"
+            class="bird-game-btn"
+            type="button"
+            aria-label="Bird Bump 게임 열기"
+            title="Bird Bump"
+        >
+            🐦
+        </button>
+
     </div>
 
     <div class="clock">
-        <strong id="clock">00:00:00</strong>
+
+        <strong id="clock">
+            00:00:00
+        </strong>
+
         <span id="todayDate"></span>
+
     </div>
+
 </header>
 
 
 <main>
 
     <!-- 학교 검색 -->
+
     <section class="search-box">
+
         <h2>학교 검색</h2>
 
         <div class="search-row">
+
             <input
                 id="schoolInput"
                 type="text"
@@ -43,17 +80,22 @@
             >
                 검색
             </button>
+
         </div>
 
         <div id="schoolResults">
+
             <p class="hint">
                 학교 이름을 입력하고 검색하세요.
             </p>
+
         </div>
+
     </section>
 
 
     <!-- 현재 수업 -->
+
     <section class="hero">
 
         <div>
@@ -69,12 +111,16 @@
             </p>
 
             <div class="next">
+
                 다음 수업
-                <strong id="nextSubject">-</strong>
+
+                <strong id="nextSubject">
+                    -
+                </strong>
+
             </div>
 
         </div>
-
 
         <div class="school-selected">
 
@@ -92,6 +138,7 @@
 
 
     <!-- 학년 / 반 선택 -->
+
     <section class="selector">
 
         <div>
@@ -102,34 +149,16 @@
 
             <select id="gradeSelect">
 
-                <option value="1">
-                    1학년
-                </option>
-
-                <option value="2">
-                    2학년
-                </option>
-
-                <option value="3">
-                    3학년
-                </option>
-
-                <option value="4">
-                    4학년
-                </option>
-
-                <option value="5">
-                    5학년
-                </option>
-
-                <option value="6">
-                    6학년
-                </option>
+                <option value="1">1학년</option>
+                <option value="2">2학년</option>
+                <option value="3">3학년</option>
+                <option value="4">4학년</option>
+                <option value="5">5학년</option>
+                <option value="6">6학년</option>
 
             </select>
 
         </div>
-
 
         <div>
 
@@ -145,20 +174,18 @@
 
 
     <!-- 시간표 -->
+
     <section class="section">
 
         <div class="section-title">
 
-            <h2>
-                오늘의 시간표
-            </h2>
+            <h2>오늘의 시간표</h2>
 
             <p>
                 컴시간 데이터를 자동으로 가져옵니다.
             </p>
 
         </div>
-
 
         <div
             id="timetableGrid"
@@ -175,20 +202,18 @@
 
 
     <!-- 급식 -->
+
     <section class="section">
 
         <div class="section-title">
 
-            <h2>
-                오늘의 급식
-            </h2>
+            <h2>오늘의 급식</h2>
 
             <p>
                 NEIS 급식 데이터를 자동으로 가져옵니다.
             </p>
 
         </div>
-
 
         <div
             id="mealBox"
@@ -206,19 +231,204 @@
 </main>
 
 
-<!-- 하단 -->
 <footer>
     COMTIME PRO
 </footer>
 
 
-<!-- 제작자 표시 -->
 <div class="creator-credit">
     제작자:율
+</div>
+
+
+<!-- ==================================================
+     BIRD BUMP GAME MODAL
+================================================== -->
+
+<div
+    id="birdGameModal"
+    class="game-modal"
+    aria-hidden="true"
+>
+
+    <div
+        id="gameBackdrop"
+        class="game-backdrop"
+    ></div>
+
+
+    <div
+        class="game-window"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Bird Bump 게임"
+    >
+
+        <!-- 게임 헤더 -->
+
+        <div class="game-window-header">
+
+            <div>
+
+                <span class="game-window-label">
+                    MINI GAME
+                </span>
+
+                <h2>
+                    🐦 Bird Bump
+                </h2>
+
+            </div>
+
+            <button
+                id="closeGameBtn"
+                class="game-close-btn"
+                type="button"
+                aria-label="게임 닫기"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <!-- 실제 게임 -->
+
+        <div
+            id="birdGameContainer"
+            class="bird-game-container"
+        >
+
+            <div class="bird-game-hud">
+
+                <div class="bird-score-box">
+
+                    <span>
+                        SCORE
+                    </span>
+
+                    <strong id="birdScore">
+                        0
+                    </strong>
+
+                </div>
+
+                <div class="bird-best-box">
+
+                    <span>
+                        BEST
+                    </span>
+
+                    <strong id="birdBest">
+                        0
+                    </strong>
+
+                </div>
+
+            </div>
+
+
+            <canvas
+                id="birdGameCanvas"
+                class="bird-game-canvas"
+            ></canvas>
+
+
+            <!-- 시작 화면 -->
+
+            <div
+                id="birdStartScreen"
+                class="bird-game-screen"
+            >
+
+                <div class="bird-start-icon">
+                    🐦
+                </div>
+
+                <h3>
+                    Bird Bump
+                </h3>
+
+                <p>
+                    새를 날려 장애물을 피하세요
+                </p>
+
+                <button
+                    id="birdStartBtn"
+                    class="bird-action-btn"
+                    type="button"
+                >
+                    게임 시작
+                </button>
+
+                <small>
+                    PC: SPACE / 클릭<br>
+                    모바일: 화면 터치
+                </small>
+
+            </div>
+
+
+            <!-- 게임 오버 -->
+
+            <div
+                id="birdGameOverScreen"
+                class="bird-game-screen hidden"
+            >
+
+                <div class="bird-gameover-icon">
+                    💥
+                </div>
+
+                <h3>
+                    GAME OVER
+                </h3>
+
+                <div class="bird-final-score">
+
+                    <span>
+                        SCORE
+                    </span>
+
+                    <strong id="birdFinalScore">
+                        0
+                    </strong>
+
+                </div>
+
+                <p id="birdNewBest">
+                    기록을 확인해보세요!
+                </p>
+
+                <button
+                    id="birdRestartBtn"
+                    class="bird-action-btn"
+                    type="button"
+                >
+                    다시하기
+                </button>
+
+            </div>
+
+
+            <!-- 게임 하단 안내 -->
+
+            <div
+                id="birdControlHint"
+                class="bird-control-hint"
+            >
+                클릭 또는 SPACE
+            </div>
+
+        </div>
+
+    </div>
+
 </div>
 
 
 <script src="/app.js"></script>
 
 </body>
+
 </html>
