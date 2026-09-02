@@ -11,6 +11,7 @@
 
 <header>
     <div class="logo">C</div>
+
     <div>
         <h1>COMTIME PRO</h1>
         <p>스마트 학교 알리미</p>
@@ -25,6 +26,7 @@
 
 <main>
 
+    <!-- 학교 검색 -->
     <section class="search-box">
         <h2>학교 검색</h2>
 
@@ -35,35 +37,47 @@
                 placeholder="학교 이름을 입력하세요"
             >
 
-            <button id="schoolSearchBtn" type="button">
+            <button
+                id="schoolSearchBtn"
+                type="button"
+            >
                 검색
             </button>
         </div>
 
         <div id="schoolResults">
-            <p class="hint">학교 이름을 입력하고 검색하세요.</p>
+            <p class="hint">
+                학교 이름을 입력하고 검색하세요.
+            </p>
         </div>
     </section>
 
 
+    <!-- 현재 수업 -->
     <section class="hero">
 
         <div>
+
             <span>현재 수업</span>
 
             <h2 id="currentSubject">
                 학교를 선택해주세요
             </h2>
 
-            <p id="currentTeacher">-</p>
+            <p id="currentTeacher">
+                -
+            </p>
 
             <div class="next">
                 다음 수업
                 <strong id="nextSubject">-</strong>
             </div>
+
         </div>
 
+
         <div class="school-selected">
+
             <strong id="schoolName">
                 학교 미선택
             </strong>
@@ -71,62 +85,120 @@
             <span id="schoolInfo">
                 학교를 검색해주세요
             </span>
+
         </div>
 
     </section>
 
 
+    <!-- 학년 / 반 선택 -->
     <section class="selector">
 
         <div>
-            <label>학년</label>
+
+            <label for="gradeSelect">
+                학년
+            </label>
 
             <select id="gradeSelect">
-                <option value="1">1학년</option>
-                <option value="2">2학년</option>
-                <option value="3">3학년</option>
-                <option value="4">4학년</option>
-                <option value="5">5학년</option>
-                <option value="6">6학년</option>
+
+                <option value="1">
+                    1학년
+                </option>
+
+                <option value="2">
+                    2학년
+                </option>
+
+                <option value="3">
+                    3학년
+                </option>
+
+                <option value="4">
+                    4학년
+                </option>
+
+                <option value="5">
+                    5학년
+                </option>
+
+                <option value="6">
+                    6학년
+                </option>
+
             </select>
+
         </div>
+
 
         <div>
-            <label>반</label>
+
+            <label for="classSelect">
+                반
+            </label>
 
             <select id="classSelect"></select>
+
         </div>
 
     </section>
 
 
+    <!-- 시간표 -->
     <section class="section">
 
         <div class="section-title">
-            <h2>오늘의 시간표</h2>
-            <p>컴시간 데이터를 자동으로 가져옵니다.</p>
+
+            <h2>
+                오늘의 시간표
+            </h2>
+
+            <p>
+                컴시간 데이터를 자동으로 가져옵니다.
+            </p>
+
         </div>
 
-        <div id="timetableGrid" class="timetable">
+
+        <div
+            id="timetableGrid"
+            class="timetable"
+        >
+
             <div class="message">
                 학교를 먼저 선택해주세요.
             </div>
+
         </div>
 
     </section>
 
 
+    <!-- 급식 -->
     <section class="section">
 
         <div class="section-title">
-            <h2>오늘의 급식</h2>
-            <p>NEIS 급식 데이터를 자동으로 가져옵니다.</p>
+
+            <h2>
+                오늘의 급식
+            </h2>
+
+            <p>
+                NEIS 급식 데이터를 자동으로 가져옵니다.
+            </p>
+
         </div>
 
-        <div id="mealBox" class="meal">
+
+        <div
+            id="mealBox"
+            class="meal"
+        >
+
             <div class="message">
                 학교를 먼저 선택해주세요.
             </div>
+
         </div>
 
     </section>
@@ -134,9 +206,16 @@
 </main>
 
 
+<!-- 하단 -->
 <footer>
     COMTIME PRO
 </footer>
+
+
+<!-- 제작자 표시 -->
+<div class="creator-credit">
+    제작자:율
+</div>
 
 
 <script src="/app.js"></script>
