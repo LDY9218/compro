@@ -247,13 +247,11 @@ function updateClock() {
         );
 
     if (clockEl) {
-
         clockEl.textContent =
             time;
     }
 
     if (todayDateEl) {
-
         todayDateEl.textContent =
             date;
     }
@@ -1830,19 +1828,101 @@ let birdScale =
 
 
 // ==================================================
-// ★ 게임 지형 설정
+// 게임 지형 설정
 // ==================================================
 
-// 기존 0.58 → 0.78
-// 땅을 화면 아래쪽으로 내림
-
+// 화면 아래쪽으로 확실하게 내림
 const BIRD_GROUND_RATIO =
-    0.78;
+    0.84;
 
 
-// 위쪽 안전 영역
+// 천장
 const BIRD_CEILING =
     0;
+
+
+// ==================================================
+// 난이도 설정
+// ==================================================
+
+const BIRD_DIFFICULTY = {
+
+    // 기본 속도
+    baseSpeed:
+        255,
+
+    // 최대 속도
+    maxSpeed:
+        440,
+
+    // 점수당 속도 증가
+    speedPerScore:
+        3.8,
+
+    // 기본 통로 크기
+    baseGap:
+        205,
+
+    // 점수당 통로 감소
+    gapShrinkPerScore:
+        1.45,
+
+    // 절대 최소 통로
+    minGap:
+        142,
+
+    // 장애물 기본 폭
+    obstacleWidth:
+        70,
+
+    // 첫 장애물까지 여유
+    firstObstacleDelay:
+        1.35,
+
+    // 기본 장애물 간격
+    baseObstacleInterval:
+        1.52,
+
+    // 점수당 간격 감소
+    obstacleIntervalDecrease:
+        0.010,
+
+    // 최소 장애물 간격
+    minObstacleInterval:
+        0.92,
+
+    // 장애물이 움직이기 시작하는 점수
+    movingStartScore:
+        10,
+
+    // 움직임이 강해지기 시작하는 점수
+    hardStartScore:
+        20,
+
+    // 이동폭 기본값
+    baseMoveRange:
+        18,
+
+    // 이동폭 증가
+    moveRangePerScore:
+        1.6,
+
+    // 장애물 상하 이동속도
+    baseMoveSpeed:
+        30,
+
+    // 이동속도 증가
+    moveSpeedPerScore:
+        1.1,
+
+    // 위쪽 최소 여백
+    topMargin:
+        58,
+
+    // 땅 위 최소 여백
+    bottomMargin:
+        48
+};
 
 
 // ==================================================
@@ -1851,21 +1931,29 @@ const BIRD_CEILING =
 
 const birdPlayer = {
 
-    x: 150,
+    x:
+        150,
 
-    y: 240,
+    y:
+        240,
 
-    width: 38,
+    width:
+        38,
 
-    height: 30,
+    height:
+        30,
 
-    velocityY: 0,
+    velocityY:
+        0,
 
-    gravity: 1450,
+    gravity:
+        1450,
 
-    jumpPower: -470,
+    jumpPower:
+        -470,
 
-    rotation: 0
+    rotation:
+        0
 };
 
 
@@ -1885,7 +1973,7 @@ let birdDistance =
     0;
 
 let birdSpeed =
-    255;
+    BIRD_DIFFICULTY.baseSpeed;
 
 
 // ==================================================
@@ -2019,6 +2107,32 @@ function updateBirdScore() {
 
 
 // ==================================================
+// 난이도 표시용
+// ==================================================
+
+function getBirdDifficultyLevel() {
+
+    if (
+        birdScore >=
+        BIRD_DIFFICULTY.hardStartScore
+    ) {
+
+        return "HARD";
+    }
+
+    if (
+        birdScore >=
+        BIRD_DIFFICULTY.movingStartScore
+    ) {
+
+        return "MOVING";
+    }
+
+    return "NORMAL";
+}
+
+
+// ==================================================
 // 게임 초기화
 // ==================================================
 
@@ -2046,7 +2160,7 @@ function resetBirdGame() {
         0;
 
     birdSpeed =
-        255;
+        BIRD_DIFFICULTY.baseSpeed;
 
     birdPlayer.x =
         Math.max(
@@ -2280,7 +2394,7 @@ function endBirdGame() {
     drawBirdGame();
 
     console.log(
-        `[Bird Bump] GAME OVER / SCORE=${birdScore}`
+        `[Bird Bump] GAME OVER / SCORE=${birdScore} / DIFFICULTY=${getBirdDifficultyLevel()}`
     );
 }
 
@@ -2301,8 +2415,10 @@ function birdGameLoop(
     }
 
     let delta =
-        (timestamp -
-            birdLastTime) /
+        (
+            timestamp -
+            birdLastTime
+        ) /
         1000;
 
     birdLastTime =
@@ -2339,6 +2455,11 @@ function updateBirdGame(
         birdSpeed *
         delta;
 
+
+    // ==================================================
+    // 새 물리
+    // ==================================================
+
     birdPlayer.velocityY +=
         birdPlayer.gravity *
         delta;
@@ -2359,15 +2480,15 @@ function updateBirdGame(
 
 
     // ==================================================
-    // 속도 증가
+    // 점수 기반 난이도
     // ==================================================
 
     birdSpeed =
         Math.min(
-            390,
-            255 +
+            BIRD_DIFFICULTY.maxSpeed,
+            BIRD_DIFFICULTY.baseSpeed +
             birdScore *
-            3.2
+            BIRD_DIFFICULTY.speedPerScore
         );
 
 
@@ -2380,10 +2501,10 @@ function updateBirdGame(
 
     const obstacleInterval =
         Math.max(
-            1.05,
-            1.52 -
+            BIRD_DIFFICULTY.minObstacleInterval,
+            BIRD_DIFFICULTY.baseObstacleInterval -
             birdScore *
-            0.012
+            BIRD_DIFFICULTY.obstacleIntervalDecrease
         );
 
     if (
@@ -2477,29 +2598,32 @@ function updateBirdGame(
 
 function createBirdObstacle() {
 
-    // 점수가 올라갈수록 조금씩 좁아짐
-    const gapSize =
-        Math.max(
-            150,
-            205 -
-            birdScore *
-            1.35
-        );
-
-
-    // 화면 위쪽 여백
-    const topMargin =
-        55;
-
-
-    // 땅 바로 위까지 기둥이 내려오도록
     const groundY =
         getBirdGroundY();
 
 
-    // 아래쪽 기둥이 너무 짧아지지 않도록
+    // ==================================================
+    // 통로 크기
+    // ==================================================
+
+    const gapSize =
+        Math.max(
+            BIRD_DIFFICULTY.minGap,
+            BIRD_DIFFICULTY.baseGap -
+            birdScore *
+            BIRD_DIFFICULTY.gapShrinkPerScore
+        );
+
+
+    // ==================================================
+    // 안전 영역
+    // ==================================================
+
+    const topMargin =
+        BIRD_DIFFICULTY.topMargin;
+
     const bottomMargin =
-        65;
+        BIRD_DIFFICULTY.bottomMargin;
 
 
     const minGapY =
@@ -2515,18 +2639,124 @@ function createBirdObstacle() {
         );
 
 
-    const gapY =
+    // ==================================================
+    // 랜덤 통로
+    // ==================================================
+
+    let gapY =
         minGapY +
         Math.random() *
         Math.max(
-            1,
+            0,
             maxGapY -
             minGapY
         );
 
 
+    // ==================================================
+    // 이동 장애물 설정
+    // ==================================================
+
+    const moving =
+        birdScore >=
+        BIRD_DIFFICULTY.movingStartScore;
+
+
+    let moveRange =
+        0;
+
+    let moveSpeed =
+        0;
+
+
+    if (moving) {
+
+        moveRange =
+            Math.min(
+                85,
+                BIRD_DIFFICULTY.baseMoveRange +
+                Math.max(
+                    0,
+                    birdScore -
+                    BIRD_DIFFICULTY.movingStartScore
+                ) *
+                BIRD_DIFFICULTY.moveRangePerScore
+            );
+
+        moveSpeed =
+            BIRD_DIFFICULTY.baseMoveSpeed +
+            Math.max(
+                0,
+                birdScore -
+                BIRD_DIFFICULTY.movingStartScore
+            ) *
+            BIRD_DIFFICULTY.moveSpeedPerScore;
+    }
+
+
+    // ==================================================
+    // 이동 가능한 범위 계산
+    // ==================================================
+
+    const movementMin =
+        minGapY;
+
+    const movementMax =
+        maxGapY;
+
+
+    // 이동폭이 실제 가능한 공간보다 크지 않도록 제한
+    const availableMovement =
+        Math.max(
+            0,
+            Math.min(
+                moveRange,
+                (
+                    movementMax -
+                    movementMin
+                ) /
+                2
+            )
+        );
+
+
+    // ==================================================
+    // 이동 시작 위치
+    // ==================================================
+
+    if (
+        moving &&
+        availableMovement > 0
+    ) {
+
+        const safeMin =
+            movementMin +
+            availableMovement;
+
+        const safeMax =
+            movementMax -
+            availableMovement;
+
+        if (
+            safeMax >= safeMin
+        ) {
+
+            gapY =
+                safeMin +
+                Math.random() *
+                (
+                    safeMax -
+                    safeMin
+                );
+        }
+
+        moveRange =
+            availableMovement;
+    }
+
+
     const width =
-        70;
+        BIRD_DIFFICULTY.obstacleWidth;
 
 
     birdObstacles.push({
@@ -2545,7 +2775,26 @@ function createBirdObstacle() {
             gapSize,
 
         scored:
-            false
+            false,
+
+        moving:
+            moving &&
+            moveRange > 0,
+
+        moveRange:
+            moveRange,
+
+        moveSpeed:
+            moveSpeed,
+
+        moveDirection:
+            Math.random() <
+            0.5
+                ? -1
+                : 1,
+
+        baseGapY:
+            gapY
     });
 }
 
@@ -2558,6 +2807,10 @@ function updateBirdObstacles(
     delta
 ) {
 
+    const groundY =
+        getBirdGroundY();
+
+
     for (
         let i =
             birdObstacles.length - 1;
@@ -2568,9 +2821,91 @@ function updateBirdObstacles(
         const obstacle =
             birdObstacles[i];
 
+
+        // ==================================================
+        // 좌우 이동
+        // ==================================================
+
         obstacle.x -=
             birdSpeed *
             delta;
+
+
+        // ==================================================
+        // 상하 이동
+        // ==================================================
+
+        if (
+            obstacle.moving &&
+            obstacle.moveRange > 0
+        ) {
+
+            obstacle.gapY +=
+                obstacle.moveDirection *
+                obstacle.moveSpeed *
+                delta;
+
+
+            const minY =
+                BIRD_DIFFICULTY.topMargin;
+
+            const maxY =
+                groundY -
+                BIRD_DIFFICULTY.bottomMargin -
+                obstacle.gapSize;
+
+
+            const lowerLimit =
+                Math.max(
+                    minY,
+                    Math.min(
+                        maxY,
+                        obstacle.baseGapY -
+                        obstacle.moveRange
+                    )
+                );
+
+            const upperLimit =
+                Math.max(
+                    lowerLimit,
+                    Math.min(
+                        maxY,
+                        obstacle.baseGapY +
+                        obstacle.moveRange
+                    )
+                );
+
+
+            if (
+                obstacle.gapY <=
+                lowerLimit
+            ) {
+
+                obstacle.gapY =
+                    lowerLimit;
+
+                obstacle.moveDirection =
+                    1;
+            }
+
+
+            if (
+                obstacle.gapY >=
+                upperLimit
+            ) {
+
+                obstacle.gapY =
+                    upperLimit;
+
+                obstacle.moveDirection =
+                    -1;
+            }
+        }
+
+
+        // ==================================================
+        // 화면 밖 제거
+        // ==================================================
 
         if (
             obstacle.x +
@@ -2633,13 +2968,15 @@ function updateBirdClouds(
 
 function checkBirdCollision() {
 
-    // 새의 실제 충돌 박스를 조금 작게
+    // ==================================================
+    // 새 충돌 박스
+    // ==================================================
+
     const paddingX =
         6;
 
     const paddingY =
         5;
-
 
     const bx =
         birdPlayer.x +
@@ -2659,16 +2996,16 @@ function checkBirdCollision() {
 
 
     // ==================================================
-    // ★ 바닥
+    // 땅
     // ==================================================
 
     const groundY =
         getBirdGroundY();
 
 
-    // 새가 땅에 완전히 닿았을 때만 죽음
     if (
-        by + bh >=
+        by +
+        bh >=
         groundY
     ) {
 
@@ -2708,15 +3045,17 @@ function checkBirdCollision() {
         const topPipeBottom =
             obstacle.gapY;
 
-
         const bottomPipeTop =
             obstacle.gapY +
             obstacle.gapSize;
 
 
+        // 좌우 충돌
         const horizontal =
-            bx < ox + ow &&
-            bx + bw > ox;
+            bx <
+                ox + ow &&
+            bx + bw >
+                ox;
 
 
         if (!horizontal) {
@@ -2979,30 +3318,16 @@ function drawBirdGame() {
     );
 
 
-    // 배경
-
     drawBirdBackground(
         width,
         height
     );
 
-
-    // 구름
-
     drawBirdClouds();
-
-
-    // 장애물
 
     drawBirdObstacles();
 
-
-    // 파티클
-
     drawBirdParticles();
-
-
-    // 새
 
     drawBirdPlayer();
 }
@@ -3021,6 +3346,11 @@ function drawBirdBackground(
         getBirdGroundY();
 
 
+    const groundRatio =
+        groundY /
+        height;
+
+
     const sky =
         birdCtx.createLinearGradient(
             0,
@@ -3036,12 +3366,18 @@ function drawBirdBackground(
     );
 
     sky.addColorStop(
-        0.68,
+        Math.max(
+            0,
+            groundRatio - 0.12
+        ),
         "#f7fcff"
     );
 
     sky.addColorStop(
-        0.68,
+        Math.min(
+            1,
+            groundRatio
+        ),
         "#dcebd4"
     );
 
@@ -3111,7 +3447,7 @@ function drawBirdBackground(
 
 
     // ==================================================
-    // ★ 땅
+    // 땅
     // ==================================================
 
     birdCtx.fillStyle =
@@ -3388,7 +3724,7 @@ function drawObstaclePipe(
     // ==================================================
 
     birdCtx.strokeStyle =
-        "rgba(67, 79, 180, 0.42)";
+        "rgba(67, 79, 180, 0.48)";
 
     birdCtx.lineWidth =
         2;
@@ -3397,7 +3733,10 @@ function drawObstaclePipe(
         x + 1,
         y + 1,
         width - 2,
-        height - 2
+        Math.max(
+            0,
+            height - 2
+        )
     );
 
 
@@ -3407,22 +3746,22 @@ function drawObstaclePipe(
 
     const capHeight =
         Math.min(
-            20,
+            22,
             Math.max(
-                14,
-                height * 0.18
+                16,
+                height * 0.12
             )
         );
 
 
     const capWidth =
         width +
-        14;
+        18;
 
 
     const capX =
         x -
-        7;
+        9;
 
 
     let capY;
@@ -3430,7 +3769,7 @@ function drawObstaclePipe(
 
     if (top) {
 
-        // 위쪽 기둥의 끝
+        // 위쪽 기둥은 아래쪽에 캡
         capY =
             y +
             height -
@@ -3438,11 +3777,35 @@ function drawObstaclePipe(
 
     } else {
 
-        // 아래쪽 기둥의 시작
+        // 아래쪽 기둥은 위쪽에 캡
         capY =
             y;
     }
 
+
+    // ==================================================
+    // 캡 그림자
+    // ==================================================
+
+    birdCtx.fillStyle =
+        "rgba(54, 65, 155, 0.18)";
+
+    birdCtx.beginPath();
+
+    birdCtx.roundRect(
+        capX + 2,
+        capY + 3,
+        capWidth,
+        capHeight,
+        6
+    );
+
+    birdCtx.fill();
+
+
+    // ==================================================
+    // 캡 본체
+    // ==================================================
 
     const capGradient =
         birdCtx.createLinearGradient(
@@ -3480,34 +3843,36 @@ function drawObstaclePipe(
         capY,
         capWidth,
         capHeight,
-        5
+        6
     );
 
     birdCtx.fill();
 
 
     birdCtx.strokeStyle =
-        "rgba(67, 79, 180, 0.45)";
+        "rgba(67, 79, 180, 0.55)";
+
+    birdCtx.lineWidth =
+        2;
 
     birdCtx.stroke();
 
 
     // ==================================================
-    // 하이라이트
+    // 본체 하이라이트
     // ==================================================
 
     birdCtx.fillStyle =
-        "rgba(255,255,255,0.20)";
-
+        "rgba(255,255,255,0.19)";
 
     birdCtx.fillRect(
         x + 8,
-        y,
+        y + 2,
         8,
         Math.max(
             0,
             height -
-            2
+            4
         )
     );
 
@@ -3517,17 +3882,36 @@ function drawObstaclePipe(
     // ==================================================
 
     birdCtx.fillStyle =
-        "rgba(255,255,255,0.18)";
+        "rgba(255,255,255,0.22)";
 
+    birdCtx.beginPath();
 
-    birdCtx.fillRect(
+    birdCtx.roundRect(
         capX + 7,
         capY + 4,
-        7,
+        8,
         Math.max(
-            4,
+            5,
             capHeight - 8
-        )
+        ),
+        3
+    );
+
+    birdCtx.fill();
+
+
+    // ==================================================
+    // 캡 중앙 광택
+    // ==================================================
+
+    birdCtx.fillStyle =
+        "rgba(255,255,255,0.08)";
+
+    birdCtx.fillRect(
+        capX + 18,
+        capY + 3,
+        capWidth - 36,
+        4
     );
 }
 
@@ -3996,7 +4380,7 @@ function closeGameModal() {
 
 
 // ==================================================
-// 🐦 버튼
+// 게임 버튼
 // ==================================================
 
 if (birdGameBtn) {
