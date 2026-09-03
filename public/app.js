@@ -4867,6 +4867,33 @@ const adminModeLabel = document.getElementById("adminModeLabel");
 let notices = [];
 let isAdminUser = false;
 let editingNoticeId = null;
+let noticeSocket = null;
+let noticeRefreshTimer = null;
+
+function applyNotices(nextNotices) {
+    notices = Array.isArray(nextNotices) ? nextNotices : [];
+    notices.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    if (!noticeListView?.hidden) renderNoticeList();
+}
+
+function startNoticeRealtime() {
+    if (window.io && !noticeSocket) {
+        noticeSocket = window.io();
+        noticeSocket.on("notices:update", (payload) => {
+            if (Array.isArray(payload?.notices)) applyNotices(payload.notices);
+        });
+    }
+    if (!noticeRefreshTimer) {
+        noticeRefreshTimer = setInterval(async () => {
+            if (document.hidden) return;
+            try {
+                const response = await fetch("/api/notices", { cache: "no-store" });
+                const data = await response.json();
+                if (response.ok && data.ok) applyNotices(data.notices);
+            } catch (_) {}
+        }, 5000);
+    }
+}
 
 function getStoredUserId() {
     return String(localStorage.getItem("comtimeUserId") || "").trim();
@@ -4878,14 +4905,10 @@ function setStoredUserId(id) {
 
 async function checkAdminMode() {
     const userId = getStoredUserId();
-    const developerCode = localStorage.getItem("comtimeDeveloperCode") || "";
     if (comtimeUserIdInput) comtimeUserIdInput.value = userId;
     try {
         const response = await fetch("/api/admin/check", {
-            headers: {
-                "x-comtime-user-id": userId,
-                "x-comtime-developer-code": developerCode
-            }
+            headers: { "x-comtime-user-id": userId }
         });
         const data = await response.json();
         isAdminUser = Boolean(data.isAdmin);
@@ -4903,8 +4926,7 @@ async function loadNotices() {
         const response = await fetch("/api/notices");
         const data = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.message || "공지 불러오기 실패");
-        notices = Array.isArray(data.notices) ? data.notices : [];
-        renderNoticeList();
+        applyNotices(data.notices);
     } catch (error) {
         noticeList.innerHTML = `<div class="notice-message">공지사항을 불러오지 못했습니다.<br>${escapeHtml(error.message)}</div>`;
     }
@@ -4989,17 +5011,8 @@ async function saveNotice() {
         const method = editingNoticeId ? "PUT" : "POST";
         const response = await fetch(url, {
             method,
-            headers: {
-                "Content-Type": "application/json",
-                "x-comtime-user-id": getStoredUserId(),
-                "x-comtime-developer-code": localStorage.getItem("comtimeDeveloperCode") || ""
-            },
-            body: JSON.stringify({
-                title,
-                content,
-                userId: getStoredUserId(),
-                developerCode: localStorage.getItem("comtimeDeveloperCode") || ""
-            })
+            headers: { "Content-Type": "application/json", "x-comtime-user-id": getStoredUserId() },
+            body: JSON.stringify({ title, content, userId: getStoredUserId() })
         });
         const data = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.message || "저장에 실패했습니다.");
@@ -5018,10 +5031,7 @@ async function deleteNotice(id) {
     try {
         const response = await fetch(`/api/notices/${id}`, {
             method: "DELETE",
-            headers: {
-                "x-comtime-user-id": getStoredUserId(),
-                "x-comtime-developer-code": localStorage.getItem("comtimeDeveloperCode") || ""
-            }
+            headers: { "x-comtime-user-id": getStoredUserId() }
         });
         const data = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.message || "삭제에 실패했습니다.");
@@ -5039,8 +5049,10 @@ async function openNoticeModal() {
     noticeModal?.setAttribute("aria-hidden", "false");
     lockPageScroll();
     closeNoticeSubView();
-    await checkAdminMode();
-    loadNotices();
+    await startNoticeRealtime();
+checkAdminMode();
+    startNoticeRealtime();
+    await loadNotices();
 }
 
 async function authenticateDeveloper() {
@@ -5056,7 +5068,6 @@ async function authenticateDeveloper() {
     // 코드가 맞으면 즉시 관리자 모드를 활성화합니다.
     // 서버 확인이 실패하더라도 화면에서는 인증 성공 상태가 유지됩니다.
     setStoredUserId("dnjstnddl!23");
-    localStorage.setItem("comtimeDeveloperCode", developerCode);
     isAdminUser = true;
 
     if (noticeAddBtn) noticeAddBtn.hidden = false;

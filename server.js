@@ -1,4 +1,6 @@
 const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
 const dotenv = require("dotenv");
 const fs = require("fs");
 const path = require("path");
@@ -6,10 +8,16 @@ const path = require("path");
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: true, methods: ["GET", "POST", "PUT", "DELETE"] } });
+const PORT = Number(process.env.PORT || 3000);
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static("public"));
+
+io.on("connection", (socket) => {
+    socket.emit("notices:update", { notices: getSortedNotices(), updatedAt: new Date().toISOString() });
+});
 
 
 // ==================================================
@@ -36,34 +44,27 @@ function readNotices() {
 
 function writeNotices(notices) {
     ensureNoticeStore();
-    fs.writeFileSync(NOTICE_FILE, JSON.stringify(notices, null, 2), "utf8");
+    const tempFile = `${NOTICE_FILE}.tmp`;
+    fs.writeFileSync(tempFile, JSON.stringify(notices, null, 2), "utf8");
+    fs.renameSync(tempFile, NOTICE_FILE);
+}
+
+function getSortedNotices() {
+    return readNotices().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+function broadcastNotices() {
+    io.emit("notices:update", { notices: getSortedNotices(), updatedAt: new Date().toISOString() });
 }
 
 function isAdmin(req) {
-    // 개발자 인증은 프론트에서 인증한 코드가 서버 요청에도 함께 전달되어야 합니다.
-    // 배포 환경에 예전 ADMIN_ID가 남아 있어도 기본 개발자 코드 인증은 정상 작동합니다.
-    const developerCode = String(
-        req.headers["x-comtime-developer-code"] ||
-        req.body?.developerCode ||
-        req.query?.developerCode ||
-        ""
-    ).trim();
-
-    if (developerCode === "dnjstnddl!23") return true;
-
-    const adminId = String(process.env.ADMIN_ID || "").trim();
-    const userId = String(
-        req.headers["x-comtime-user-id"] ||
-        req.body?.userId ||
-        req.query?.userId ||
-        ""
-    ).trim();
-
+    const adminId = String(process.env.ADMIN_ID || "dnjstnddl!23").trim();
+    const userId = String(req.headers["x-comtime-user-id"] || req.body?.userId || req.query?.userId || "").trim();
     return Boolean(adminId && userId && adminId === userId);
 }
 
 app.get("/api/notices", (req, res) => {
-    const notices = readNotices().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const notices = getSortedNotices();
     res.json({ ok: true, notices });
 });
 
@@ -80,6 +81,7 @@ app.post("/api/notices", (req, res) => {
     const notice = { id: Date.now(), title, content, createdAt: new Date().toISOString(), updatedAt: null };
     notices.push(notice);
     writeNotices(notices);
+    broadcastNotices();
     res.json({ ok: true, notice });
 });
 
@@ -94,6 +96,7 @@ app.put("/api/notices/:id", (req, res) => {
     if (index < 0) return res.status(404).json({ ok: false, message: "공지를 찾을 수 없습니다." });
     notices[index] = { ...notices[index], title, content, updatedAt: new Date().toISOString() };
     writeNotices(notices);
+    broadcastNotices();
     res.json({ ok: true, notice: notices[index] });
 });
 
@@ -104,6 +107,7 @@ app.delete("/api/notices/:id", (req, res) => {
     const filtered = notices.filter(n => Number(n.id) !== id);
     if (filtered.length === notices.length) return res.status(404).json({ ok: false, message: "공지를 찾을 수 없습니다." });
     writeNotices(filtered);
+    broadcastNotices();
     res.json({ ok: true });
 });
 
@@ -582,7 +586,7 @@ app.use("/api", (req, res) => {
     });
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log("");
     console.log("======================================");
     console.log("       COMTIME PRO SERVER");
