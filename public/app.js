@@ -1,3 +1,12 @@
+console.log("======================================");
+console.log(" COMTIME PRO APP START");
+console.log("======================================");
+
+
+// ==================================================
+// DOM
+// ==================================================
+
 const schoolInput =
     document.getElementById("schoolInput");
 
@@ -7,10 +16,10 @@ const schoolSearchBtn =
 const schoolResults =
     document.getElementById("schoolResults");
 
-const schoolName =
+const schoolNameEl =
     document.getElementById("schoolName");
 
-const schoolInfo =
+const schoolInfoEl =
     document.getElementById("schoolInfo");
 
 const gradeSelect =
@@ -25,35 +34,83 @@ const timetableGrid =
 const mealBox =
     document.getElementById("mealBox");
 
-const currentSubject =
-    document.getElementById("currentSubject");
-
-const currentTeacher =
-    document.getElementById("currentTeacher");
-
-const nextSubject =
-    document.getElementById("nextSubject");
-
-const clock =
+const clockEl =
     document.getElementById("clock");
 
-const todayDate =
+const todayDateEl =
     document.getElementById("todayDate");
+
+const currentSubjectEl =
+    document.getElementById("currentSubject");
+
+const currentTeacherEl =
+    document.getElementById("currentTeacher");
+
+const nextSubjectEl =
+    document.getElementById("nextSubject");
+
+
+// ==================================================
+// BIRD BUMP DOM
+// ==================================================
+
+const birdGameBtn =
+    document.getElementById("birdGameBtn");
+
+const birdGameModal =
+    document.getElementById("birdGameModal");
+
+const gameBackdrop =
+    document.getElementById("gameBackdrop");
+
+const closeGameBtn =
+    document.getElementById("closeGameBtn");
+
+const birdGameContainer =
+    document.getElementById("birdGameContainer");
+
+const birdGameCanvas =
+    document.getElementById("birdGameCanvas");
+
+const birdScoreEl =
+    document.getElementById("birdScore");
+
+const birdBestEl =
+    document.getElementById("birdBest");
+
+const birdStartScreen =
+    document.getElementById("birdStartScreen");
+
+const birdStartBtn =
+    document.getElementById("birdStartBtn");
+
+const birdGameOverScreen =
+    document.getElementById("birdGameOverScreen");
+
+const birdRestartBtn =
+    document.getElementById("birdRestartBtn");
+
+const birdFinalScoreEl =
+    document.getElementById("birdFinalScore");
+
+const birdNewBestEl =
+    document.getElementById("birdNewBest");
+
+const birdControlHint =
+    document.getElementById("birdControlHint");
 
 
 // ==================================================
 // 상태
 // ==================================================
 
-let selectedSchool =
-    null;
+let selectedSchool = null;
 
-let currentTimetable =
-    null;
+let currentTimetable = null;
 
 
 // ==================================================
-// 클래스 선택
+// 반 선택
 // ==================================================
 
 function createClassOptions() {
@@ -71,9 +128,12 @@ function createClassOptions() {
     ) {
 
         const option =
-            document.createElement("option");
+            document.createElement(
+                "option"
+            );
 
         option.value = i;
+
         option.textContent =
             `${i}반`;
 
@@ -85,41 +145,53 @@ function createClassOptions() {
 
 
 // ==================================================
-// 한국 시간
+// 한국 시간 기준 날짜
 // ==================================================
 
 function getKoreaDate() {
 
-    return new Date(
-        new Date().toLocaleString(
-            "en-US",
+    const now =
+        new Date();
+
+    const formatter =
+        new Intl.DateTimeFormat(
+            "ko-KR",
             {
                 timeZone:
-                    "Asia/Seoul"
+                    "Asia/Seoul",
+
+                year:
+                    "numeric",
+
+                month:
+                    "2-digit",
+
+                day:
+                    "2-digit"
             }
-        )
-    );
-}
+        );
 
+    const parts =
+        formatter.formatToParts(
+            now
+        );
 
-function getKoreanDayIndex() {
+    const year =
+        parts.find(
+            p => p.type === "year"
+        ).value;
 
-    return getKoreaDate().getDay();
-}
+    const month =
+        parts.find(
+            p => p.type === "month"
+        ).value;
 
+    const day =
+        parts.find(
+            p => p.type === "day"
+        ).value;
 
-// ==================================================
-// HTML 이스케이프
-// ==================================================
-
-function escapeHtml(value) {
-
-    return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
+    return `${year}-${month}-${day}`;
 }
 
 
@@ -130,31 +202,58 @@ function escapeHtml(value) {
 function updateClock() {
 
     const now =
-        getKoreaDate();
+        new Date();
 
-    if (clock) {
+    const time =
+        now.toLocaleTimeString(
+            "ko-KR",
+            {
+                hour12:
+                    false,
 
-        clock.textContent =
-            now.toLocaleTimeString(
-                "ko-KR",
-                {
-                    hour12: false
-                }
-            );
+                hour:
+                    "2-digit",
+
+                minute:
+                    "2-digit",
+
+                second:
+                    "2-digit",
+
+                timeZone:
+                    "Asia/Seoul"
+            }
+        );
+
+    const date =
+        now.toLocaleDateString(
+            "ko-KR",
+            {
+                year:
+                    "numeric",
+
+                month:
+                    "long",
+
+                day:
+                    "numeric",
+
+                weekday:
+                    "long",
+
+                timeZone:
+                    "Asia/Seoul"
+            }
+        );
+
+    if (clockEl) {
+        clockEl.textContent =
+            time;
     }
 
-    if (todayDate) {
-
-        todayDate.textContent =
-            now.toLocaleDateString(
-                "ko-KR",
-                {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                    weekday: "short"
-                }
-            );
+    if (todayDateEl) {
+        todayDateEl.textContent =
+            date;
     }
 
     updateCurrentClass();
@@ -170,27 +269,73 @@ updateClock();
 
 
 // ==================================================
+// HTML escape
+// ==================================================
+
+function escapeHtml(value) {
+
+    return String(
+        value ?? ""
+    )
+        .replaceAll(
+            "&",
+            "&amp;"
+        )
+        .replaceAll(
+            "<",
+            "&lt;"
+        )
+        .replaceAll(
+            ">",
+            "&gt;"
+        )
+        .replaceAll(
+            '"',
+            "&quot;"
+        )
+        .replaceAll(
+            "'",
+            "&#039;"
+        );
+}
+
+
+// ==================================================
 // 학교 검색
 // ==================================================
 
 async function searchSchool() {
 
+    if (
+        !schoolInput ||
+        !schoolResults
+    ) {
+        return;
+    }
+
     const q =
-        schoolInput?.value
-            .trim() || "";
+        schoolInput.value.trim();
 
     if (!q) {
 
-        schoolResults.innerHTML =
-            '<p class="hint">학교 이름을 입력하세요.</p>';
+        schoolResults.innerHTML = `
+            <p class="hint">
+                학교 이름을 입력하세요.
+            </p>
+        `;
 
         return;
     }
 
+    console.log(
+        `[학교검색] "${q}" 검색`
+    );
 
-    schoolResults.innerHTML =
-        '<p class="hint">학교를 검색하는 중...</p>';
-
+    schoolResults.innerHTML = `
+        <div class="message">
+            학교를 검색하는 중...
+        </div>
+    `;
 
     try {
 
@@ -199,10 +344,13 @@ async function searchSchool() {
                 `/api/search-school?q=${encodeURIComponent(q)}`
             );
 
-
         const data =
             await response.json();
 
+        console.log(
+            "[학교검색 결과]",
+            data
+        );
 
         if (
             !response.ok ||
@@ -211,69 +359,69 @@ async function searchSchool() {
 
             throw new Error(
                 data.message ||
-                "학교 검색에 실패했습니다."
+                "학교 검색 실패"
             );
         }
 
+        const schools =
+            data.schools || [];
 
         if (
-            !data.schools ||
-            !data.schools.length
+            schools.length === 0
         ) {
 
-            schoolResults.innerHTML =
-                '<p class="hint">검색 결과가 없습니다.</p>';
+            schoolResults.innerHTML = `
+                <div class="message">
+                    검색된 학교가 없습니다.
+                </div>
+            `;
 
             return;
         }
 
+        schoolResults.innerHTML = "";
 
-        schoolResults.innerHTML =
-            data.schools
-                .map(
-                    school => `
-                        <button
-                            type="button"
-                            class="school-result"
-                            data-code="${escapeHtml(
-                                school.code
-                            )}"
-                        >
-                            <strong>
-                                ${escapeHtml(
-                                    school.name
-                                )}
-                            </strong>
+        schools.forEach(
+            school => {
 
-                            <span>
-                                ${escapeHtml(
-                                    school.region || ""
-                                )}
-                            </span>
-                        </button>
-                    `
-                )
-                .join("");
-
-
-        document
-            .querySelectorAll(
-                ".school-result"
-            )
-            .forEach(
-                (button, index) => {
-
-                    button.addEventListener(
-                        "click",
-                        () => {
-
-                            selectSchool(
-                                data.schools[index]
-                            );
-                        }
+                const button =
+                    document.createElement(
+                        "button"
                     );
-                }
-            );
+
+                button.type =
+                    "button";
+
+                button.className =
+                    "school-result";
+
+                button.innerHTML = `
+                    <strong>
+                        ${escapeHtml(
+                            school.name
+                        )}
+                    </strong>
+
+                    <span>
+                        ${escapeHtml(
+                            school.region || ""
+                        )}
+                    </span>
+                `;
+
+                button.addEventListener(
+                    "click",
+                    () =>
+                        selectSchool(
+                            school
+                        )
+                );
+
+                schoolResults.appendChild(
+                    button
+                );
+            }
+        );
 
     } catch (error) {
 
@@ -282,10 +430,14 @@ async function searchSchool() {
             error
         );
 
-        schoolResults.innerHTML =
-            `<p class="hint">${escapeHtml(
-                error.message
-            )}</p>`;
+        schoolResults.innerHTML = `
+            <div class="message error">
+                학교 검색 중 오류가 발생했습니다.<br>
+                ${escapeHtml(
+                    error.message
+                )}
+            </div>
+        `;
     }
 }
 
@@ -298,90 +450,135 @@ async function selectSchool(
     school
 ) {
 
-    selectedSchool =
-        school;
+    console.log(
+        "[학교선택]",
+        school
+    );
 
+    selectedSchool = {
+
+        code:
+            Number(
+                school.code
+            ),
+
+        name:
+            school.name,
+
+        region:
+            school.region || "",
+
+        officeCode:
+            null,
+
+        neisSchoolCode:
+            null
+    };
+
+    if (schoolNameEl) {
+
+        schoolNameEl.textContent =
+            selectedSchool.name;
+    }
+
+    if (schoolInfoEl) {
+
+        schoolInfoEl.textContent =
+            `${selectedSchool.region || "학교"} · 학교 선택 완료`;
+    }
+
+    if (schoolResults) {
+
+        schoolResults.innerHTML = `
+            <div class="message">
+                <strong>
+                    ${escapeHtml(
+                        selectedSchool.name
+                    )}
+                </strong>
+                학교를 선택했습니다.
+            </div>
+        `;
+    }
 
     localStorage.setItem(
         "comtime_selected_school",
         JSON.stringify(
-            school
+            selectedSchool
         )
     );
 
+    await loadTimetable();
 
-    if (schoolName) {
+    await loadMeal();
 
-        schoolName.textContent =
-            school.name;
-    }
-
-
-    if (schoolInfo) {
-
-        schoolInfo.textContent =
-            school.region ||
-            "학교 정보";
-    }
-
-
-    if (schoolResults) {
-
-        schoolResults.innerHTML =
-            `<p class="hint">
-                선택됨: ${escapeHtml(
-                    school.name
-                )}
-            </p>`;
-    }
-
-
-    await Promise.all([
-        loadTimetable(),
-        loadMeal()
-    ]);
+    console.log(
+        "[학교선택 완료]",
+        selectedSchool
+    );
 }
 
 
 // ==================================================
-// 시간표
+// 시간표 불러오기
 // ==================================================
 
 async function loadTimetable() {
 
     if (!selectedSchool) {
+
+        if (timetableGrid) {
+
+            timetableGrid.innerHTML = `
+                <div class="message">
+                    학교를 먼저 선택해주세요.
+                </div>
+            `;
+        }
+
         return;
     }
 
+    const grade =
+        Number(
+            gradeSelect?.value || 1
+        );
 
-    timetableGrid.innerHTML =
-        '<div class="message">시간표를 불러오는 중...</div>';
+    const classNum =
+        Number(
+            classSelect?.value || 1
+        );
 
+    if (timetableGrid) {
+
+        timetableGrid.innerHTML = `
+            <div class="message">
+                시간표를 불러오는 중...
+            </div>
+        `;
+    }
+
+    console.log(
+        `[시간표 요청] 학교=${selectedSchool.code}, 학년=${grade}, 반=${classNum}`
+    );
 
     try {
 
-        const grade =
-            Number(
-                gradeSelect.value
-            );
-
-        const classNum =
-            Number(
-                classSelect.value
-            );
-
-
         const response =
             await fetch(
-                `/api/timetable?schoolCode=${encodeURIComponent(
-                    selectedSchool.code
-                )}&grade=${grade}&classNum=${classNum}`
+                `/api/timetable` +
+                `?schoolCode=${selectedSchool.code}` +
+                `&grade=${grade}` +
+                `&classNum=${classNum}`
             );
-
 
         const data =
             await response.json();
 
+        console.log(
+            "[시간표 응답]",
+            data
+        );
 
         if (
             !response.ok ||
@@ -390,14 +587,12 @@ async function loadTimetable() {
 
             throw new Error(
                 data.message ||
-                "시간표를 불러오지 못했습니다."
+                "시간표를 가져오지 못했습니다."
             );
         }
 
-
         currentTimetable =
             data.timetable;
-
 
         renderTimetable(
             currentTimetable
@@ -412,23 +607,182 @@ async function loadTimetable() {
             error
         );
 
-        timetableGrid.innerHTML =
-            `<div class="message">
-                ${escapeHtml(
-                    error.message
-                )}
-            </div>`;
+        if (timetableGrid) {
+
+            timetableGrid.innerHTML = `
+                <div class="message error">
+                    시간표를 불러오지 못했습니다.<br>
+                    ${escapeHtml(
+                        error.message
+                    )}
+                </div>
+            `;
+        }
+
+        currentTimetable =
+            null;
+
+        if (currentSubjectEl) {
+
+            currentSubjectEl.textContent =
+                "시간표를 불러오지 못했습니다.";
+        }
+
+        if (currentTeacherEl) {
+
+            currentTeacherEl.textContent =
+                "-";
+        }
+
+        if (nextSubjectEl) {
+
+            nextSubjectEl.textContent =
+                "-";
+        }
     }
 }
 
 
 // ==================================================
-// 시간표 데이터
+// 오늘 시간표
 // ==================================================
 
-function getTodayItems(
+function getTodayItems() {
+
+    if (!currentTimetable) {
+        return [];
+    }
+
+    if (
+        Array.isArray(
+            currentTimetable
+        )
+    ) {
+
+        const dayIndex =
+            getKoreanDayIndex();
+
+        const dayData =
+            currentTimetable[
+                dayIndex
+            ];
+
+        if (dayData) {
+
+            if (
+                Array.isArray(
+                    dayData.items
+                )
+            ) {
+
+                return dayData.items;
+            }
+
+            if (
+                Array.isArray(
+                    dayData
+                )
+            ) {
+
+                return dayData;
+            }
+        }
+
+        if (
+            currentTimetable.length > 0 &&
+            currentTimetable[0]?.subject !==
+                undefined
+        ) {
+
+            return currentTimetable;
+        }
+    }
+
+    return [];
+}
+
+
+// ==================================================
+// 오늘 요일
+// ==================================================
+
+function getKoreanDayIndex() {
+
+    const now =
+        new Date();
+
+    const koreaString =
+        now.toLocaleString(
+            "en-US",
+            {
+                timeZone:
+                    "Asia/Seoul"
+            }
+        );
+
+    const koreaDate =
+        new Date(
+            koreaString
+        );
+
+    const day =
+        koreaDate.getDay();
+
+    if (day === 0) {
+        return -1;
+    }
+
+    return day - 1;
+}
+
+
+// ==================================================
+// 과목
+// ==================================================
+
+function getSubject(item) {
+
+    if (!item) {
+        return "-";
+    }
+
+    return (
+        item.subject ||
+        item.original?.subject ||
+        "수업"
+    );
+}
+
+
+// ==================================================
+// 선생님
+// ==================================================
+
+function getTeacher(item) {
+
+    if (!item) {
+        return "";
+    }
+
+    return (
+        item.teacher ||
+        item.original?.teacher ||
+        ""
+    );
+}
+
+
+// ==================================================
+// 시간표 표시
+// ==================================================
+
+function renderTimetable(
     timetable
 ) {
+
+    if (!timetableGrid) {
+        return;
+    }
 
     if (
         !Array.isArray(
@@ -436,47 +790,150 @@ function getTodayItems(
         )
     ) {
 
-        return [];
+        timetableGrid.innerHTML = `
+            <div class="message">
+                시간표 데이터가 올바르지 않습니다.
+            </div>
+        `;
+
+        return;
     }
 
+    const dayNames = [
+        "월",
+        "화",
+        "수",
+        "목",
+        "금"
+    ];
 
-    const dayIndex =
-        getKoreanDayIndex();
+    timetableGrid.innerHTML =
+        "";
 
+    timetable.forEach(
+        (
+            dayData,
+            dayIndex
+        ) => {
 
-    const index =
-        dayIndex === 0
-            ? 0
-            : dayIndex - 1;
+            if (!dayData) {
+                return;
+            }
 
+            const items =
+                Array.isArray(
+                    dayData.items
+                )
+                    ? dayData.items
+                    : Array.isArray(
+                        dayData
+                    )
+                        ? dayData
+                        : [];
 
-    return timetable[index]?.items ||
-        [];
-}
+            if (
+                items.length === 0
+            ) {
+                return;
+            }
 
+            const dayColumn =
+                document.createElement(
+                    "div"
+                );
 
-function getSubject(item) {
+            dayColumn.className =
+                "day-column";
 
-    return (
-        item?.subject ||
-        item?.original?.subject ||
-        "-"
+            const dayTitle =
+                document.createElement(
+                    "div"
+                );
+
+            dayTitle.className =
+                "day-title";
+
+            dayTitle.textContent =
+                dayNames[
+                    dayIndex
+                ] ||
+                `${dayIndex + 1}일`;
+
+            dayColumn.appendChild(
+                dayTitle
+            );
+
+            items.forEach(
+                (
+                    item,
+                    index
+                ) => {
+
+                    const subject =
+                        getSubject(
+                            item
+                        );
+
+                    const teacher =
+                        getTeacher(
+                            item
+                        );
+
+                    const card =
+                        document.createElement(
+                            "div"
+                        );
+
+                    card.className =
+                        "lesson-card";
+
+                    card.innerHTML = `
+                        <span class="period">
+                            ${index + 1}교시
+                        </span>
+
+                        <strong>
+                            ${escapeHtml(
+                                subject
+                            )}
+                        </strong>
+
+                        ${
+                            teacher
+                                ? `<small>${escapeHtml(
+                                    teacher
+                                )}</small>`
+                                : ""
+                        }
+                    `;
+
+                    dayColumn.appendChild(
+                        card
+                    );
+                }
+            );
+
+            timetableGrid.appendChild(
+                dayColumn
+            );
+        }
     );
-}
 
+    if (
+        !timetableGrid.children.length
+    ) {
 
-function getTeacher(item) {
-
-    return (
-        item?.teacher ||
-        item?.original?.teacher ||
-        ""
-    );
+        timetableGrid.innerHTML = `
+            <div class="message">
+                표시할 시간표가 없습니다.
+            </div>
+        `;
+    }
 }
 
 
 // ==================================================
-// 시간
+// 교시
 // ==================================================
 
 const PERIODS = [
@@ -528,12 +985,11 @@ const PERIODS = [
         start: "15:55",
         end: "16:40"
     }
-
 ];
 
 
 // ==================================================
-// 시간 문자열 → 분
+// 시간 → 분
 // ==================================================
 
 function timeToMinutes(
@@ -556,116 +1012,44 @@ function timeToMinutes(
 
 
 // ==================================================
-// 시간표 렌더링
+// 현재 한국 시간
 // ==================================================
 
-function renderTimetable(
-    timetable
-) {
+function getCurrentMinutes() {
 
-    if (
-        !Array.isArray(
-            timetable
-        ) ||
-        !timetable.length
-    ) {
+    const now =
+        new Date();
 
-        timetableGrid.innerHTML =
-            '<div class="message">시간표 데이터가 없습니다.</div>';
+    const koreaTime =
+        now.toLocaleTimeString(
+            "en-US",
+            {
+                timeZone:
+                    "Asia/Seoul",
 
-        return;
-    }
+                hour12:
+                    false,
 
+                hour:
+                    "2-digit",
 
-    const dayNames = [
-        "월요일",
-        "화요일",
-        "수요일",
-        "목요일",
-        "금요일"
-    ];
+                minute:
+                    "2-digit"
+            }
+        );
 
+    const [
+        hour,
+        minute
+    ] =
+        koreaTime
+            .split(":")
+            .map(Number);
 
-    timetableGrid.innerHTML =
-        dayNames
-            .map(
-                (
-                    day,
-                    dayIndex
-                ) => {
-
-                    const dayData =
-                        timetable[
-                            dayIndex
-                        ];
-
-                    const items =
-                        dayData?.items ||
-                        [];
-
-
-                    const cards =
-                        PERIODS
-                            .map(
-                                (
-                                    period,
-                                    index
-                                ) => {
-
-                                    const item =
-                                        items[index];
-
-                                    const subject =
-                                        getSubject(
-                                            item
-                                        );
-
-                                    const teacher =
-                                        getTeacher(
-                                            item
-                                        );
-
-
-                                    return `
-                                        <div class="lesson-card">
-
-                                            <span class="lesson-period">
-                                                ${period.period}교시
-                                            </span>
-
-                                            <strong>
-                                                ${escapeHtml(
-                                                    subject
-                                                )}
-                                            </strong>
-
-                                            <small>
-                                                ${escapeHtml(
-                                                    teacher
-                                                )}
-                                            </small>
-
-                                        </div>
-                                    `;
-                                }
-                            )
-                            .join("");
-
-
-                    return `
-                        <div class="day-column">
-
-                            <div class="day-title">
-                                ${day}
-                            </div>
-
-                            ${cards}
-
-                        </div>
-                    `;
-                }
-            )
-            .join("");
+    return (
+        hour * 60 +
+        minute
+    );
 }
 
 
@@ -676,56 +1060,62 @@ function renderTimetable(
 function updateCurrentClass() {
 
     if (
-        !currentTimetable ||
-        !selectedSchool
+        !selectedSchool ||
+        !currentTimetable
     ) {
 
-        return;
-    }
+        if (currentSubjectEl) {
 
-
-    const items =
-        getTodayItems(
-            currentTimetable
-        );
-
-
-    if (!items.length) {
-
-        if (currentSubject) {
-            currentSubject.textContent =
-                "오늘 시간표 없음";
+            currentSubjectEl.textContent =
+                "학교를 선택해주세요";
         }
 
-        if (currentTeacher) {
-            currentTeacher.textContent =
+        if (currentTeacherEl) {
+
+            currentTeacherEl.textContent =
                 "-";
         }
 
-        if (nextSubject) {
-            nextSubject.textContent =
+        if (nextSubjectEl) {
+
+            nextSubjectEl.textContent =
                 "-";
         }
 
         return;
     }
 
+    const dayIndex =
+        getKoreanDayIndex();
 
-    const now =
-        getKoreaDate();
+    if (
+        dayIndex < 0 ||
+        dayIndex > 4
+    ) {
 
+        currentSubjectEl.textContent =
+            "주말입니다";
 
-    const currentMinutes =
-        now.getHours() * 60 +
-        now.getMinutes();
+        currentTeacherEl.textContent =
+            "즐거운 주말 보내세요";
 
+        nextSubjectEl.textContent =
+            "월요일 수업";
 
-    let currentIndex =
-        -1;
+        return;
+    }
 
-    let nextIndex =
-        -1;
+    const todayItems =
+        getTodayItems();
 
+    const nowMinutes =
+        getCurrentMinutes();
+
+    let currentPeriod =
+        null;
+
+    let nextPeriod =
+        null;
 
     for (
         let i = 0;
@@ -746,91 +1136,163 @@ function updateCurrentClass() {
                 period.end
             );
 
-
         if (
-            currentMinutes >= start &&
-            currentMinutes <= end
+            nowMinutes >= start &&
+            nowMinutes <= end
         ) {
 
-            currentIndex =
-                i;
+            currentPeriod =
+                period;
+
+            nextPeriod =
+                PERIODS[
+                    i + 1
+                ] ||
+                null;
 
             break;
         }
 
-
         if (
-            currentMinutes < start &&
-            nextIndex === -1
+            nowMinutes < start &&
+            !nextPeriod
         ) {
 
-            nextIndex =
-                i;
+            nextPeriod =
+                period;
         }
     }
 
 
-    if (
-        currentIndex >= 0
-    ) {
+    if (currentPeriod) {
 
         const item =
-            items[currentIndex];
+            todayItems[
+                currentPeriod.period - 1
+            ];
 
-
-        currentSubject.textContent =
+        const subject =
             getSubject(item);
 
+        const teacher =
+            getTeacher(item);
 
-        currentTeacher.textContent =
-            getTeacher(item) ||
-            "-";
+        currentSubjectEl.textContent =
+            `${currentPeriod.period}교시 · ${subject}`;
 
+        currentTeacherEl.textContent =
+            teacher
+                ? `${teacher} 선생님`
+                : "담당 선생님 정보 없음";
 
-        if (
-            nextIndex === -1 &&
-            currentIndex + 1 <
-                items.length
-        ) {
+        const remaining =
+            timeToMinutes(
+                currentPeriod.end
+            ) -
+            nowMinutes;
 
-            nextIndex =
-                currentIndex + 1;
+        const seconds =
+            60 -
+            new Date().getSeconds();
+
+        const remainText =
+            remaining > 0
+                ? `${remaining - 1}분 ${seconds}초 남음`
+                : "곧 종료";
+
+        nextSubjectEl.textContent =
+            nextPeriod
+                ? `${getSubject(
+                    todayItems[
+                        nextPeriod.period - 1
+                    ]
+                )} · 다음`
+                : "오늘 마지막 수업";
+
+        const nextContainer =
+            document.querySelector(
+                ".next"
+            );
+
+        if (nextContainer) {
+
+            nextContainer.innerHTML = `
+                현재 수업 종료까지
+                <strong>
+                    ${escapeHtml(
+                        remainText
+                    )}
+                </strong>
+            `;
         }
 
-    } else {
-
-        currentSubject.textContent =
-            "수업 없음";
-
-        currentTeacher.textContent =
-            "-";
-
-        if (
-            nextIndex === -1
-        ) {
-
-            nextIndex =
-                items.findIndex(
-                    item =>
-                        getSubject(
-                            item
-                        ) !== "-"
-                );
-        }
+        return;
     }
 
 
-    if (
-        nextSubject
-    ) {
+    if (nextPeriod) {
 
-        nextSubject.textContent =
-            nextIndex >= 0 &&
-            items[nextIndex]
-                ? getSubject(
-                    items[nextIndex]
-                )
-                : "-";
+        const item =
+            todayItems[
+                nextPeriod.period - 1
+            ];
+
+        const subject =
+            getSubject(item);
+
+        const remain =
+            timeToMinutes(
+                nextPeriod.start
+            ) -
+            nowMinutes;
+
+        currentSubjectEl.textContent =
+            "쉬는 시간";
+
+        currentTeacherEl.textContent =
+            "다음 수업 준비하세요";
+
+        nextSubjectEl.textContent =
+            `${nextPeriod.period}교시 ${subject}`;
+
+        const nextContainer =
+            document.querySelector(
+                ".next"
+            );
+
+        if (nextContainer) {
+
+            nextContainer.innerHTML = `
+                다음 수업까지
+                <strong>
+                    ${remain}분
+                </strong>
+            `;
+        }
+
+        return;
+    }
+
+
+    currentSubjectEl.textContent =
+        "오늘 수업 끝";
+
+    currentTeacherEl.textContent =
+        "수고하셨습니다";
+
+    nextSubjectEl.textContent =
+        "내일 수업";
+
+    const nextContainer =
+        document.querySelector(
+            ".next"
+        );
+
+    if (nextContainer) {
+
+        nextContainer.innerHTML = `
+            오늘 수업이 모두 끝났습니다.
+        `;
     }
 }
 
@@ -845,6 +1307,9 @@ async function findNeisSchool() {
         return null;
     }
 
+    console.log(
+        `[NEIS 학교검색] ${selectedSchool.name}`
+    );
 
     try {
 
@@ -855,32 +1320,86 @@ async function findNeisSchool() {
                 )}`
             );
 
-
         const data =
             await response.json();
 
+        console.log(
+            "[NEIS 학교검색 결과]",
+            data
+        );
 
         if (
             !response.ok ||
-            !data.ok ||
-            !data.schools?.length
+            !data.ok
         ) {
+
+            throw new Error(
+                data.message ||
+                "NEIS 학교 검색 실패"
+            );
+        }
+
+        const schools =
+            data.schools || [];
+
+        if (
+            schools.length === 0
+        ) {
+
+            console.warn(
+                "[NEIS] 학교를 찾지 못함"
+            );
 
             return null;
         }
 
-
-        const exact =
-            data.schools.find(
+        let found =
+            schools.find(
                 school =>
                     school.schoolName ===
                     selectedSchool.name
             );
 
+        if (!found) {
 
-        return exact ||
-            data.schools[0] ||
-            null;
+            found =
+                schools[0];
+        }
+
+        console.log(
+            "[NEIS 선택 학교]",
+            found
+        );
+
+        selectedSchool.officeCode =
+            found.officeCode;
+
+        selectedSchool.neisSchoolCode =
+            found.schoolCode;
+
+        selectedSchool.address =
+            found.address || "";
+
+        selectedSchool.schoolType =
+            found.schoolType || "";
+
+        localStorage.setItem(
+            "comtime_selected_school",
+            JSON.stringify(
+                selectedSchool
+            )
+        );
+
+        if (schoolInfoEl) {
+
+            schoolInfoEl.textContent =
+                `${selectedSchool.region || ""} · ${
+                    found.schoolType ||
+                    "학교"
+                }`;
+        }
+
+        return found;
 
     } catch (error) {
 
@@ -901,41 +1420,81 @@ async function findNeisSchool() {
 async function loadMeal() {
 
     if (!selectedSchool) {
+
+        if (mealBox) {
+
+            mealBox.innerHTML = `
+                <div class="message">
+                    학교를 먼저 선택해주세요.
+                </div>
+            `;
+        }
+
         return;
     }
 
+    if (mealBox) {
 
-    mealBox.innerHTML =
-        '<div class="message">오늘의 급식을 불러오는 중...</div>';
-
+        mealBox.innerHTML = `
+            <div class="message">
+                급식 정보를 불러오는 중...
+            </div>
+        `;
+    }
 
     try {
 
-        const neisSchool =
+        if (
+            !selectedSchool.officeCode ||
+            !selectedSchool.neisSchoolCode
+        ) {
+
             await findNeisSchool();
+        }
 
-
-        if (!neisSchool) {
+        if (
+            !selectedSchool.officeCode ||
+            !selectedSchool.neisSchoolCode
+        ) {
 
             throw new Error(
                 "NEIS에서 학교 정보를 찾지 못했습니다."
             );
         }
 
+        const date =
+            getKoreaDate()
+                .replaceAll(
+                    "-",
+                    ""
+                );
+
+        console.log(
+            `[급식 요청] ${selectedSchool.officeCode} / ${selectedSchool.neisSchoolCode} / ${date}`
+        );
+
+        const url =
+            `/api/meal` +
+            `?officeCode=${encodeURIComponent(
+                selectedSchool.officeCode
+            )}` +
+            `&schoolCode=${encodeURIComponent(
+                selectedSchool.neisSchoolCode
+            )}` +
+            `&date=${encodeURIComponent(
+                date
+            )}`;
 
         const response =
-            await fetch(
-                `/api/meal?officeCode=${encodeURIComponent(
-                    neisSchool.officeCode
-                )}&schoolCode=${encodeURIComponent(
-                    neisSchool.schoolCode
-                )}`
-            );
-
+            await fetch(url);
 
         const data =
             await response.json();
 
+        console.log(
+            "[급식 응답]",
+            data
+        );
 
         if (
             !response.ok ||
@@ -944,10 +1503,9 @@ async function loadMeal() {
 
             throw new Error(
                 data.message ||
-                "급식을 불러오지 못했습니다."
+                "급식 정보를 가져오지 못했습니다."
             );
         }
-
 
         renderMeal(
             data.meals || []
@@ -960,88 +1518,135 @@ async function loadMeal() {
             error
         );
 
-        mealBox.innerHTML =
-            `<div class="message">
-                ${escapeHtml(
-                    error.message
-                )}
-            </div>`;
+        if (mealBox) {
+
+            mealBox.innerHTML = `
+                <div class="message error">
+                    급식을 불러오지 못했습니다.<br>
+                    ${escapeHtml(
+                        error.message
+                    )}
+                </div>
+            `;
+        }
     }
 }
 
 
 // ==================================================
-// 급식 렌더링
+// 급식 표시
 // ==================================================
 
 function renderMeal(
     meals
 ) {
 
-    if (!meals.length) {
+    if (!mealBox) {
+        return;
+    }
 
-        mealBox.innerHTML =
-            '<div class="message">오늘 급식 정보가 없습니다.</div>';
+    if (
+        !meals ||
+        meals.length === 0
+    ) {
+
+        mealBox.innerHTML = `
+            <div class="message">
+                오늘 등록된 급식이 없습니다.
+            </div>
+        `;
 
         return;
     }
 
-
     mealBox.innerHTML =
-        meals
-            .map(
-                meal => {
+        "";
 
-                    const menu =
-                        String(
-                            meal.menu ||
-                            ""
-                        )
-                            .replaceAll(
-                                "<br/>",
-                                "\n"
-                            )
-                            .replaceAll(
-                                "<br>",
-                                "\n"
-                            );
+    meals.forEach(
+        meal => {
 
+            const card =
+                document.createElement(
+                    "div"
+                );
 
-                    return `
-                        <div class="meal-card">
+            card.className =
+                "meal-card";
 
-                            <div class="meal-type">
-                                ${escapeHtml(
-                                    meal.mealType
-                                )}
-                            </div>
+            const menu =
+                String(
+                    meal.menu || ""
+                )
+                    .replaceAll(
+                        "<br/>",
+                        "\n"
+                    )
+                    .replaceAll(
+                        "<br>",
+                        "\n"
+                    )
+                    .replaceAll(
+                        "<br />",
+                        "\n"
+                    );
 
-                            <div class="meal-menu">
-                                ${escapeHtml(
-                                    menu
-                                ).replaceAll(
-                                    "\n",
-                                    "<br>"
-                                )}
-                            </div>
+            const menuItems =
+                menu
+                    .split("\n")
+                    .map(
+                        item =>
+                            item.trim()
+                    )
+                    .filter(Boolean);
 
+            card.innerHTML = `
+                <div class="meal-type">
+                    ${escapeHtml(
+                        meal.mealType ||
+                        "급식"
+                    )}
+                </div>
+
+                <div class="meal-menu">
+                    ${
+                        menuItems.length
+                            ? menuItems
+                                .map(
+                                    item =>
+                                        `<div>• ${escapeHtml(
+                                            item
+                                        )}</div>`
+                                )
+                                .join("")
+                            : `<div>
+                                급식 메뉴 정보 없음
+                              </div>`
+                    }
+                </div>
+
+                ${
+                    meal.calories
+                        ? `
                             <div class="meal-calories">
                                 ${escapeHtml(
-                                    meal.calories ||
-                                    ""
+                                    meal.calories
                                 )}
                             </div>
-
-                        </div>
-                    `;
+                        `
+                        : ""
                 }
-            )
-            .join("");
+            `;
+
+            mealBox.appendChild(
+                card
+            );
+        }
+    );
 }
 
 
 // ==================================================
-// 검색 이벤트
+// 검색 버튼
 // ==================================================
 
 if (schoolSearchBtn) {
@@ -1052,6 +1657,10 @@ if (schoolSearchBtn) {
     );
 }
 
+
+// ==================================================
+// 엔터 검색
+// ==================================================
 
 if (schoolInput) {
 
@@ -1071,46 +1680,63 @@ if (schoolInput) {
 }
 
 
+// ==================================================
+// 학년 변경
+// ==================================================
+
 if (gradeSelect) {
 
     gradeSelect.addEventListener(
         "change",
-        loadTimetable
+        () => {
+
+            if (selectedSchool) {
+
+                loadTimetable();
+            }
+        }
     );
 }
 
+
+// ==================================================
+// 반 변경
+// ==================================================
 
 if (classSelect) {
 
     classSelect.addEventListener(
         "change",
-        loadTimetable
+        () => {
+
+            if (selectedSchool) {
+
+                loadTimetable();
+            }
+        }
     );
 }
 
 
 // ==================================================
-// 학교 복원
+// 저장 학교 복구
 // ==================================================
 
-function restoreSchool() {
+async function restoreSchool() {
+
+    const saved =
+        localStorage.getItem(
+            "comtime_selected_school"
+        );
+
+    if (!saved) {
+        return;
+    }
 
     try {
 
-        const saved =
-            localStorage.getItem(
-                "comtime_selected_school"
-            );
-
-
-        if (!saved) {
-            return;
-        }
-
-
         const school =
             JSON.parse(saved);
-
 
         if (
             !school ||
@@ -1120,103 +1746,54 @@ function restoreSchool() {
             return;
         }
 
-
-        selectSchool(
+        console.log(
+            "[저장 학교 복구]",
             school
         );
+
+        selectedSchool =
+            school;
+
+        if (schoolNameEl) {
+
+            schoolNameEl.textContent =
+                school.name;
+        }
+
+        if (schoolInfoEl) {
+
+            schoolInfoEl.textContent =
+                `${school.region || ""} · 저장된 학교`;
+        }
+
+        await loadTimetable();
+
+        await loadMeal();
 
     } catch (error) {
 
         console.error(
-            "[학교 복원 오류]",
+            "[저장 학교 복구 오류]",
             error
+        );
+
+        localStorage.removeItem(
+            "comtime_selected_school"
         );
     }
 }
 
 
 // ==================================================
-// BIRD BUMP
 // ==================================================
-
-const birdGameBtn =
-    document.getElementById(
-        "birdGameBtn"
-    );
-
-const birdGameModal =
-    document.getElementById(
-        "birdGameModal"
-    );
-
-const gameBackdrop =
-    document.getElementById(
-        "gameBackdrop"
-    );
-
-const closeGameBtn =
-    document.getElementById(
-        "closeGameBtn"
-    );
-
-const birdGameCanvas =
-    document.getElementById(
-        "birdGameCanvas"
-    );
-
-const birdGameContainer =
-    document.getElementById(
-        "birdGameContainer"
-    );
-
-const birdStartScreen =
-    document.getElementById(
-        "birdStartScreen"
-    );
-
-const birdGameOverScreen =
-    document.getElementById(
-        "birdGameOverScreen"
-    );
-
-const birdStartBtn =
-    document.getElementById(
-        "birdStartBtn"
-    );
-
-const birdRestartBtn =
-    document.getElementById(
-        "birdRestartBtn"
-    );
-
-const birdScore =
-    document.getElementById(
-        "birdScore"
-    );
-
-const birdBest =
-    document.getElementById(
-        "birdBest"
-    );
-
-const birdFinalScore =
-    document.getElementById(
-        "birdFinalScore"
-    );
-
-const birdNewBest =
-    document.getElementById(
-        "birdNewBest"
-    );
+// BIRD BUMP GAME
+// ==================================================
+// ==================================================
 
 
 // ==================================================
 // 게임 상태
 // ==================================================
-
-let birdCtx =
-    birdGameCanvas
-        ?.getContext("2d");
 
 let birdGameRunning =
     false;
@@ -1224,32 +1801,21 @@ let birdGameRunning =
 let birdGameOver =
     false;
 
-let birdAnimationFrame =
+let birdAnimationId =
     null;
 
 let birdLastTime =
     0;
 
-let birdScoreValue =
+let birdScore =
     0;
 
-let birdBestValue =
+let birdBestScore =
     Number(
         localStorage.getItem(
             "bird_bump_best"
         ) || 0
     );
-
-let birdPlayer = null;
-
-let birdObstacles = [];
-
-let birdClouds = [];
-
-let birdParticles = [];
-
-let birdObstacleTimer =
-    0;
 
 let birdWorldWidth =
     900;
@@ -1261,60 +1827,165 @@ let birdScale =
     1;
 
 
+// ==================================================
+// 게임 지형 설정
+// ==================================================
+
+// 화면 아래쪽으로 확실하게 내림
 const BIRD_GROUND_RATIO =
     0.84;
 
+
+// 천장
 const BIRD_CEILING =
     0;
 
 
+// ==================================================
+// 난이도 설정
+// ==================================================
+
 const BIRD_DIFFICULTY = {
 
-    baseSpeed: 255,
+    // 기본 속도
+    baseSpeed:
+        255,
 
-    maxSpeed: 440,
+    // 최대 속도
+    maxSpeed:
+        440,
 
-    speedPerScore: 3.8,
+    // 점수당 속도 증가
+    speedPerScore:
+        3.8,
 
-    baseGap: 205,
+    // 기본 통로 크기
+    baseGap:
+        205,
 
-    gapShrinkPerScore: 1.45,
+    // 점수당 통로 감소
+    gapShrinkPerScore:
+        1.45,
 
-    minGap: 142,
+    // 절대 최소 통로
+    minGap:
+        142,
 
-    obstacleWidth: 70,
+    // 장애물 기본 폭
+    obstacleWidth:
+        70,
 
-    firstObstacleDelay: 1.35,
+    // 첫 장애물까지 여유
+    firstObstacleDelay:
+        1.35,
 
-    baseObstacleInterval: 1.52,
+    // 기본 장애물 간격
+    baseObstacleInterval:
+        1.52,
 
-    obstacleIntervalDecrease: 0.010,
+    // 점수당 간격 감소
+    obstacleIntervalDecrease:
+        0.010,
 
-    minObstacleInterval: 0.92,
+    // 최소 장애물 간격
+    minObstacleInterval:
+        0.92,
 
-    movingStartScore: 10,
+    // 장애물이 움직이기 시작하는 점수
+    movingStartScore:
+        10,
 
-    hardStartScore: 20,
+    // 움직임이 강해지기 시작하는 점수
+    hardStartScore:
+        20,
 
-    baseMoveRange: 18,
+    // 이동폭 기본값
+    baseMoveRange:
+        18,
 
-    moveRangePerScore: 1.6,
+    // 이동폭 증가
+    moveRangePerScore:
+        1.6,
 
-    baseMoveSpeed: 30,
+    // 장애물 상하 이동속도
+    baseMoveSpeed:
+        30,
 
-    moveSpeedPerScore: 1.1,
+    // 이동속도 증가
+    moveSpeedPerScore:
+        1.1,
 
-    topMargin: 58,
+    // 위쪽 최소 여백
+    topMargin:
+        58,
 
-    bottomMargin: 48
+    // 땅 위 최소 여백
+    bottomMargin:
+        48
 };
 
 
-const BIRD_GRAVITY =
-    1450;
+// ==================================================
+// 게임 객체
+// ==================================================
 
-const BIRD_JUMP =
-    -470;
+const birdPlayer = {
+
+    x:
+        150,
+
+    y:
+        240,
+
+    width:
+        38,
+
+    height:
+        30,
+
+    velocityY:
+        0,
+
+    gravity:
+        1450,
+
+    jumpPower:
+        -470,
+
+    rotation:
+        0
+};
+
+
+let birdObstacles = [];
+
+let birdClouds = [];
+
+let birdParticles = [];
+
+let birdObstacleTimer =
+    0;
+
+let birdCloudTimer =
+    0;
+
+let birdDistance =
+    0;
+
+let birdSpeed =
+    BIRD_DIFFICULTY.baseSpeed;
+
+
+// ==================================================
+// Canvas
+// ==================================================
+
+const birdCtx =
+    birdGameCanvas
+        ? birdGameCanvas.getContext(
+            "2d"
+        )
+        : null;
 
 
 // ==================================================
@@ -1325,16 +1996,15 @@ function resizeBirdCanvas() {
 
     if (
         !birdGameCanvas ||
-        !birdGameContainer
+        !birdGameContainer ||
+        !birdCtx
     ) {
 
         return;
     }
 
-
     const rect =
         birdGameContainer.getBoundingClientRect();
-
 
     const width =
         Math.max(
@@ -1342,13 +2012,11 @@ function resizeBirdCanvas() {
             rect.width
         );
 
-
     const height =
         Math.max(
-            260,
+            400,
             rect.height
         );
-
 
     const dpr =
         Math.min(
@@ -1357,20 +2025,21 @@ function resizeBirdCanvas() {
             2
         );
 
-
     birdGameCanvas.width =
-        width * dpr;
+        Math.floor(
+            width * dpr
+        );
 
     birdGameCanvas.height =
-        height * dpr;
-
+        Math.floor(
+            height * dpr
+        );
 
     birdGameCanvas.style.width =
         `${width}px`;
 
     birdGameCanvas.style.height =
         `${height}px`;
-
 
     birdCtx.setTransform(
         dpr,
@@ -1381,33 +2050,85 @@ function resizeBirdCanvas() {
         0
     );
 
+    birdWorldWidth =
+        width;
+
+    birdWorldHeight =
+        height;
 
     birdScale =
-        Math.min(
-            width / birdWorldWidth,
-            height / birdWorldHeight
+        Math.max(
+            0.72,
+            Math.min(
+                1.15,
+                width / 800
+            )
         );
 }
 
 
+window.addEventListener(
+    "resize",
+    resizeBirdCanvas
+);
+
+
 // ==================================================
-// 점수
+// 실제 땅 위치
+// ==================================================
+
+function getBirdGroundY() {
+
+    return (
+        birdWorldHeight *
+        BIRD_GROUND_RATIO
+    );
+}
+
+
+// ==================================================
+// 점수 표시
 // ==================================================
 
 function updateBirdScore() {
 
-    if (birdScore) {
+    if (birdScoreEl) {
 
-        birdScore.textContent =
-            birdScoreValue;
+        birdScoreEl.textContent =
+            birdScore;
     }
 
+    if (birdBestEl) {
 
-    if (birdBest) {
-
-        birdBest.textContent =
-            birdBestValue;
+        birdBestEl.textContent =
+            birdBestScore;
     }
+}
+
+
+// ==================================================
+// 난이도 표시용
+// ==================================================
+
+function getBirdDifficultyLevel() {
+
+    if (
+        birdScore >=
+        BIRD_DIFFICULTY.hardStartScore
+    ) {
+
+        return "HARD";
+    }
+
+    if (
+        birdScore >=
+        BIRD_DIFFICULTY.movingStartScore
+    ) {
+
+        return "MOVING";
+    }
+
+    return "NORMAL";
 }
 
 
@@ -1417,43 +2138,67 @@ function updateBirdScore() {
 
 function resetBirdGame() {
 
-    birdScoreValue =
+    birdGameRunning =
+        false;
+
+    birdGameOver =
+        false;
+
+    birdLastTime =
         0;
 
-    birdScore &&
-        (birdScore.textContent =
-            "0");
+    birdScore =
+        0;
 
+    birdObstacleTimer =
+        0;
+
+    birdCloudTimer =
+        0;
+
+    birdDistance =
+        0;
+
+    birdSpeed =
+        BIRD_DIFFICULTY.baseSpeed;
+
+    birdPlayer.x =
+        Math.max(
+            110,
+            birdWorldWidth * 0.20
+        );
+
+    birdPlayer.y =
+        birdWorldHeight * 0.38;
+
+    birdPlayer.velocityY =
+        0;
+
+    birdPlayer.rotation =
+        0;
 
     birdObstacles =
-        [];
-
-    birdParticles =
         [];
 
     birdClouds =
         [];
 
-    birdObstacleTimer =
-        -BIRD_DIFFICULTY
-            .firstObstacleDelay;
+    birdParticles =
+        [];
+
+    createInitialBirdClouds();
+
+    updateBirdScore();
+}
 
 
-    birdPlayer = {
+// ==================================================
+// 구름 생성
+// ==================================================
 
-        x: 180,
+function createInitialBirdClouds() {
 
-        y: birdWorldHeight * 0.42,
-
-        width: 38,
-
-        height: 30,
-
-        velocityY: 0,
-
-        rotation: 0
-    };
-
+    birdClouds = [];
 
     for (
         let i = 0;
@@ -1468,92 +2213,26 @@ function resetBirdGame() {
                 birdWorldWidth,
 
             y:
-                35 +
+                55 +
                 Math.random() *
-                210,
+                170,
 
             width:
-                50 +
+                60 +
                 Math.random() *
-                100,
+                90,
 
             speed:
-                10 +
-                Math.random() * 18
+                12 +
+                Math.random() *
+                22,
+
+            opacity:
+                0.35 +
+                Math.random() *
+                0.3
         });
     }
-
-
-    birdGameOver =
-        false;
-
-
-    birdGameRunning =
-        false;
-
-
-    if (birdStartScreen) {
-
-        birdStartScreen.classList.remove(
-            "hidden"
-        );
-    }
-
-
-    if (birdGameOverScreen) {
-
-        birdGameOverScreen.classList.add(
-            "hidden"
-        );
-    }
-
-
-    updateBirdScore();
-}
-
-
-// ==================================================
-// 게임 시작
-// ==================================================
-
-function startBirdGame() {
-
-    resetBirdGame();
-
-
-    birdGameRunning =
-        true;
-
-
-    if (birdStartScreen) {
-
-        birdStartScreen.classList.add(
-            "hidden"
-        );
-    }
-
-
-    if (birdGameOverScreen) {
-
-        birdGameOverScreen.classList.add(
-            "hidden"
-        );
-    }
-
-
-    birdLastTime =
-        performance.now();
-
-
-    cancelAnimationFrame(
-        birdAnimationFrame
-    );
-
-
-    birdAnimationFrame =
-        requestAnimationFrame(
-            birdGameLoop
-        );
 }
 
 
@@ -1565,15 +2244,351 @@ function birdJump() {
 
     if (
         !birdGameRunning ||
-        !birdPlayer
+        birdGameOver
     ) {
 
         return;
     }
 
+    birdPlayer.velocityY =
+        birdPlayer.jumpPower;
+
+    createBirdJumpParticles();
+}
+
+
+// ==================================================
+// 시작
+// ==================================================
+
+function startBirdGame() {
+
+    if (!birdGameCanvas) {
+        return;
+    }
+
+    resizeBirdCanvas();
+
+    resetBirdGame();
+
+    birdGameRunning =
+        true;
+
+    birdGameOver =
+        false;
+
+    if (birdStartScreen) {
+
+        birdStartScreen.classList.add(
+            "hidden"
+        );
+    }
+
+    if (birdGameOverScreen) {
+
+        birdGameOverScreen.classList.add(
+            "hidden"
+        );
+    }
+
+    if (birdControlHint) {
+
+        birdControlHint.textContent =
+            "클릭 또는 SPACE";
+    }
 
     birdPlayer.velocityY =
-        BIRD_JUMP;
+        birdPlayer.jumpPower;
+
+    birdLastTime =
+        performance.now();
+
+    birdAnimationId =
+        requestAnimationFrame(
+            birdGameLoop
+        );
+
+    console.log(
+        "[Bird Bump] 게임 시작"
+    );
+}
+
+
+// ==================================================
+// 게임 오버
+// ==================================================
+
+function endBirdGame() {
+
+    if (birdGameOver) {
+        return;
+    }
+
+    birdGameRunning =
+        false;
+
+    birdGameOver =
+        true;
+
+    if (birdAnimationId) {
+
+        cancelAnimationFrame(
+            birdAnimationId
+        );
+
+        birdAnimationId =
+            null;
+    }
+
+    createExplosionParticles();
+
+    const oldBest =
+        birdBestScore;
+
+    if (
+        birdScore >
+        birdBestScore
+    ) {
+
+        birdBestScore =
+            birdScore;
+
+        localStorage.setItem(
+            "bird_bump_best",
+            String(
+                birdBestScore
+            )
+        );
+    }
+
+    updateBirdScore();
+
+    if (birdFinalScoreEl) {
+
+        birdFinalScoreEl.textContent =
+            birdScore;
+    }
+
+    if (birdNewBestEl) {
+
+        if (
+            birdScore > oldBest
+        ) {
+
+            birdNewBestEl.textContent =
+                "새로운 최고 기록!";
+        } else {
+
+            birdNewBestEl.textContent =
+                `최고 기록 ${birdBestScore}점`;
+        }
+    }
+
+    if (birdGameOverScreen) {
+
+        birdGameOverScreen.classList.remove(
+            "hidden"
+        );
+    }
+
+    drawBirdGame();
+
+    console.log(
+        `[Bird Bump] GAME OVER / SCORE=${birdScore} / DIFFICULTY=${getBirdDifficultyLevel()}`
+    );
+}
+
+
+// ==================================================
+// 게임 루프
+// ==================================================
+
+function birdGameLoop(
+    timestamp
+) {
+
+    if (!birdGameRunning) {
+
+        drawBirdGame();
+
+        return;
+    }
+
+    let delta =
+        (
+            timestamp -
+            birdLastTime
+        ) /
+        1000;
+
+    birdLastTime =
+        timestamp;
+
+    delta =
+        Math.min(
+            delta,
+            0.035
+        );
+
+    updateBirdGame(
+        delta
+    );
+
+    drawBirdGame();
+
+    birdAnimationId =
+        requestAnimationFrame(
+            birdGameLoop
+        );
+}
+
+
+// ==================================================
+// 게임 업데이트
+// ==================================================
+
+function updateBirdGame(
+    delta
+) {
+
+    birdDistance +=
+        birdSpeed *
+        delta;
+
+
+    // ==================================================
+    // 새 물리
+    // ==================================================
+
+    birdPlayer.velocityY +=
+        birdPlayer.gravity *
+        delta;
+
+    birdPlayer.y +=
+        birdPlayer.velocityY *
+        delta;
+
+    birdPlayer.rotation =
+        Math.max(
+            -0.45,
+            Math.min(
+                1.1,
+                birdPlayer.velocityY /
+                650
+            )
+        );
+
+
+    // ==================================================
+    // 점수 기반 난이도
+    // ==================================================
+
+    birdSpeed =
+        Math.min(
+            BIRD_DIFFICULTY.maxSpeed,
+            BIRD_DIFFICULTY.baseSpeed +
+            birdScore *
+            BIRD_DIFFICULTY.speedPerScore
+        );
+
+
+    // ==================================================
+    // 장애물 생성
+    // ==================================================
+
+    birdObstacleTimer +=
+        delta;
+
+    const obstacleInterval =
+        Math.max(
+            BIRD_DIFFICULTY.minObstacleInterval,
+            BIRD_DIFFICULTY.baseObstacleInterval -
+            birdScore *
+            BIRD_DIFFICULTY.obstacleIntervalDecrease
+        );
+
+    if (
+        birdObstacleTimer >=
+        obstacleInterval
+    ) {
+
+        birdObstacleTimer =
+            0;
+
+        createBirdObstacle();
+    }
+
+
+    // ==================================================
+    // 구름
+    // ==================================================
+
+    updateBirdClouds(
+        delta
+    );
+
+
+    // ==================================================
+    // 장애물
+    // ==================================================
+
+    updateBirdObstacles(
+        delta
+    );
+
+
+    // ==================================================
+    // 파티클
+    // ==================================================
+
+    updateBirdParticles(
+        delta
+    );
+
+
+    // ==================================================
+    // 점수
+    // ==================================================
+
+    birdObstacles.forEach(
+        obstacle => {
+
+            if (
+                !obstacle.scored &&
+                obstacle.x +
+                    obstacle.width <
+                    birdPlayer.x
+            ) {
+
+                obstacle.scored =
+                    true;
+
+                birdScore++;
+
+                updateBirdScore();
+
+                createScoreParticles(
+                    obstacle.x,
+                    obstacle.gapY +
+                    obstacle.gapSize / 2
+                );
+            }
+        }
+    );
+
+
+    // ==================================================
+    // 충돌
+    // ==================================================
+
+    if (
+        checkBirdCollision()
+    ) {
+
+        endBirdGame();
+
+        return;
+    }
 }
 
 
@@ -1583,182 +2598,427 @@ function birdJump() {
 
 function createBirdObstacle() {
 
-    const score =
-        birdScoreValue;
+    const groundY =
+        getBirdGroundY();
 
 
-    const gap =
+    // ==================================================
+    // 통로 크기
+    // ==================================================
+
+    const gapSize =
         Math.max(
             BIRD_DIFFICULTY.minGap,
-
             BIRD_DIFFICULTY.baseGap -
-            score *
+            birdScore *
             BIRD_DIFFICULTY.gapShrinkPerScore
         );
 
 
-    const ground =
-        birdWorldHeight *
-        BIRD_GROUND_RATIO;
+    // ==================================================
+    // 안전 영역
+    // ==================================================
 
-
-    const minTop =
+    const topMargin =
         BIRD_DIFFICULTY.topMargin;
 
-
-    const maxTop =
-        ground -
-        gap -
+    const bottomMargin =
         BIRD_DIFFICULTY.bottomMargin;
 
 
-    const topHeight =
-        minTop +
-        Math.random() *
+    const minGapY =
+        topMargin;
+
+
+    const maxGapY =
         Math.max(
-            10,
-            maxTop -
-            minTop
+            minGapY,
+            groundY -
+            bottomMargin -
+            gapSize
         );
 
 
+    // ==================================================
+    // 랜덤 통로
+    // ==================================================
+
+    let gapY =
+        minGapY +
+        Math.random() *
+        Math.max(
+            0,
+            maxGapY -
+            minGapY
+        );
+
+
+    // ==================================================
+    // 이동 장애물 설정
+    // ==================================================
+
     const moving =
-        score >=
+        birdScore >=
         BIRD_DIFFICULTY.movingStartScore;
 
 
-    const hard =
-        score >=
-        BIRD_DIFFICULTY.hardStartScore;
+    let moveRange =
+        0;
+
+    let moveSpeed =
+        0;
+
+
+    if (moving) {
+
+        moveRange =
+            Math.min(
+                85,
+                BIRD_DIFFICULTY.baseMoveRange +
+                Math.max(
+                    0,
+                    birdScore -
+                    BIRD_DIFFICULTY.movingStartScore
+                ) *
+                BIRD_DIFFICULTY.moveRangePerScore
+            );
+
+        moveSpeed =
+            BIRD_DIFFICULTY.baseMoveSpeed +
+            Math.max(
+                0,
+                birdScore -
+                BIRD_DIFFICULTY.movingStartScore
+            ) *
+            BIRD_DIFFICULTY.moveSpeedPerScore;
+    }
+
+
+    // ==================================================
+    // 이동 가능한 범위 계산
+    // ==================================================
+
+    const movementMin =
+        minGapY;
+
+    const movementMax =
+        maxGapY;
+
+
+    // 이동폭이 실제 가능한 공간보다 크지 않도록 제한
+    const availableMovement =
+        Math.max(
+            0,
+            Math.min(
+                moveRange,
+                (
+                    movementMax -
+                    movementMin
+                ) /
+                2
+            )
+        );
+
+
+    // ==================================================
+    // 이동 시작 위치
+    // ==================================================
+
+    if (
+        moving &&
+        availableMovement > 0
+    ) {
+
+        const safeMin =
+            movementMin +
+            availableMovement;
+
+        const safeMax =
+            movementMax -
+            availableMovement;
+
+        if (
+            safeMax >= safeMin
+        ) {
+
+            gapY =
+                safeMin +
+                Math.random() *
+                (
+                    safeMax -
+                    safeMin
+                );
+        }
+
+        moveRange =
+            availableMovement;
+    }
+
+
+    const width =
+        BIRD_DIFFICULTY.obstacleWidth;
 
 
     birdObstacles.push({
 
         x:
             birdWorldWidth +
-            20,
+            35,
 
         width:
-            BIRD_DIFFICULTY.obstacleWidth,
+            width,
 
-        topHeight,
+        gapY:
+            gapY,
 
-        gap,
+        gapSize:
+            gapSize,
 
         scored:
             false,
 
-        moving,
+        moving:
+            moving &&
+            moveRange > 0,
 
         moveRange:
-            moving
-                ? BIRD_DIFFICULTY.baseMoveRange +
-                  score *
-                  BIRD_DIFFICULTY.moveRangePerScore
-                : 0,
+            moveRange,
 
         moveSpeed:
-            moving
-                ? BIRD_DIFFICULTY.baseMoveSpeed +
-                  score *
-                  BIRD_DIFFICULTY.moveSpeedPerScore
-                : 0,
+            moveSpeed,
 
-        moveTime:
-            Math.random() *
-            Math.PI *
-            2,
+        moveDirection:
+            Math.random() <
+            0.5
+                ? -1
+                : 1,
 
-        hard
+        baseGapY:
+            gapY
     });
 }
 
 
 // ==================================================
-// 파티클
+// 장애물 업데이트
 // ==================================================
 
-function createBirdParticle(
-    x,
-    y,
-    type = "normal"
+function updateBirdObstacles(
+    delta
 ) {
 
-    birdParticles.push({
+    const groundY =
+        getBirdGroundY();
 
-        x,
 
-        y,
+    for (
+        let i =
+            birdObstacles.length - 1;
+        i >= 0;
+        i--
+    ) {
 
-        vx:
-            -60 +
-            Math.random() *
-            120,
+        const obstacle =
+            birdObstacles[i];
 
-        vy:
-            -100 +
-            Math.random() *
-            100,
 
-        size:
-            2 +
-            Math.random() *
-            4,
+        // ==================================================
+        // 좌우 이동
+        // ==================================================
 
-        life:
-            0.5,
+        obstacle.x -=
+            birdSpeed *
+            delta;
 
-        maxLife:
-            0.5,
 
-        type
-    });
+        // ==================================================
+        // 상하 이동
+        // ==================================================
+
+        if (
+            obstacle.moving &&
+            obstacle.moveRange > 0
+        ) {
+
+            obstacle.gapY +=
+                obstacle.moveDirection *
+                obstacle.moveSpeed *
+                delta;
+
+
+            const minY =
+                BIRD_DIFFICULTY.topMargin;
+
+            const maxY =
+                groundY -
+                BIRD_DIFFICULTY.bottomMargin -
+                obstacle.gapSize;
+
+
+            const lowerLimit =
+                Math.max(
+                    minY,
+                    Math.min(
+                        maxY,
+                        obstacle.baseGapY -
+                        obstacle.moveRange
+                    )
+                );
+
+            const upperLimit =
+                Math.max(
+                    lowerLimit,
+                    Math.min(
+                        maxY,
+                        obstacle.baseGapY +
+                        obstacle.moveRange
+                    )
+                );
+
+
+            if (
+                obstacle.gapY <=
+                lowerLimit
+            ) {
+
+                obstacle.gapY =
+                    lowerLimit;
+
+                obstacle.moveDirection =
+                    1;
+            }
+
+
+            if (
+                obstacle.gapY >=
+                upperLimit
+            ) {
+
+                obstacle.gapY =
+                    upperLimit;
+
+                obstacle.moveDirection =
+                    -1;
+            }
+        }
+
+
+        // ==================================================
+        // 화면 밖 제거
+        // ==================================================
+
+        if (
+            obstacle.x +
+                obstacle.width <
+                -120
+        ) {
+
+            birdObstacles.splice(
+                i,
+                1
+            );
+        }
+    }
 }
 
 
 // ==================================================
-// 충돌
+// 구름 업데이트
 // ==================================================
 
-function birdRectCollision(
-    a,
-    b
+function updateBirdClouds(
+    delta
 ) {
 
-    return (
-        a.x <
-            b.x +
-            b.width &&
+    birdClouds.forEach(
+        cloud => {
 
-        a.x +
-            a.width >
-            b.x &&
+            cloud.x -=
+                cloud.speed *
+                delta;
 
-        a.y <
-            b.y +
-            b.height &&
+            if (
+                cloud.x +
+                    cloud.width <
+                    -30
+            ) {
 
-        a.y +
-            a.height >
-            b.y
+                cloud.x =
+                    birdWorldWidth +
+                    40;
+
+                cloud.y =
+                    40 +
+                    Math.random() *
+                    170;
+
+                cloud.opacity =
+                    0.25 +
+                    Math.random() *
+                    0.35;
+            }
+        }
     );
 }
 
 
+// ==================================================
+// 충돌 판정
+// ==================================================
+
 function checkBirdCollision() {
 
-    if (!birdPlayer) {
-        return false;
-    }
+    // ==================================================
+    // 새 충돌 박스
+    // ==================================================
+
+    const paddingX =
+        6;
+
+    const paddingY =
+        5;
+
+    const bx =
+        birdPlayer.x +
+        paddingX;
+
+    const by =
+        birdPlayer.y +
+        paddingY;
+
+    const bw =
+        birdPlayer.width -
+        paddingX * 2;
+
+    const bh =
+        birdPlayer.height -
+        paddingY * 2;
 
 
-    const ground =
-        birdWorldHeight *
-        BIRD_GROUND_RATIO;
+    // ==================================================
+    // 땅
+    // ==================================================
+
+    const groundY =
+        getBirdGroundY();
 
 
     if (
-        birdPlayer.y <=
+        by +
+        bh >=
+        groundY
+    ) {
+
+        return true;
+    }
+
+
+    // ==================================================
+    // 천장
+    // ==================================================
+
+    if (
+        by <=
         BIRD_CEILING
     ) {
 
@@ -1766,67 +3026,62 @@ function checkBirdCollision() {
     }
 
 
-    if (
-        birdPlayer.y +
-        birdPlayer.height >=
-        ground
-    ) {
-
-        return true;
-    }
-
+    // ==================================================
+    // 장애물
+    // ==================================================
 
     for (
         const obstacle of
-        birdObstacles
+            birdObstacles
     ) {
 
-        const topPipe = {
+        const ox =
+            obstacle.x;
 
-            x:
-                obstacle.x,
-
-            y:
-                0,
-
-            width:
-                obstacle.width,
-
-            height:
-                obstacle.topHeight
-        };
+        const ow =
+            obstacle.width;
 
 
-        const bottomPipe = {
+        const topPipeBottom =
+            obstacle.gapY;
 
-            x:
-                obstacle.x,
+        const bottomPipeTop =
+            obstacle.gapY +
+            obstacle.gapSize;
 
-            y:
-                obstacle.topHeight +
-                obstacle.gap,
 
-            width:
-                obstacle.width,
+        // 좌우 충돌
+        const horizontal =
+            bx <
+                ox + ow &&
+            bx + bw >
+                ox;
 
-            height:
-                ground -
-                (
-                    obstacle.topHeight +
-                    obstacle.gap
-                )
-        };
+
+        if (!horizontal) {
+            continue;
+        }
+
+
+        // 위쪽 기둥
+        const hitTop =
+            by <
+                topPipeBottom &&
+            by + bh >
+                0;
+
+
+        // 아래쪽 기둥
+        const hitBottom =
+            by + bh >
+                bottomPipeTop &&
+            by <
+                groundY;
 
 
         if (
-            birdRectCollision(
-                birdPlayer,
-                topPipe
-            ) ||
-            birdRectCollision(
-                birdPlayer,
-                bottomPipe
-            )
+            hitTop ||
+            hitBottom
         ) {
 
             return true;
@@ -1839,340 +3094,198 @@ function checkBirdCollision() {
 
 
 // ==================================================
-// 게임 종료
+// 파티클
 // ==================================================
 
-function endBirdGame() {
-
-    if (
-        birdGameOver
-    ) {
-
-        return;
-    }
-
-
-    birdGameRunning =
-        false;
-
-    birdGameOver =
-        true;
-
-
-    const isNewBest =
-        birdScoreValue >
-        birdBestValue;
-
-
-    if (isNewBest) {
-
-        birdBestValue =
-            birdScoreValue;
-
-        localStorage.setItem(
-            "bird_bump_best",
-            String(
-                birdBestValue
-            )
-        );
-    }
-
-
-    if (birdFinalScore) {
-
-        birdFinalScore.textContent =
-            birdScoreValue;
-    }
-
-
-    if (birdNewBest) {
-
-        birdNewBest.textContent =
-            isNewBest
-                ? "NEW BEST!"
-                : `최고 기록: ${birdBestValue}`;
-    }
-
-
-    if (birdGameOverScreen) {
-
-        birdGameOverScreen.classList.remove(
-            "hidden"
-        );
-    }
-
-
-    updateBirdScore();
-
+function createBirdJumpParticles() {
 
     for (
         let i = 0;
-        i < 25;
+        i < 4;
         i++
     ) {
 
-        createBirdParticle(
-            birdPlayer.x +
-            birdPlayer.width / 2,
+        birdParticles.push({
 
-            birdPlayer.y +
-            birdPlayer.height / 2,
+            x:
+                birdPlayer.x,
 
-            "explosion"
-        );
+            y:
+                birdPlayer.y +
+                birdPlayer.height,
+
+            vx:
+                -30 -
+                Math.random() *
+                50,
+
+            vy:
+                -10 +
+                Math.random() *
+                35,
+
+            life:
+                0.35,
+
+            maxLife:
+                0.35,
+
+            size:
+                2 +
+                Math.random() *
+                3,
+
+            type:
+                "jump"
+        });
     }
 }
 
 
-// ==================================================
-// 게임 업데이트
-// ==================================================
-
-function updateBirdGame(
-    dt
+function createScoreParticles(
+    x,
+    y
 ) {
 
-    if (
-        !birdGameRunning ||
-        !birdPlayer
-    ) {
-
-        return;
-    }
-
-
-    const score =
-        birdScoreValue;
-
-
-    const speed =
-        Math.min(
-            BIRD_DIFFICULTY.maxSpeed,
-
-            BIRD_DIFFICULTY.baseSpeed +
-            score *
-            BIRD_DIFFICULTY.speedPerScore
-        );
-
-
-    birdPlayer.velocityY +=
-        BIRD_GRAVITY *
-        dt;
-
-
-    birdPlayer.y +=
-        birdPlayer.velocityY *
-        dt;
-
-
-    birdPlayer.rotation =
-        Math.max(
-            -0.35,
-            Math.min(
-                1.0,
-                birdPlayer.velocityY /
-                700
-            )
-        );
-
-
-    birdObstacleTimer +=
-        dt;
-
-
-    const interval =
-        Math.max(
-            BIRD_DIFFICULTY.minObstacleInterval,
-
-            BIRD_DIFFICULTY.baseObstacleInterval -
-            score *
-            BIRD_DIFFICULTY.obstacleIntervalDecrease
-        );
-
-
-    if (
-        birdObstacleTimer >=
-        interval
-    ) {
-
-        birdObstacleTimer -=
-            interval;
-
-        createBirdObstacle();
-    }
-
-
     for (
-        const obstacle of
-        birdObstacles
+        let i = 0;
+        i < 9;
+        i++
     ) {
 
-        obstacle.x -=
-            speed *
-            dt;
+        birdParticles.push({
 
+            x:
+                x,
 
-        if (
-            obstacle.moving
-        ) {
+            y:
+                y,
 
-            obstacle.moveTime +=
-                obstacle.moveSpeed *
-                dt *
-                0.02;
-
-
-            const offset =
-                Math.sin(
-                    obstacle.moveTime
-                ) *
-                obstacle.moveRange;
-
-
-            obstacle.currentOffset =
-                offset;
-        }
-
-
-        if (
-            !obstacle.scored &&
-            obstacle.x +
-            obstacle.width <
-            birdPlayer.x
-        ) {
-
-            obstacle.scored =
-                true;
-
-            birdScoreValue +=
-                1;
-
-            updateBirdScore();
-
-
-            createBirdParticle(
-                birdPlayer.x +
-                birdPlayer.width,
-
-                birdPlayer.y,
-
-                "score"
-            );
-        }
-    }
-
-
-    birdObstacles =
-        birdObstacles.filter(
-            obstacle =>
-                obstacle.x +
-                obstacle.width >
-                -100
-        );
-
-
-    for (
-        const cloud of
-        birdClouds
-    ) {
-
-        cloud.x -=
-            cloud.speed *
-            dt;
-
-
-        if (
-            cloud.x +
-            cloud.width <
-            -50
-        ) {
-
-            cloud.x =
-                birdWorldWidth +
+            vx:
+                -50 +
                 Math.random() *
-                100;
-        }
-    }
+                100,
 
+            vy:
+                -90 +
+                Math.random() *
+                40,
+
+            life:
+                0.65,
+
+            maxLife:
+                0.65,
+
+            size:
+                2 +
+                Math.random() *
+                4,
+
+            type:
+                "score"
+        });
+    }
+}
+
+
+function createExplosionParticles() {
 
     for (
-        const particle of
-        birdParticles
+        let i = 0;
+        i < 28;
+        i++
     ) {
+
+        const angle =
+            Math.random() *
+            Math.PI *
+            2;
+
+        const speed =
+            60 +
+            Math.random() *
+            230;
+
+        birdParticles.push({
+
+            x:
+                birdPlayer.x +
+                birdPlayer.width /
+                2,
+
+            y:
+                birdPlayer.y +
+                birdPlayer.height /
+                2,
+
+            vx:
+                Math.cos(angle) *
+                speed,
+
+            vy:
+                Math.sin(angle) *
+                speed,
+
+            life:
+                0.8 +
+                Math.random() *
+                0.4,
+
+            maxLife:
+                1.2,
+
+            size:
+                3 +
+                Math.random() *
+                6,
+
+            type:
+                "explosion"
+        });
+    }
+}
+
+
+function updateBirdParticles(
+    delta
+) {
+
+    for (
+        let i =
+            birdParticles.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const particle =
+            birdParticles[i];
+
+        particle.life -=
+            delta;
 
         particle.x +=
             particle.vx *
-            dt;
+            delta;
 
         particle.y +=
             particle.vy *
-            dt;
+            delta;
 
         particle.vy +=
-            400 *
-            dt;
+            220 *
+            delta;
 
-        particle.life -=
-            dt;
-    }
+        if (
+            particle.life <=
+            0
+        ) {
 
-
-    birdParticles =
-        birdParticles.filter(
-            particle =>
-                particle.life >
-                0
-        );
-
-
-    if (
-        checkBirdCollision()
-    ) {
-
-        endBirdGame();
-    }
-}
-
-
-// ==================================================
-// 게임 루프
-// ==================================================
-
-function birdGameLoop(
-    timestamp
-) {
-
-    const dt =
-        Math.min(
-            0.033,
-
-            (
-                timestamp -
-                birdLastTime
-            ) / 1000
-        );
-
-
-    birdLastTime =
-        timestamp;
-
-
-    updateBirdGame(
-        dt
-    );
-
-
-    drawBirdGame();
-
-
-    if (
-        birdGameRunning
-    ) {
-
-        birdAnimationFrame =
-            requestAnimationFrame(
-                birdGameLoop
+            birdParticles.splice(
+                i,
+                1
             );
+        }
     }
 }
 
@@ -2191,13 +3304,11 @@ function drawBirdGame() {
         return;
     }
 
-
     const width =
-        birdGameCanvas.clientWidth;
+        birdWorldWidth;
 
     const height =
-        birdGameCanvas.clientHeight;
-
+        birdWorldHeight;
 
     birdCtx.clearRect(
         0,
@@ -2207,46 +3318,10 @@ function drawBirdGame() {
     );
 
 
-    birdCtx.save();
-
-
-    birdCtx.scale(
-        birdScale,
-        birdScale
+    drawBirdBackground(
+        width,
+        height
     );
-
-
-    const offsetX =
-        (
-            width -
-            birdWorldWidth *
-            birdScale
-        ) /
-        (
-            2 *
-            birdScale
-        );
-
-
-    const offsetY =
-        (
-            height -
-            birdWorldHeight *
-            birdScale
-        ) /
-        (
-            2 *
-            birdScale
-        );
-
-
-    birdCtx.translate(
-        offsetX,
-        offsetY
-    );
-
-
-    drawBirdBackground();
 
     drawBirdClouds();
 
@@ -2255,9 +3330,6 @@ function drawBirdGame() {
     drawBirdParticles();
 
     drawBirdPlayer();
-
-
-    birdCtx.restore();
 }
 
 
@@ -2265,66 +3337,201 @@ function drawBirdGame() {
 // 배경
 // ==================================================
 
-function drawBirdBackground() {
+function drawBirdBackground(
+    width,
+    height
+) {
 
-    const gradient =
+    const groundY =
+        getBirdGroundY();
+
+
+    const groundRatio =
+        groundY /
+        height;
+
+
+    const sky =
         birdCtx.createLinearGradient(
             0,
             0,
             0,
-            birdWorldHeight
+            height
         );
 
 
-    gradient.addColorStop(
+    sky.addColorStop(
         0,
-        "#8bd5ff"
+        "#dff2ff"
     );
 
-    gradient.addColorStop(
-        0.55,
-        "#b7e6ff"
+    sky.addColorStop(
+        Math.max(
+            0,
+            groundRatio - 0.12
+        ),
+        "#f7fcff"
     );
 
-    gradient.addColorStop(
+    sky.addColorStop(
+        Math.min(
+            1,
+            groundRatio
+        ),
+        "#dcebd4"
+    );
+
+    sky.addColorStop(
         1,
-        "#edf7ff"
+        "#cfe2c3"
     );
 
 
     birdCtx.fillStyle =
-        gradient;
-
+        sky;
 
     birdCtx.fillRect(
         0,
         0,
-        birdWorldWidth,
-        birdWorldHeight
+        width,
+        height
     );
 
 
-    const ground =
-        birdWorldHeight *
-        BIRD_GROUND_RATIO;
-
+    // ==================================================
+    // 먼 산
+    // ==================================================
 
     birdCtx.fillStyle =
-        "#e7f1ff";
+        "rgba(155, 187, 155, 0.25)";
 
+    birdCtx.beginPath();
+
+    birdCtx.moveTo(
+        0,
+        groundY
+    );
+
+    for (
+        let x = 0;
+        x <= width;
+        x += 70
+    ) {
+
+        const y =
+            groundY -
+            25 -
+            Math.sin(
+                x * 0.014
+            ) * 18;
+
+        birdCtx.lineTo(
+            x,
+            y
+        );
+    }
+
+    birdCtx.lineTo(
+        width,
+        height
+    );
+
+    birdCtx.lineTo(
+        0,
+        height
+    );
+
+    birdCtx.closePath();
+
+    birdCtx.fill();
+
+
+    // ==================================================
+    // 땅
+    // ==================================================
+
+    birdCtx.fillStyle =
+        "#d2e5c8";
 
     birdCtx.fillRect(
         0,
-        ground,
-        birdWorldWidth,
-        birdWorldHeight -
-        ground
+        groundY,
+        width,
+        height -
+        groundY
     );
+
+
+    // ==================================================
+    // 잔디 라인
+    // ==================================================
+
+    birdCtx.strokeStyle =
+        "#b9d2ad";
+
+    birdCtx.lineWidth =
+        3;
+
+    birdCtx.beginPath();
+
+    birdCtx.moveTo(
+        0,
+        groundY
+    );
+
+    birdCtx.lineTo(
+        width,
+        groundY
+    );
+
+    birdCtx.stroke();
+
+
+    // ==================================================
+    // 잔디 디테일
+    // ==================================================
+
+    birdCtx.strokeStyle =
+        "rgba(126, 160, 115, 0.45)";
+
+    birdCtx.lineWidth =
+        1.5;
+
+    for (
+        let x = 0;
+        x < width;
+        x += 18
+    ) {
+
+        birdCtx.beginPath();
+
+        birdCtx.moveTo(
+            x,
+            groundY + 2
+        );
+
+        birdCtx.lineTo(
+            x + 4,
+            groundY - 3
+        );
+
+        birdCtx.moveTo(
+            x + 7,
+            groundY + 2
+        );
+
+        birdCtx.lineTo(
+            x + 10,
+            groundY - 2
+        );
+
+        birdCtx.stroke();
+    }
 }
 
 
 // ==================================================
-// 구름
+// 구름 그리기
 // ==================================================
 
 function drawBirdClouds() {
@@ -2335,60 +3542,53 @@ function drawBirdClouds() {
             birdCtx.save();
 
             birdCtx.globalAlpha =
-                0.55;
-
+                cloud.opacity;
 
             birdCtx.fillStyle =
                 "#ffffff";
 
+            const x =
+                cloud.x;
+
+            const y =
+                cloud.y;
+
+            const w =
+                cloud.width;
 
             birdCtx.beginPath();
 
             birdCtx.arc(
-                cloud.x +
-                cloud.width *
-                0.25,
-
-                cloud.y,
-
-                cloud.width *
-                0.22,
-
+                x + w * 0.25,
+                y + 10,
+                15,
                 0,
                 Math.PI * 2
             );
-
 
             birdCtx.arc(
-                cloud.x +
-                cloud.width *
-                0.48,
-
-                cloud.y -
-                10,
-
-                cloud.width *
-                0.30,
-
+                x + w * 0.45,
+                y,
+                21,
                 0,
                 Math.PI * 2
             );
-
 
             birdCtx.arc(
-                cloud.x +
-                cloud.width *
-                0.72,
-
-                cloud.y,
-
-                cloud.width *
-                0.23,
-
+                x + w * 0.68,
+                y + 8,
+                16,
                 0,
                 Math.PI * 2
             );
 
+            birdCtx.roundRect(
+                x,
+                y + 8,
+                w,
+                25,
+                15
+            );
 
             birdCtx.fill();
 
@@ -2399,121 +3599,319 @@ function drawBirdClouds() {
 
 
 // ==================================================
-// 장애물
+// 장애물 그리기
 // ==================================================
 
 function drawBirdObstacles() {
 
-    const ground =
-        birdWorldHeight *
-        BIRD_GROUND_RATIO;
+    const groundY =
+        getBirdGroundY();
 
 
     birdObstacles.forEach(
         obstacle => {
 
-            const offset =
-                obstacle.currentOffset ||
-                0;
+            const x =
+                obstacle.x;
 
+            const width =
+                obstacle.width;
 
             const topHeight =
-                obstacle.topHeight +
-                offset;
-
+                obstacle.gapY;
 
             const bottomY =
-                topHeight +
-                obstacle.gap;
+                obstacle.gapY +
+                obstacle.gapSize;
 
 
-            const pipeGradient =
-                birdCtx.createLinearGradient(
-                    obstacle.x,
+            // ==================================================
+            // 위쪽 기둥
+            // ==================================================
+
+            drawObstaclePipe(
+                x,
+                0,
+                width,
+                topHeight,
+                true
+            );
+
+
+            // ==================================================
+            // 아래쪽 기둥
+            // ==================================================
+
+            drawObstaclePipe(
+                x,
+                bottomY,
+                width,
+                Math.max(
                     0,
-                    obstacle.x +
-                    obstacle.width,
-                    0
-                );
-
-
-            pipeGradient.addColorStop(
-                0,
-                "#4c59d9"
-            );
-
-            pipeGradient.addColorStop(
-                0.45,
-                "#7486ff"
-            );
-
-            pipeGradient.addColorStop(
-                1,
-                "#4c59d9"
-            );
-
-
-            birdCtx.fillStyle =
-                pipeGradient;
-
-
-            birdCtx.fillRect(
-                obstacle.x,
-                0,
-                obstacle.width,
-                topHeight
-            );
-
-
-            birdCtx.fillRect(
-                obstacle.x,
-                bottomY,
-                obstacle.width,
-                ground -
-                bottomY
-            );
-
-
-            birdCtx.fillStyle =
-                "#6678ff";
-
-
-            birdCtx.fillRect(
-                obstacle.x - 9,
-                topHeight - 18,
-                obstacle.width + 18,
-                18
-            );
-
-
-            birdCtx.fillRect(
-                obstacle.x - 9,
-                bottomY,
-                obstacle.width + 18,
-                18
-            );
-
-
-            birdCtx.fillStyle =
-                "rgba(255,255,255,0.16)";
-
-
-            birdCtx.fillRect(
-                obstacle.x + 10,
-                0,
-                8,
-                topHeight
-            );
-
-
-            birdCtx.fillRect(
-                obstacle.x + 10,
-                bottomY,
-                8,
-                ground -
-                bottomY
+                    groundY -
+                    bottomY
+                ),
+                false
             );
         }
+    );
+}
+
+
+// ==================================================
+// 장애물 하나
+// ==================================================
+
+function drawObstaclePipe(
+    x,
+    y,
+    width,
+    height,
+    top
+) {
+
+    if (
+        height <= 0
+    ) {
+
+        return;
+    }
+
+
+    // ==================================================
+    // 본체
+    // ==================================================
+
+    const gradient =
+        birdCtx.createLinearGradient(
+            x,
+            0,
+            x + width,
+            0
+        );
+
+
+    gradient.addColorStop(
+        0,
+        "#8b9aff"
+    );
+
+    gradient.addColorStop(
+        0.45,
+        "#697cff"
+    );
+
+    gradient.addColorStop(
+        1,
+        "#5969df"
+    );
+
+
+    birdCtx.fillStyle =
+        gradient;
+
+
+    birdCtx.fillRect(
+        x,
+        y,
+        width,
+        height
+    );
+
+
+    // ==================================================
+    // 본체 테두리
+    // ==================================================
+
+    birdCtx.strokeStyle =
+        "rgba(67, 79, 180, 0.48)";
+
+    birdCtx.lineWidth =
+        2;
+
+    birdCtx.strokeRect(
+        x + 1,
+        y + 1,
+        width - 2,
+        Math.max(
+            0,
+            height - 2
+        )
+    );
+
+
+    // ==================================================
+    // 기둥 끝 캡
+    // ==================================================
+
+    const capHeight =
+        Math.min(
+            22,
+            Math.max(
+                16,
+                height * 0.12
+            )
+        );
+
+
+    const capWidth =
+        width +
+        18;
+
+
+    const capX =
+        x -
+        9;
+
+
+    let capY;
+
+
+    if (top) {
+
+        // 위쪽 기둥은 아래쪽에 캡
+        capY =
+            y +
+            height -
+            capHeight;
+
+    } else {
+
+        // 아래쪽 기둥은 위쪽에 캡
+        capY =
+            y;
+    }
+
+
+    // ==================================================
+    // 캡 그림자
+    // ==================================================
+
+    birdCtx.fillStyle =
+        "rgba(54, 65, 155, 0.18)";
+
+    birdCtx.beginPath();
+
+    birdCtx.roundRect(
+        capX + 2,
+        capY + 3,
+        capWidth,
+        capHeight,
+        6
+    );
+
+    birdCtx.fill();
+
+
+    // ==================================================
+    // 캡 본체
+    // ==================================================
+
+    const capGradient =
+        birdCtx.createLinearGradient(
+            capX,
+            0,
+            capX + capWidth,
+            0
+        );
+
+
+    capGradient.addColorStop(
+        0,
+        "#8998ff"
+    );
+
+    capGradient.addColorStop(
+        0.5,
+        "#7182ff"
+    );
+
+    capGradient.addColorStop(
+        1,
+        "#6272e9"
+    );
+
+
+    birdCtx.fillStyle =
+        capGradient;
+
+
+    birdCtx.beginPath();
+
+    birdCtx.roundRect(
+        capX,
+        capY,
+        capWidth,
+        capHeight,
+        6
+    );
+
+    birdCtx.fill();
+
+
+    birdCtx.strokeStyle =
+        "rgba(67, 79, 180, 0.55)";
+
+    birdCtx.lineWidth =
+        2;
+
+    birdCtx.stroke();
+
+
+    // ==================================================
+    // 본체 하이라이트
+    // ==================================================
+
+    birdCtx.fillStyle =
+        "rgba(255,255,255,0.19)";
+
+    birdCtx.fillRect(
+        x + 8,
+        y + 2,
+        8,
+        Math.max(
+            0,
+            height -
+            4
+        )
+    );
+
+
+    // ==================================================
+    // 캡 하이라이트
+    // ==================================================
+
+    birdCtx.fillStyle =
+        "rgba(255,255,255,0.22)";
+
+    birdCtx.beginPath();
+
+    birdCtx.roundRect(
+        capX + 7,
+        capY + 4,
+        8,
+        Math.max(
+            5,
+            capHeight - 8
+        ),
+        3
+    );
+
+    birdCtx.fill();
+
+
+    // ==================================================
+    // 캡 중앙 광택
+    // ==================================================
+
+    birdCtx.fillStyle =
+        "rgba(255,255,255,0.08)";
+
+    birdCtx.fillRect(
+        capX + 18,
+        capY + 3,
+        capWidth - 36,
+        4
     );
 }
 
@@ -2524,39 +3922,44 @@ function drawBirdObstacles() {
 
 function drawBirdPlayer() {
 
-    if (!birdPlayer) {
-        return;
-    }
+    const x =
+        birdPlayer.x;
 
+    const y =
+        birdPlayer.y;
+
+    const w =
+        birdPlayer.width;
+
+    const h =
+        birdPlayer.height;
 
     birdCtx.save();
 
-
     birdCtx.translate(
-        birdPlayer.x +
-        birdPlayer.width / 2,
-
-        birdPlayer.y +
-        birdPlayer.height / 2
+        x + w / 2,
+        y + h / 2
     );
-
 
     birdCtx.rotate(
         birdPlayer.rotation
     );
 
 
-    birdCtx.fillStyle =
-        "#ffd84d";
+    // ==================================================
+    // 그림자
+    // ==================================================
 
+    birdCtx.fillStyle =
+        "rgba(54, 69, 91, 0.13)";
 
     birdCtx.beginPath();
 
     birdCtx.ellipse(
         0,
-        0,
-        19,
-        15,
+        h * 0.58,
+        w * 0.43,
+        5,
         0,
         0,
         Math.PI * 2
@@ -2565,35 +3968,82 @@ function drawBirdPlayer() {
     birdCtx.fill();
 
 
+    // ==================================================
+    // 몸
+    // ==================================================
+
+    const body =
+        birdCtx.createLinearGradient(
+            -w / 2,
+            -h / 2,
+            w / 2,
+            h / 2
+        );
+
+
+    body.addColorStop(
+        0,
+        "#ffd95a"
+    );
+
+    body.addColorStop(
+        1,
+        "#ffb62e"
+    );
+
+
     birdCtx.fillStyle =
-        "#f4b62c";
+        body;
 
 
     birdCtx.beginPath();
 
+    birdCtx.roundRect(
+        -w / 2,
+        -h / 2,
+        w,
+        h,
+        11
+    );
+
+    birdCtx.fill();
+
+
+    // ==================================================
+    // 날개
+    // ==================================================
+
+    birdCtx.fillStyle =
+        "#f5aa2d";
+
+    birdCtx.beginPath();
+
     birdCtx.ellipse(
-        -4,
-        6,
+        -5,
+        4,
         10,
-        6,
-        -0.3,
+        7,
+        -0.35,
         0,
         Math.PI * 2
     );
 
     birdCtx.fill();
 
+
+    // ==================================================
+    // 눈
+    // ==================================================
 
     birdCtx.fillStyle =
         "#ffffff";
 
-
     birdCtx.beginPath();
 
     birdCtx.arc(
-        10,
-        -7,
-        6,
+        9,
+        -8,
+        7,
         0,
         Math.PI * 2
     );
@@ -2602,15 +4052,14 @@ function drawBirdPlayer() {
 
 
     birdCtx.fillStyle =
-        "#1e2538";
-
+        "#222a38";
 
     birdCtx.beginPath();
 
     birdCtx.arc(
-        12,
-        -7,
-        2.5,
+        11,
+        -8,
+        3,
         0,
         Math.PI * 2
     );
@@ -2618,25 +4067,28 @@ function drawBirdPlayer() {
     birdCtx.fill();
 
 
-    birdCtx.fillStyle =
-        "#ff8a32";
+    // ==================================================
+    // 부리
+    // ==================================================
 
+    birdCtx.fillStyle =
+        "#ff8847";
 
     birdCtx.beginPath();
 
     birdCtx.moveTo(
-        17,
-        0
+        w / 2 - 1,
+        -1
     );
 
     birdCtx.lineTo(
-        29,
-        5
+        w / 2 + 13,
+        3
     );
 
     birdCtx.lineTo(
-        17,
-        8
+        w / 2 - 1,
+        7
     );
 
     birdCtx.closePath();
@@ -2644,12 +4096,33 @@ function drawBirdPlayer() {
     birdCtx.fill();
 
 
+    // ==================================================
+    // 머리 하이라이트
+    // ==================================================
+
+    birdCtx.fillStyle =
+        "rgba(255,255,255,0.4)";
+
+    birdCtx.beginPath();
+
+    birdCtx.ellipse(
+        -7,
+        -9,
+        8,
+        4,
+        -0.3,
+        0,
+        Math.PI * 2
+    );
+
+    birdCtx.fill();
+
     birdCtx.restore();
 }
 
 
 // ==================================================
-// 파티클
+// 파티클 그리기
 // ==================================================
 
 function drawBirdParticles() {
@@ -2658,7 +4131,6 @@ function drawBirdParticles() {
         particle => {
 
             birdCtx.save();
-
 
             birdCtx.globalAlpha =
                 Math.max(
@@ -2693,7 +4165,6 @@ function drawBirdParticles() {
 
             birdCtx.beginPath();
 
-
             birdCtx.arc(
                 particle.x,
                 particle.y,
@@ -2702,9 +4173,7 @@ function drawBirdParticles() {
                 Math.PI * 2
             );
 
-
             birdCtx.fill();
-
 
             birdCtx.restore();
         }
@@ -2713,7 +4182,7 @@ function drawBirdParticles() {
 
 
 // ==================================================
-// 점프/클릭
+// 점프/클릭 입력
 // ==================================================
 
 function handleBirdInput(
@@ -2721,9 +4190,9 @@ function handleBirdInput(
 ) {
 
     if (event) {
+
         event.preventDefault();
     }
-
 
     if (
         birdGameRunning
@@ -2733,7 +4202,6 @@ function handleBirdInput(
 
         return;
     }
-
 
     if (
         birdGameOver
@@ -2758,7 +4226,7 @@ if (birdGameCanvas) {
 
 
 // ==================================================
-// 시작
+// 시작 버튼
 // ==================================================
 
 if (birdStartBtn) {
@@ -2809,7 +4277,6 @@ document.addEventListener(
             return;
         }
 
-
         if (
             !birdGameModal ||
             !birdGameModal.classList.contains(
@@ -2820,9 +4287,7 @@ document.addEventListener(
             return;
         }
 
-
         event.preventDefault();
-
 
         if (
             birdGameRunning
@@ -2854,27 +4319,22 @@ function openGameModal() {
         return;
     }
 
-
     birdGameModal.classList.add(
         "active"
     );
-
 
     birdGameModal.setAttribute(
         "aria-hidden",
         "false"
     );
 
-
     document.body.style.overflow =
         "hidden";
-
 
     requestAnimationFrame(
         () => {
 
             resizeBirdCanvas();
-
 
             if (
                 !birdGameRunning
@@ -2883,6 +4343,10 @@ function openGameModal() {
                 drawBirdGame();
             }
         }
+    );
+
+    console.log(
+        "[Bird Bump] 게임 창 열림"
     );
 }
 
@@ -2897,20 +4361,21 @@ function closeGameModal() {
         return;
     }
 
-
     birdGameModal.classList.remove(
         "active"
     );
-
 
     birdGameModal.setAttribute(
         "aria-hidden",
         "true"
     );
 
-
     document.body.style.overflow =
         "";
+
+    console.log(
+        "[Bird Bump] 게임 창 닫힘"
+    );
 }
 
 
@@ -2941,7 +4406,7 @@ if (gameBackdrop) {
 
 
 // ==================================================
-// X
+// X 버튼
 // ==================================================
 
 if (closeGameBtn) {
@@ -2977,1064 +4442,6 @@ document.addEventListener(
 
 
 // ==================================================
-// MENU / GEMINI AI
-// ==================================================
-
-const menuBtn =
-    document.getElementById(
-        "menuBtn"
-    );
-
-const menuModal =
-    document.getElementById(
-        "menuModal"
-    );
-
-const menuBackdrop =
-    document.getElementById(
-        "menuBackdrop"
-    );
-
-const closeMenuBtn =
-    document.getElementById(
-        "closeMenuBtn"
-    );
-
-const openGeminiBtn =
-    document.getElementById(
-        "openGeminiBtn"
-    );
-
-const openBirdFromMenuBtn =
-    document.getElementById(
-        "openBirdFromMenuBtn"
-    );
-
-
-const geminiModal =
-    document.getElementById(
-        "geminiModal"
-    );
-
-const geminiBackdrop =
-    document.getElementById(
-        "geminiBackdrop"
-    );
-
-const closeGeminiBtn =
-    document.getElementById(
-        "closeGeminiBtn"
-    );
-
-const geminiNewChatBtn =
-    document.getElementById(
-        "geminiNewChatBtn"
-    );
-
-const geminiInput =
-    document.getElementById(
-        "geminiInput"
-    );
-
-const geminiSendBtn =
-    document.getElementById(
-        "geminiSendBtn"
-    );
-
-const geminiMessages =
-    document.getElementById(
-        "geminiMessages"
-    );
-
-const geminiStatus =
-    document.getElementById(
-        "geminiStatus"
-    );
-
-
-let geminiPreviousInteractionId =
-    null;
-
-let geminiStreaming =
-    false;
-
-let geminiAbortController =
-    null;
-
-
-// ==================================================
-// 스크롤 잠금
-// ==================================================
-
-function lockPageScroll() {
-
-    document.body.style.overflow =
-        "hidden";
-}
-
-
-function unlockPageScroll() {
-
-    const menuOpen =
-        menuModal?.classList.contains(
-            "active"
-        );
-
-    const geminiOpen =
-        geminiModal?.classList.contains(
-            "active"
-        );
-
-    const birdOpen =
-        birdGameModal?.classList.contains(
-            "active"
-        );
-
-
-    if (
-        !menuOpen &&
-        !geminiOpen &&
-        !birdOpen
-    ) {
-
-        document.body.style.overflow =
-            "";
-    }
-}
-
-
-// ==================================================
-// 메뉴 열기
-// ==================================================
-
-function openMenuModal() {
-
-    if (!menuModal) {
-        return;
-    }
-
-
-    menuModal.classList.add(
-        "active"
-    );
-
-
-    menuModal.setAttribute(
-        "aria-hidden",
-        "false"
-    );
-
-
-    lockPageScroll();
-}
-
-
-// ==================================================
-// 메뉴 닫기
-// ==================================================
-
-function closeMenuModal() {
-
-    if (!menuModal) {
-        return;
-    }
-
-
-    menuModal.classList.remove(
-        "active"
-    );
-
-
-    menuModal.setAttribute(
-        "aria-hidden",
-        "true"
-    );
-
-
-    unlockPageScroll();
-}
-
-
-// ==================================================
-// Gemini 열기
-// ==================================================
-
-function openGeminiModal() {
-
-    closeMenuModal();
-
-
-    if (!geminiModal) {
-        return;
-    }
-
-
-    geminiModal.classList.add(
-        "active"
-    );
-
-
-    geminiModal.setAttribute(
-        "aria-hidden",
-        "false"
-    );
-
-
-    lockPageScroll();
-
-
-    requestAnimationFrame(
-        () => {
-
-            geminiInput?.focus();
-        }
-    );
-}
-
-
-// ==================================================
-// Gemini 닫기
-// ==================================================
-
-function closeGeminiModal() {
-
-    if (!geminiModal) {
-        return;
-    }
-
-
-    if (
-        geminiAbortController
-    ) {
-
-        geminiAbortController.abort();
-
-        geminiAbortController =
-            null;
-    }
-
-
-    geminiStreaming =
-        false;
-
-
-    geminiModal.classList.remove(
-        "active"
-    );
-
-
-    geminiModal.setAttribute(
-        "aria-hidden",
-        "true"
-    );
-
-
-    unlockPageScroll();
-}
-
-
-// ==================================================
-// Gemini 메시지 추가
-// ==================================================
-
-function addGeminiMessage(
-    text,
-    type
-) {
-
-    if (!geminiMessages) {
-        return null;
-    }
-
-
-    const message =
-        document.createElement(
-            "div"
-        );
-
-
-    message.className =
-        `gemini-message ${type}`;
-
-
-    message.textContent =
-        text;
-
-
-    geminiMessages.appendChild(
-        message
-    );
-
-
-    geminiMessages.scrollTop =
-        geminiMessages.scrollHeight;
-
-
-    return message;
-}
-
-
-// ==================================================
-// Gemini 상태
-// ==================================================
-
-function setGeminiStatus(
-    text = ""
-) {
-
-    if (geminiStatus) {
-
-        geminiStatus.textContent =
-            text;
-    }
-}
-
-
-// ==================================================
-// 새 대화
-// ==================================================
-
-function resetGeminiChat() {
-
-    if (geminiStreaming) {
-        return;
-    }
-
-
-    geminiPreviousInteractionId =
-        null;
-
-
-    if (geminiMessages) {
-
-        geminiMessages.innerHTML =
-            '<div class="gemini-message assistant">안녕하세요! 무엇을 도와드릴까요?</div>';
-    }
-
-
-    if (geminiInput) {
-
-        geminiInput.value =
-            "";
-
-        geminiInput.disabled =
-            false;
-    }
-
-
-    if (geminiSendBtn) {
-
-        geminiSendBtn.disabled =
-            false;
-
-        geminiSendBtn.textContent =
-            "전송";
-    }
-
-
-    setGeminiStatus(
-        ""
-    );
-
-
-    geminiInput?.focus();
-}
-
-
-// ==================================================
-// 전송 상태
-// ==================================================
-
-function setGeminiSendingState(
-    sending
-) {
-
-    geminiStreaming =
-        sending;
-
-
-    if (geminiInput) {
-
-        geminiInput.disabled =
-            sending;
-    }
-
-
-    if (geminiSendBtn) {
-
-        geminiSendBtn.disabled =
-            sending;
-
-
-        geminiSendBtn.textContent =
-            sending
-                ? "작성 중..."
-                : "전송";
-    }
-}
-
-
-// ==================================================
-// 실시간 텍스트 추가
-// ==================================================
-
-function appendGeminiStreamText(
-    element,
-    text
-) {
-
-    if (
-        !element ||
-        !text
-    ) {
-
-        return;
-    }
-
-
-    element.textContent +=
-        text;
-
-
-    geminiMessages.scrollTop =
-        geminiMessages.scrollHeight;
-}
-
-
-// ==================================================
-// Gemini 스트리밍 전송
-// ==================================================
-
-async function sendGeminiMessage() {
-
-    if (
-        !geminiInput ||
-        !geminiSendBtn ||
-        geminiStreaming
-    ) {
-
-        return;
-    }
-
-
-    const message =
-        geminiInput.value.trim();
-
-
-    if (!message) {
-
-        geminiInput.focus();
-
-        return;
-    }
-
-
-    addGeminiMessage(
-        message,
-        "user"
-    );
-
-
-    geminiInput.value =
-        "";
-
-
-    const assistantMessage =
-        addGeminiMessage(
-            "",
-            "assistant"
-        );
-
-
-    setGeminiSendingState(
-        true
-    );
-
-
-    setGeminiStatus(
-        "Gemini가 답변을 작성하고 있습니다..."
-    );
-
-
-    const context =
-        selectedSchool
-            ? {
-                schoolName:
-                    selectedSchool.name,
-
-                grade:
-                    gradeSelect?.value ||
-                    "",
-
-                classNum:
-                    classSelect?.value ||
-                    ""
-            }
-            : {};
-
-
-    geminiAbortController =
-        new AbortController();
-
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/gemini",
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json",
-
-                        "Accept":
-                            "text/event-stream"
-                    },
-
-                    body:
-                        JSON.stringify({
-                            message,
-
-                            previousInteractionId:
-                                geminiPreviousInteractionId,
-
-                            context
-                        }),
-
-                    signal:
-                        geminiAbortController
-                            .signal
-                }
-            );
-
-
-        if (!response.ok) {
-
-            let errorMessage =
-                `Gemini 요청에 실패했습니다. (HTTP ${response.status})`;
-
-
-            try {
-
-                const errorData =
-                    await response.json();
-
-
-                errorMessage =
-                    errorData.message ||
-                    errorMessage;
-
-            } catch (_) {
-                // 기본 메시지 사용
-            }
-
-
-            throw new Error(
-                errorMessage
-            );
-        }
-
-
-        if (!response.body) {
-
-            throw new Error(
-                "스트리밍 응답을 받을 수 없습니다."
-            );
-        }
-
-
-        const reader =
-            response.body.getReader();
-
-
-        const decoder =
-            new TextDecoder(
-                "utf-8"
-            );
-
-
-        let buffer =
-            "";
-
-        let receivedText =
-            false;
-
-
-        const processEvent =
-            (rawEvent) => {
-
-                const lines =
-                    rawEvent.split(
-                        "\n"
-                    );
-
-
-                let eventType =
-                    "message";
-
-
-                const dataLines =
-                    [];
-
-
-                for (
-                    const line of lines
-                ) {
-
-                    if (
-                        line.startsWith(
-                            "event:"
-                        )
-                    ) {
-
-                        eventType =
-                            line
-                                .slice(6)
-                                .trim();
-
-                    } else if (
-                        line.startsWith(
-                            "data:"
-                        )
-                    ) {
-
-                        dataLines.push(
-                            line
-                                .slice(5)
-                                .trimStart()
-                        );
-                    }
-                }
-
-
-                if (
-                    !dataLines.length
-                ) {
-
-                    return;
-                }
-
-
-                const rawData =
-                    dataLines.join(
-                        "\n"
-                    );
-
-
-                if (
-                    rawData ===
-                    "[DONE]"
-                ) {
-
-                    return;
-                }
-
-
-                let data;
-
-
-                try {
-
-                    data =
-                        JSON.parse(
-                            rawData
-                        );
-
-                } catch (_) {
-
-                    return;
-                }
-
-
-                if (
-                    eventType ===
-                    "token"
-                ) {
-
-                    if (
-                        data.text
-                    ) {
-
-                        appendGeminiStreamText(
-                            assistantMessage,
-                            data.text
-                        );
-
-
-                        receivedText =
-                            true;
-
-
-                        setGeminiStatus(
-                            ""
-                        );
-                    }
-
-
-                    return;
-                }
-
-
-                if (
-                    eventType ===
-                    "interaction"
-                ) {
-
-                    if (
-                        data.interactionId
-                    ) {
-
-                        geminiPreviousInteractionId =
-                            data.interactionId;
-                    }
-
-
-                    return;
-                }
-
-
-                if (
-                    eventType ===
-                    "error"
-                ) {
-
-                    throw new Error(
-                        data.message ||
-                        "Gemini 스트리밍 오류가 발생했습니다."
-                    );
-                }
-
-
-                if (
-                    eventType ===
-                    "done"
-                ) {
-
-                    if (
-                        data.interactionId
-                    ) {
-
-                        geminiPreviousInteractionId =
-                            data.interactionId;
-                    }
-                }
-            };
-
-
-        while (true) {
-
-            const {
-                value,
-                done
-            } =
-                await reader.read();
-
-
-            if (done) {
-                break;
-            }
-
-
-            buffer +=
-                decoder.decode(
-                    value,
-                    {
-                        stream: true
-                    }
-                );
-
-
-            const events =
-                buffer.split(
-                    "\n\n"
-                );
-
-
-            buffer =
-                events.pop() ||
-                "";
-
-
-            for (
-                const event of events
-            ) {
-
-                if (
-                    !event.trim()
-                ) {
-
-                    continue;
-                }
-
-
-                processEvent(
-                    event
-                );
-            }
-        }
-
-
-        buffer +=
-            decoder.decode();
-
-
-        if (
-            buffer.trim()
-        ) {
-
-            processEvent(
-                buffer
-            );
-        }
-
-
-        if (
-            !receivedText
-        ) {
-
-            throw new Error(
-                "Gemini에서 답변을 받지 못했습니다."
-            );
-        }
-
-
-        setGeminiStatus(
-            ""
-        );
-
-    } catch (error) {
-
-        if (
-            error.name ===
-            "AbortError"
-        ) {
-
-            if (
-                assistantMessage &&
-                !assistantMessage
-                    .textContent
-                    .trim()
-            ) {
-
-                assistantMessage.remove();
-            }
-
-
-            setGeminiStatus(
-                ""
-            );
-
-
-            return;
-        }
-
-
-        console.error(
-            "[Gemini 클라이언트 오류]",
-            error
-        );
-
-
-        if (
-            assistantMessage
-        ) {
-
-            assistantMessage.textContent =
-                `오류가 발생했습니다.\n${error.message}`;
-
-
-            assistantMessage.classList.add(
-                "error"
-            );
-
-        } else {
-
-            addGeminiMessage(
-                `오류가 발생했습니다.\n${error.message}`,
-                "error"
-            );
-        }
-
-
-        setGeminiStatus(
-            "요청에 실패했습니다."
-        );
-
-    } finally {
-
-        geminiAbortController =
-            null;
-
-
-        setGeminiSendingState(
-            false
-        );
-
-
-        geminiInput?.focus();
-    }
-}
-
-
-// ==================================================
-// 메뉴 이벤트
-// ==================================================
-
-if (menuBtn) {
-
-    menuBtn.addEventListener(
-        "click",
-        openMenuModal
-    );
-}
-
-
-if (menuBackdrop) {
-
-    menuBackdrop.addEventListener(
-        "click",
-        closeMenuModal
-    );
-}
-
-
-if (closeMenuBtn) {
-
-    closeMenuBtn.addEventListener(
-        "click",
-        closeMenuModal
-    );
-}
-
-
-if (openGeminiBtn) {
-
-    openGeminiBtn.addEventListener(
-        "click",
-        openGeminiModal
-    );
-}
-
-
-if (openBirdFromMenuBtn) {
-
-    openBirdFromMenuBtn.addEventListener(
-        "click",
-        () => {
-
-            closeMenuModal();
-
-            openGameModal();
-        }
-    );
-}
-
-
-// ==================================================
-// Gemini 이벤트
-// ==================================================
-
-if (geminiBackdrop) {
-
-    geminiBackdrop.addEventListener(
-        "click",
-        closeGeminiModal
-    );
-}
-
-
-if (closeGeminiBtn) {
-
-    closeGeminiBtn.addEventListener(
-        "click",
-        closeGeminiModal
-    );
-}
-
-
-if (geminiNewChatBtn) {
-
-    geminiNewChatBtn.addEventListener(
-        "click",
-        resetGeminiChat
-    );
-}
-
-
-if (geminiSendBtn) {
-
-    geminiSendBtn.addEventListener(
-        "click",
-        sendGeminiMessage
-    );
-}
-
-
-if (geminiInput) {
-
-    geminiInput.addEventListener(
-        "keydown",
-        event => {
-
-            if (
-                event.key ===
-                    "Enter" &&
-                !event.shiftKey
-            ) {
-
-                event.preventDefault();
-
-                sendGeminiMessage();
-            }
-        }
-    );
-}
-
-
-// ==================================================
-// ESC
-// ==================================================
-
-document.addEventListener(
-    "keydown",
-    event => {
-
-        if (
-            event.key !==
-            "Escape"
-        ) {
-
-            return;
-        }
-
-
-        if (
-            geminiModal?.classList.contains(
-                "active"
-            )
-        ) {
-
-            closeGeminiModal();
-
-            return;
-        }
-
-
-        if (
-            menuModal?.classList.contains(
-                "active"
-            )
-        ) {
-
-            closeMenuModal();
-        }
-    }
-);
-
-
-// ==================================================
 // 초기화
 // ==================================================
 
@@ -4044,13 +4451,6 @@ updateBirdScore();
 
 restoreSchool();
 
-resizeBirdCanvas();
-
-window.addEventListener(
-    "resize",
-    resizeBirdCanvas
-);
-
 console.log(
     "COMTIME PRO 초기화 완료"
 );
@@ -4058,7 +4458,384 @@ console.log(
 console.log(
     "Bird Bump 준비 완료"
 );
+// ==================================================
+// MENU / GEMINI AI
+// ==================================================
 
-console.log(
-    "Gemini AI 스트리밍 준비 완료"
-);
+const menuBtn = document.getElementById("menuBtn");
+const menuModal = document.getElementById("menuModal");
+const menuBackdrop = document.getElementById("menuBackdrop");
+const closeMenuBtn = document.getElementById("closeMenuBtn");
+const openGeminiBtn = document.getElementById("openGeminiBtn");
+const openBirdFromMenuBtn = document.getElementById("openBirdFromMenuBtn");
+
+const geminiModal = document.getElementById("geminiModal");
+const geminiBackdrop = document.getElementById("geminiBackdrop");
+const closeGeminiBtn = document.getElementById("closeGeminiBtn");
+const geminiNewChatBtn = document.getElementById("geminiNewChatBtn");
+const geminiInput = document.getElementById("geminiInput");
+const geminiSendBtn = document.getElementById("geminiSendBtn");
+const geminiMessages = document.getElementById("geminiMessages");
+const geminiStatus = document.getElementById("geminiStatus");
+
+let geminiPreviousInteractionId = null;
+let geminiStreaming = false;
+let geminiAbortController = null;
+
+function lockPageScroll() {
+    document.body.style.overflow = "hidden";
+}
+
+function unlockPageScroll() {
+    const menuOpen = menuModal?.classList.contains("active");
+    const geminiOpen = geminiModal?.classList.contains("active");
+    const birdOpen = birdGameModal?.classList.contains("active");
+
+    if (!menuOpen && !geminiOpen && !birdOpen) {
+        document.body.style.overflow = "";
+    }
+}
+
+function openMenuModal() {
+    if (!menuModal) return;
+
+    menuModal.classList.add("active");
+    menuModal.setAttribute("aria-hidden", "false");
+    lockPageScroll();
+}
+
+function closeMenuModal() {
+    if (!menuModal) return;
+
+    menuModal.classList.remove("active");
+    menuModal.setAttribute("aria-hidden", "true");
+    unlockPageScroll();
+}
+
+function openGeminiModal() {
+    closeMenuModal();
+
+    if (!geminiModal) return;
+
+    geminiModal.classList.add("active");
+    geminiModal.setAttribute("aria-hidden", "false");
+    lockPageScroll();
+
+    requestAnimationFrame(() => {
+        geminiInput?.focus();
+    });
+}
+
+function closeGeminiModal() {
+    if (!geminiModal) return;
+
+    if (geminiAbortController) {
+        geminiAbortController.abort();
+        geminiAbortController = null;
+    }
+
+    geminiStreaming = false;
+    geminiModal.classList.remove("active");
+    geminiModal.setAttribute("aria-hidden", "true");
+    unlockPageScroll();
+}
+
+function addGeminiMessage(text, type) {
+    if (!geminiMessages) return null;
+
+    const message = document.createElement("div");
+    message.className = `gemini-message ${type}`;
+    message.textContent = text;
+    geminiMessages.appendChild(message);
+    geminiMessages.scrollTop = geminiMessages.scrollHeight;
+
+    return message;
+}
+
+function setGeminiStatus(text = "") {
+    if (geminiStatus) {
+        geminiStatus.textContent = text;
+    }
+}
+
+function resetGeminiChat() {
+    if (geminiStreaming) return;
+
+    geminiPreviousInteractionId = null;
+
+    if (geminiMessages) {
+        geminiMessages.innerHTML =
+            '<div class="gemini-message assistant">안녕하세요! 무엇을 도와드릴까요?</div>';
+    }
+
+    if (geminiInput) {
+        geminiInput.value = "";
+        geminiInput.disabled = false;
+    }
+
+    if (geminiSendBtn) {
+        geminiSendBtn.disabled = false;
+        geminiSendBtn.textContent = "전송";
+    }
+
+    setGeminiStatus("");
+    geminiInput?.focus();
+}
+
+function setGeminiSendingState(sending) {
+    geminiStreaming = sending;
+
+    if (geminiInput) {
+        geminiInput.disabled = sending;
+    }
+
+    if (geminiSendBtn) {
+        geminiSendBtn.disabled = sending;
+        geminiSendBtn.textContent = sending ? "작성 중..." : "전송";
+    }
+}
+
+function appendGeminiStreamText(element, text) {
+    if (!element || !text) return;
+
+    element.textContent += text;
+    geminiMessages.scrollTop = geminiMessages.scrollHeight;
+}
+
+async function sendGeminiMessage() {
+    if (!geminiInput || !geminiSendBtn || geminiStreaming) return;
+
+    const message = geminiInput.value.trim();
+
+    if (!message) {
+        geminiInput.focus();
+        return;
+    }
+
+    addGeminiMessage(message, "user");
+    geminiInput.value = "";
+
+    const assistantMessage = addGeminiMessage("", "assistant");
+
+    setGeminiSendingState(true);
+    setGeminiStatus("Gemini가 답변을 작성하고 있습니다...");
+
+    const context = selectedSchool
+        ? {
+            schoolName: selectedSchool.name,
+            grade: gradeSelect?.value || "",
+            classNum: classSelect?.value || ""
+        }
+        : {};
+
+    geminiAbortController = new AbortController();
+
+    try {
+        const response = await fetch("/api/gemini", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "text/event-stream"
+            },
+            body: JSON.stringify({
+                message,
+                previousInteractionId: geminiPreviousInteractionId,
+                context
+            }),
+            signal: geminiAbortController.signal
+        });
+
+        if (!response.ok) {
+            let errorMessage = `Gemini 요청에 실패했습니다. (HTTP ${response.status})`;
+
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.message || errorMessage;
+            } catch (_) {
+                // JSON 오류 응답이 아니면 기본 메시지를 사용합니다.
+            }
+
+            throw new Error(errorMessage);
+        }
+
+        if (!response.body) {
+            throw new Error("스트리밍 응답을 받을 수 없습니다.");
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let receivedText = false;
+
+        const processEvent = (rawEvent) => {
+            const lines = rawEvent.split("\n");
+            let eventType = "message";
+            const dataLines = [];
+
+            for (const line of lines) {
+                if (line.startsWith("event:")) {
+                    eventType = line.slice(6).trim();
+                } else if (line.startsWith("data:")) {
+                    dataLines.push(line.slice(5).trimStart());
+                }
+            }
+
+            if (!dataLines.length) return;
+
+            const rawData = dataLines.join("\n");
+
+            if (rawData === "[DONE]") return;
+
+            let data;
+
+            try {
+                data = JSON.parse(rawData);
+            } catch (_) {
+                return;
+            }
+
+            if (eventType === "token") {
+                if (data.text) {
+                    appendGeminiStreamText(assistantMessage, data.text);
+                    receivedText = true;
+                    setGeminiStatus("");
+                }
+                return;
+            }
+
+            if (eventType === "interaction") {
+                if (data.interactionId) {
+                    geminiPreviousInteractionId = data.interactionId;
+                }
+                return;
+            }
+
+            if (eventType === "error") {
+                throw new Error(data.message || "Gemini 스트리밍 오류가 발생했습니다.");
+            }
+
+            if (eventType === "done") {
+                if (data.interactionId) {
+                    geminiPreviousInteractionId = data.interactionId;
+                }
+            }
+        };
+
+        while (true) {
+            const { value, done } = await reader.read();
+
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            const events = buffer.split("\n\n");
+            buffer = events.pop() || "";
+
+            for (const event of events) {
+                if (!event.trim()) continue;
+                processEvent(event);
+            }
+        }
+
+        buffer += decoder.decode();
+
+        if (buffer.trim()) {
+            processEvent(buffer);
+        }
+
+        if (!receivedText) {
+            throw new Error("Gemini에서 답변을 받지 못했습니다.");
+        }
+
+        setGeminiStatus("");
+    } catch (error) {
+        if (error.name === "AbortError") {
+            if (assistantMessage && !assistantMessage.textContent.trim()) {
+                assistantMessage.remove();
+            }
+            setGeminiStatus("");
+            return;
+        }
+
+        console.error("[Gemini 클라이언트 오류]", error);
+
+        if (assistantMessage) {
+            assistantMessage.textContent =
+                `오류가 발생했습니다.\n${error.message}`;
+            assistantMessage.classList.add("error");
+        } else {
+            addGeminiMessage(
+                `오류가 발생했습니다.\n${error.message}`,
+                "error"
+            );
+        }
+
+        setGeminiStatus("요청에 실패했습니다.");
+    } finally {
+        geminiAbortController = null;
+        setGeminiSendingState(false);
+        geminiInput?.focus();
+    }
+}
+
+if (menuBtn) {
+    menuBtn.addEventListener("click", openMenuModal);
+}
+
+if (menuBackdrop) {
+    menuBackdrop.addEventListener("click", closeMenuModal);
+}
+
+if (closeMenuBtn) {
+    closeMenuBtn.addEventListener("click", closeMenuModal);
+}
+
+if (openGeminiBtn) {
+    openGeminiBtn.addEventListener("click", openGeminiModal);
+}
+
+if (openBirdFromMenuBtn) {
+    openBirdFromMenuBtn.addEventListener("click", () => {
+        closeMenuModal();
+        openGameModal();
+    });
+}
+
+if (geminiBackdrop) {
+    geminiBackdrop.addEventListener("click", closeGeminiModal);
+}
+
+if (closeGeminiBtn) {
+    closeGeminiBtn.addEventListener("click", closeGeminiModal);
+}
+
+if (geminiNewChatBtn) {
+    geminiNewChatBtn.addEventListener("click", resetGeminiChat);
+}
+
+if (geminiSendBtn) {
+    geminiSendBtn.addEventListener("click", sendGeminiMessage);
+}
+
+if (geminiInput) {
+    geminiInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            sendGeminiMessage();
+        }
+    });
+}
+
+document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+
+    if (geminiModal?.classList.contains("active")) {
+        closeGeminiModal();
+        return;
+    }
+
+    if (menuModal?.classList.contains("active")) {
+        closeMenuModal();
+    }
+});
+
