@@ -586,6 +586,274 @@ app.post("/api/gemini", async (req, res) => {
 });
 
 
+
+
+// ==================================================
+// REALTIME 2-PLAYER CAR GAME
+// ==================================================
+const carRooms = new Map();
+const CAR_TICK_MS = 50; // 20 server updates/sec
+const CAR_WIDTH = 8.5;
+const CAR_PLAYER_Y = 84;
+const CAR_GHOST_Y = 64;
+const CAR_SPEED = 2.4;
+const CAR_MAX_OBSTACLES = 12;
+
+function createCarRoomCode() {
+    let code = "";
+    do {
+        code = String(Math.floor(1000 + Math.random() * 9000));
+    } while (carRooms.has(code));
+    return code;
+}
+
+function makeCarPlayer(id, slot) {
+    return {
+        id,
+        slot,
+        x: slot === 0 ? 32 : 68,
+        y: slot === 0 ? CAR_PLAYER_Y : CAR_GHOST_Y,
+        hp: 3,
+        direction: "none",
+        invincibleUntil: 0,
+        alive: true
+    };
+}
+
+function makeCarRoom(code, hostId) {
+    return {
+        code,
+        status: "waiting",
+        players: [makeCarPlayer(hostId, 0)],
+        obstacles: [],
+        nextObstacleId: 1,
+        lastSpawnAt: Date.now(),
+        spawnDelay: 850,
+        countdownEndsAt: 0,
+        winnerId: null,
+        lastTickAt: Date.now()
+    };
+}
+
+function publicCarState(room) {
+    return {
+        roomCode: room.code,
+        status: room.status,
+        countdown: room.status === "countdown"
+            ? Math.max(0, Math.ceil((room.countdownEndsAt - Date.now()) / 1000))
+            : 0,
+        winnerId: room.winnerId,
+        players: room.players.map(p => ({
+            id: p.id,
+            slot: p.slot,
+            x: Number(p.x.toFixed(2)),
+            y: p.y,
+            hp: p.hp,
+            invincibleUntil: p.invincibleUntil,
+            alive: p.alive
+        })),
+        obstacles: room.obstacles.map(o => ({
+            id: o.id,
+            x: Number(o.x.toFixed(2)),
+            y: Number(o.y.toFixed(2))
+        }))
+    };
+}
+
+function emitCarState(room) {
+    io.to(room.code).emit("car:state", publicCarState(room));
+}
+
+function carOverlap(player, obstacle) {
+    if (!player.alive) return false;
+    const px = player.x;
+    const py = player.y;
+    const dx = Math.abs(px - obstacle.x);
+    const dy = Math.abs(py - obstacle.y);
+    return dx < CAR_WIDTH && dy < 8.8;
+}
+
+function startCarRound(room) {
+    room.status = "countdown";
+    room.countdownEndsAt = Date.now() + 3000;
+    room.obstacles = [];
+    room.nextObstacleId = 1;
+    room.lastSpawnAt = Date.now();
+    room.spawnDelay = 850;
+    room.winnerId = null;
+    room.players.forEach((p, index) => {
+        p.slot = index;
+        p.x = index === 0 ? 32 : 68;
+        p.y = index === 0 ? CAR_PLAYER_Y : CAR_GHOST_Y;
+        p.hp = 3;
+        p.direction = "none";
+        p.invincibleUntil = 0;
+        p.alive = true;
+    });
+    emitCarState(room);
+}
+
+function leaveCarRoom(socket, notifyOpponent = true) {
+    const code = socket.data.carRoomCode;
+    if (!code) return;
+    const room = carRooms.get(code);
+    socket.leave(code);
+    socket.data.carRoomCode = null;
+    if (!room) return;
+
+    room.players = room.players.filter(p => p.id !== socket.id);
+    if (notifyOpponent) {
+        io.to(code).emit("car:opponent-left");
+    }
+    if (room.players.length === 0) {
+        carRooms.delete(code);
+    } else {
+        room.status = "waiting";
+        room.obstacles = [];
+        room.winnerId = null;
+        room.players[0].slot = 0;
+        room.players[0].x = 50;
+        room.players[0].y = CAR_PLAYER_Y;
+        room.players[0].hp = 3;
+        room.players[0].alive = true;
+        io.to(code).emit("car:waiting");
+        emitCarState(room);
+    }
+}
+
+function startCarGameLoop() {
+    setInterval(() => {
+        const now = Date.now();
+
+        for (const room of carRooms.values()) {
+            if (room.players.length !== 2) continue;
+
+            if (room.status === "countdown") {
+                if (now >= room.countdownEndsAt) {
+                    room.status = "playing";
+                }
+                emitCarState(room);
+                continue;
+            }
+
+            if (room.status !== "playing") continue;
+
+            const dt = Math.min(0.1, Math.max(0.01, (now - room.lastTickAt) / 1000));
+            room.lastTickAt = now;
+
+            for (const player of room.players) {
+                if (!player.alive) continue;
+                if (player.direction === "left") player.x -= CAR_SPEED * (dt * 20);
+                if (player.direction === "right") player.x += CAR_SPEED * (dt * 20);
+                player.x = Math.max(14, Math.min(86, player.x));
+            }
+
+            if (now - room.lastSpawnAt >= room.spawnDelay && room.obstacles.length < CAR_MAX_OBSTACLES) {
+                room.lastSpawnAt = now;
+                const laneCenters = [20, 35, 50, 65, 80];
+                let x = laneCenters[Math.floor(Math.random() * laneCenters.length)];
+                if (room.obstacles.length > 0 && Math.random() < 0.45) {
+                    const last = room.obstacles[room.obstacles.length - 1];
+                    if (Math.abs(last.x - x) < 10) x = laneCenters[(laneCenters.indexOf(x) + 2) % laneCenters.length];
+                }
+                room.obstacles.push({
+                    id: room.nextObstacleId++,
+                    x,
+                    y: -8,
+                    speed: 22 + Math.random() * 10
+                });
+                room.spawnDelay = Math.max(470, 850 - Math.floor((Date.now() - room.countdownEndsAt) / 10000) * 25);
+            }
+
+            for (const obstacle of room.obstacles) {
+                obstacle.y += obstacle.speed * dt;
+            }
+
+            for (const player of room.players) {
+                if (!player.alive) continue;
+                if (player.invincibleUntil > now) continue;
+
+                for (const obstacle of room.obstacles) {
+                    if (!carOverlap(player, obstacle)) continue;
+                    player.hp -= 1;
+                    player.invincibleUntil = now + 2000;
+                    io.to(room.code).emit("car:hit", { playerId: player.id, hp: player.hp });
+                    if (player.hp <= 0) {
+                        player.hp = 0;
+                        player.alive = false;
+                    }
+                    break;
+                }
+            }
+
+            room.obstacles = room.obstacles.filter(o => o.y < 110);
+
+            const alive = room.players.filter(p => p.alive);
+            if (alive.length <= 1) {
+                room.status = "gameover";
+                room.winnerId = alive.length === 1 ? alive[0].id : null;
+            }
+
+            emitCarState(room);
+        }
+    }, CAR_TICK_MS);
+}
+
+startCarGameLoop();
+
+io.on("connection", (socket) => {
+    socket.emit("notices:update", { notices: getSortedNotices(), updatedAt: new Date().toISOString() });
+
+    socket.on("car:create-room", () => {
+        if (socket.data.carRoomCode) leaveCarRoom(socket, false);
+        const code = createCarRoomCode();
+        const room = makeCarRoom(code, socket.id);
+        carRooms.set(code, room);
+        socket.join(code);
+        socket.data.carRoomCode = code;
+        socket.emit("car:room-created", { roomCode: code });
+        emitCarState(room);
+    });
+
+    socket.on("car:join-room", ({ roomCode }) => {
+        const code = String(roomCode || "").trim();
+        if (!/^\d{4}$/.test(code)) {
+            socket.emit("car:error", { message: "방 번호는 숫자 4자리여야 합니다." });
+            return;
+        }
+        const room = carRooms.get(code);
+        if (!room) {
+            socket.emit("car:error", { message: "존재하지 않는 방입니다." });
+            return;
+        }
+        if (room.players.length >= 2) {
+            socket.emit("car:room-full");
+            return;
+        }
+        if (socket.data.carRoomCode) leaveCarRoom(socket, false);
+        socket.join(code);
+        socket.data.carRoomCode = code;
+        room.players.push(makeCarPlayer(socket.id, 1));
+        socket.emit("car:joined", { roomCode: code });
+        startCarRound(room);
+    });
+
+    socket.on("car:input", ({ direction }) => {
+        const code = socket.data.carRoomCode;
+        const room = carRooms.get(code);
+        if (!room || room.status !== "playing") return;
+        const player = room.players.find(p => p.id === socket.id);
+        if (!player || !player.alive) return;
+        player.direction = ["left", "right", "none"].includes(direction) ? direction : "none";
+    });
+
+    socket.on("car:leave-room", () => leaveCarRoom(socket, true));
+
+    socket.on("disconnect", () => {
+        leaveCarRoom(socket, true);
+    });
+});
+
 app.use("/api", (req, res) => {
     res.status(404).json({
         ok: false,
