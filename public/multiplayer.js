@@ -149,9 +149,13 @@
         renderObstacles(state.obstacles || []);
 
         if (state.status === "countdown") {
-            countdownEl.hidden = false;
             const remaining = Math.max(0, Number(state.countdown || 0));
-            countdownEl.textContent = remaining > 0 ? String(remaining) : "GO!";
+            if (remaining > 0) {
+                countdownEl.hidden = false;
+                countdownEl.textContent = String(remaining);
+            } else {
+                countdownEl.hidden = true;
+            }
         } else {
             countdownEl.hidden = true;
         }
