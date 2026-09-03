@@ -2396,6 +2396,20 @@ function endBirdGame() {
     console.log(
         `[Bird Bump] GAME OVER / SCORE=${birdScore} / DIFFICULTY=${getBirdDifficultyLevel()}`
     );
+
+    fetch("/api/bird-score", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            score: birdScore,
+            difficulty: getBirdDifficultyLevel()
+        }),
+        keepalive: true
+    }).catch(() => {
+        // 점수 로그 전송 실패는 게임 진행에 영향을 주지 않습니다.
+    });
 }
 
 

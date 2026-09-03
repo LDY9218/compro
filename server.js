@@ -347,6 +347,7 @@ app.get("/api/meal", async (req, res) => {
 
 app.post("/api/gemini", async (req, res) => {
     const message = String(req.body?.message || "").trim();
+    console.log(`[Gemini 사용자 메시지] ${message}`);
     const previousInteractionId = String(
         req.body?.previousInteractionId || ""
     ).trim();
@@ -586,6 +587,28 @@ app.post("/api/gemini", async (req, res) => {
 });
 
 
+
+
+// ==================================================
+// BIRD BUMP SCORE LOG
+// ==================================================
+app.post("/api/bird-score", (req, res) => {
+    const score = Number(req.body?.score);
+    const difficulty = String(req.body?.difficulty || "알 수 없음").trim();
+
+    if (!Number.isFinite(score) || score < 0) {
+        return res.status(400).json({
+            ok: false,
+            message: "올바르지 않은 점수입니다."
+        });
+    }
+
+    console.log(
+        `[Bird Bump 점수] SCORE=${Math.floor(score)} / DIFFICULTY=${difficulty}`
+    );
+
+    return res.json({ ok: true });
+});
 
 
 // ==================================================
