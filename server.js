@@ -22,14 +22,27 @@ async function loadComcigan() {
     Comcigan = module.default || module.Comcigan || module;
 
     console.log("Comcigan type:", typeof Comcigan);
-    console.log("Comcigan keys:", Object.getOwnPropertyNames(Comcigan));
+    console.log(
+        "Comcigan keys:",
+        Object.getOwnPropertyNames(Comcigan)
+    );
 
-    if (!Comcigan || typeof Comcigan.search !== "function") {
-        throw new Error("parse-comcigan의 Comcigan.search()를 찾을 수 없습니다.");
+    if (
+        !Comcigan ||
+        typeof Comcigan.search !== "function"
+    ) {
+        throw new Error(
+            "parse-comcigan의 Comcigan.search()를 찾을 수 없습니다."
+        );
     }
 
     return Comcigan;
 }
+
+
+// ==================================================
+// HEALTH
+// ==================================================
 
 app.get("/api/health", (req, res) => {
     res.json({
@@ -39,10 +52,17 @@ app.get("/api/health", (req, res) => {
     });
 });
 
+
+// ==================================================
+// 학교 검색
+// ==================================================
+
 app.get("/api/search-school", async (req, res) => {
     const q = String(req.query.q || "").trim();
 
-    console.log(`[학교검색] "${q}" 검색 시작`);
+    console.log(
+        `[학교검색] "${q}" 검색 시작`
+    );
 
     if (!q) {
         return res.json({
@@ -53,9 +73,13 @@ app.get("/api/search-school", async (req, res) => {
 
     try {
         const Comcigan = await loadComcigan();
-        const result = await Comcigan.search(q);
 
-        console.log(`[학교검색] 검색 결과 ${result.length}개`);
+        const result =
+            await Comcigan.search(q);
+
+        console.log(
+            `[학교검색] 검색 결과 ${result.length}개`
+        );
 
         const schools = result.map((school) => ({
             code: Number(school.code),
@@ -67,8 +91,13 @@ app.get("/api/search-school", async (req, res) => {
             ok: true,
             schools
         });
+
     } catch (error) {
-        console.error("[학교검색 오류]");
+
+        console.error(
+            "[학교검색 오류]"
+        );
+
         console.error(error);
 
         return res.status(500).json({
@@ -79,39 +108,67 @@ app.get("/api/search-school", async (req, res) => {
     }
 });
 
+
+// ==================================================
+// 시간표
+// ==================================================
+
 app.get("/api/timetable", async (req, res) => {
-    const schoolCode = Number(req.query.schoolCode);
-    const grade = Number(req.query.grade);
-    const classNum = Number(req.query.classNum);
+
+    const schoolCode =
+        Number(req.query.schoolCode);
+
+    const grade =
+        Number(req.query.grade);
+
+    const classNum =
+        Number(req.query.classNum);
 
     console.log(
         `[시간표] school=${schoolCode}, grade=${grade}, class=${classNum}`
     );
 
-    if (!schoolCode || !grade || !classNum) {
+    if (
+        !schoolCode ||
+        !grade ||
+        !classNum
+    ) {
         return res.status(400).json({
             ok: false,
-            message: "schoolCode, grade, classNum이 필요합니다."
+            message:
+                "schoolCode, grade, classNum이 필요합니다."
         });
     }
 
     try {
-        const Comcigan = await loadComcigan();
-        const comci = new Comcigan(schoolCode);
 
-        const timetable = await comci.timetable({
-            grade,
-            classNum
-        });
+        const Comcigan =
+            await loadComcigan();
 
-        console.log("[시간표] 불러오기 성공");
+        const comci =
+            new Comcigan(schoolCode);
+
+        const timetable =
+            await comci.timetable({
+                grade,
+                classNum
+            });
+
+        console.log(
+            "[시간표] 불러오기 성공"
+        );
 
         return res.json({
             ok: true,
             timetable
         });
+
     } catch (error) {
-        console.error("[시간표 오류]");
+
+        console.error(
+            "[시간표 오류]"
+        );
+
         console.error(error);
 
         return res.status(500).json({
@@ -121,26 +178,37 @@ app.get("/api/timetable", async (req, res) => {
     }
 });
 
+
+// ==================================================
+// NEIS 학교 검색
+// ==================================================
+
 app.get("/api/neis-school", async (req, res) => {
-    const name = String(req.query.name || "").trim();
+
+    const name =
+        String(req.query.name || "").trim();
 
     if (!name) {
         return res.status(400).json({
             ok: false,
-            message: "학교 이름이 필요합니다."
+            message:
+                "학교 이름이 필요합니다."
         });
     }
 
-    const apiKey = process.env.NEIS_API_KEY;
+    const apiKey =
+        process.env.NEIS_API_KEY;
 
     if (!apiKey) {
         return res.status(500).json({
             ok: false,
-            message: "NEIS_API_KEY가 .env에 없습니다."
+            message:
+                "NEIS_API_KEY가 .env에 없습니다."
         });
     }
 
     try {
+
         const url =
             "https://open.neis.go.kr/hub/schoolInfo" +
             `?KEY=${encodeURIComponent(apiKey)}` +
@@ -149,31 +217,50 @@ app.get("/api/neis-school", async (req, res) => {
             "&pSize=100" +
             `&SCHUL_NM=${encodeURIComponent(name)}`;
 
-        const response = await fetch(url);
+        const response =
+            await fetch(url);
 
         if (!response.ok) {
-            throw new Error(`NEIS HTTP ${response.status}`);
+            throw new Error(
+                `NEIS HTTP ${response.status}`
+            );
         }
 
-        const data = await response.json();
+        const data =
+            await response.json();
 
         const rows =
             data?.schoolInfo?.[1]?.row || [];
 
-        const schools = rows.map((school) => ({
-            schoolName: school.SCHUL_NM,
-            officeCode: school.ATPT_OFCDC_SC_CODE,
-            schoolCode: school.SD_SCHUL_CODE,
-            schoolType: school.SCHUL_KND_SC_NM,
-            address: school.ORG_RDNMA
-        }));
+        const schools =
+            rows.map((school) => ({
+                schoolName:
+                    school.SCHUL_NM,
+
+                officeCode:
+                    school.ATPT_OFCDC_SC_CODE,
+
+                schoolCode:
+                    school.SD_SCHUL_CODE,
+
+                schoolType:
+                    school.SCHUL_KND_SC_NM,
+
+                address:
+                    school.ORG_RDNMA
+            }));
 
         return res.json({
             ok: true,
             schools
         });
+
     } catch (error) {
-        console.error("[NEIS 학교검색 오류]");
+
+        console.error(
+            "[NEIS 학교검색 오류]"
+        );
+
         console.error(error);
 
         return res.status(500).json({
@@ -183,26 +270,43 @@ app.get("/api/neis-school", async (req, res) => {
     }
 });
 
+
+// ==================================================
+// 급식
+// ==================================================
+
 app.get("/api/meal", async (req, res) => {
+
     const officeCode =
-        String(req.query.officeCode || "").trim();
+        String(
+            req.query.officeCode || ""
+        ).trim();
 
     const schoolCode =
-        String(req.query.schoolCode || "").trim();
+        String(
+            req.query.schoolCode || ""
+        ).trim();
 
     const date =
-        String(req.query.date || "").trim();
+        String(
+            req.query.date || ""
+        ).trim();
 
-    const apiKey = process.env.NEIS_API_KEY;
+    const apiKey =
+        process.env.NEIS_API_KEY;
 
     if (!apiKey) {
         return res.status(500).json({
             ok: false,
-            message: "NEIS_API_KEY가 .env에 없습니다."
+            message:
+                "NEIS_API_KEY가 .env에 없습니다."
         });
     }
 
-    if (!officeCode || !schoolCode) {
+    if (
+        !officeCode ||
+        !schoolCode
+    ) {
         return res.status(400).json({
             ok: false,
             message:
@@ -211,6 +315,7 @@ app.get("/api/meal", async (req, res) => {
     }
 
     try {
+
         const targetDate =
             date ||
             new Date()
@@ -228,32 +333,53 @@ app.get("/api/meal", async (req, res) => {
             `&SD_SCHUL_CODE=${encodeURIComponent(schoolCode)}` +
             `&MLSV_YMD=${encodeURIComponent(targetDate)}`;
 
-        const response = await fetch(url);
+        const response =
+            await fetch(url);
 
         if (!response.ok) {
-            throw new Error(`NEIS HTTP ${response.status}`);
+            throw new Error(
+                `NEIS HTTP ${response.status}`
+            );
         }
 
-        const data = await response.json();
+        const data =
+            await response.json();
 
         const rows =
             data?.mealServiceDietInfo?.[1]?.row || [];
 
-        const meals = rows.map((meal) => ({
-            date: meal.MLSV_YMD,
-            mealType: meal.MMEAL_SC_NM,
-            menu: meal.DDISH_NM,
-            calories: meal.CAL_INFO,
-            origin: meal.ORPLC_INFO,
-            nutrition: meal.NTR_INFO
-        }));
+        const meals =
+            rows.map((meal) => ({
+                date:
+                    meal.MLSV_YMD,
+
+                mealType:
+                    meal.MMEAL_SC_NM,
+
+                menu:
+                    meal.DDISH_NM,
+
+                calories:
+                    meal.CAL_INFO,
+
+                origin:
+                    meal.ORPLC_INFO,
+
+                nutrition:
+                    meal.NTR_INFO
+            }));
 
         return res.json({
             ok: true,
             meals
         });
+
     } catch (error) {
-        console.error("[급식 오류]");
+
+        console.error(
+            "[급식 오류]"
+        );
+
         console.error(error);
 
         return res.status(500).json({
@@ -263,13 +389,17 @@ app.get("/api/meal", async (req, res) => {
     }
 });
 
+
 // ==================================================
-// GEMINI AI
+// GEMINI AI - STREAMING
 // ==================================================
 
 app.post("/api/gemini", async (req, res) => {
+
     const message =
-        String(req.body?.message || "").trim();
+        String(
+            req.body?.message || ""
+        ).trim();
 
     const previousInteractionId =
         String(
@@ -282,14 +412,22 @@ app.post("/api/gemini", async (req, res) => {
     const apiKey =
         process.env.GEMINI_API_KEY;
 
+
+    // ----------------------------------------------
+    // 기본 검사
+    // ----------------------------------------------
+
     if (!message) {
+
         return res.status(400).json({
             ok: false,
-            message: "질문을 입력해주세요."
+            message:
+                "질문을 입력해주세요."
         });
     }
 
     if (!apiKey) {
+
         return res.status(500).json({
             ok: false,
             message:
@@ -297,36 +435,79 @@ app.post("/api/gemini", async (req, res) => {
         });
     }
 
-    // 필요한 학교 정보만 전달해서 요청 크기를 최소화
+
+    // ----------------------------------------------
+    // 사용자 질문 로그
+    // ----------------------------------------------
+
+    console.log("");
+    console.log(
+        "======================================"
+    );
+
+    console.log(
+        "[Gemini 사용자 질문]"
+    );
+
+    console.log(message);
+
+    console.log(
+        "======================================"
+    );
+
+    console.log("");
+
+
+    // ----------------------------------------------
+    // 필요한 학교 정보만 전달
+    // ----------------------------------------------
+
     const schoolContext = [
         context.schoolName
-            ? `학교: ${String(context.schoolName)}`
+            ? `학교: ${String(
+                  context.schoolName
+              )}`
             : "",
 
         context.grade
-            ? `학년: ${String(context.grade)}학년`
+            ? `학년: ${String(
+                  context.grade
+              )}학년`
             : "",
 
         context.classNum
-            ? `반: ${String(context.classNum)}반`
+            ? `반: ${String(
+                  context.classNum
+              )}반`
             : ""
     ]
         .filter(Boolean)
         .join(" / ");
 
-    const input = schoolContext
-        ? `현재 COMTIME PRO 사용자의 학교 정보는 ${schoolContext}입니다.
+
+    const input =
+        schoolContext
+            ? `현재 COMTIME PRO 사용자의 학교 정보는 ${schoolContext}입니다.
 
 사용자 질문:
 ${message}`
-        : message;
+            : message;
 
-    // 빠른 Flash-Lite 모델 + 실시간 스트리밍
+
+    // ----------------------------------------------
+    // Gemini 요청
+    // ----------------------------------------------
+
     const body = {
-        model: "gemini-3.5-flash-lite",
 
+        // 빠른 모델
+        model:
+            "gemini-3.5-flash-lite",
+
+        // 필요한 입력만 전송
         input,
 
+        // 실시간 스트리밍
         stream: true,
 
         system_instruction:
@@ -337,35 +518,59 @@ ${message}`
             "모르는 내용은 추측하지 않는다."
     };
 
-    // 이전 대화를 이어서 사용할 때만 ID 전달
+
+    // ----------------------------------------------
+    // 이전 대화가 있으면 연결
+    // ----------------------------------------------
+
     if (previousInteractionId) {
+
         body.previous_interaction_id =
             previousInteractionId;
     }
 
+
     let upstreamResponse;
 
+
+    // ----------------------------------------------
+    // Gemini 연결
+    // ----------------------------------------------
+
     try {
-        upstreamResponse = await fetch(
-            "https://generativelanguage.googleapis.com/v1beta/interactions?alt=sse",
-            {
-                method: "POST",
 
-                headers: {
-                    "Content-Type": "application/json",
-                    "Accept": "text/event-stream",
-                    "x-goog-api-key": apiKey
-                },
+        upstreamResponse =
+            await fetch(
+                "https://generativelanguage.googleapis.com/v1beta/interactions?alt=sse",
+                {
+                    method: "POST",
 
-                body: JSON.stringify(body)
-            }
-        );
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+
+                        "Accept":
+                            "text/event-stream",
+
+                        "x-goog-api-key":
+                            apiKey
+                    },
+
+                    body:
+                        JSON.stringify(body)
+                }
+            );
+
     } catch (error) {
+
+        console.error("");
         console.error(
             "[Gemini 연결 오류]"
         );
 
         console.error(error);
+
+        console.error("");
 
         return res.status(502).json({
             ok: false,
@@ -374,12 +579,18 @@ ${message}`
         });
     }
 
-    // API에서 오류를 반환한 경우
+
+    // ----------------------------------------------
+    // Gemini API 오류
+    // ----------------------------------------------
+
     if (!upstreamResponse.ok) {
+
         let errorMessage =
             `Gemini HTTP ${upstreamResponse.status}`;
 
         try {
+
             const errorData =
                 await upstreamResponse.json();
 
@@ -387,22 +598,40 @@ ${message}`
                 errorData?.error?.message ||
                 errorData?.message ||
                 errorMessage;
+
         } catch (_) {}
 
+
+        console.error("");
         console.error(
-            "[Gemini API 오류]",
+            "[Gemini API 오류]"
+        );
+
+        console.error(
             errorMessage
         );
 
+        console.error("");
+
+
         return res
-            .status(upstreamResponse.status)
+            .status(
+                upstreamResponse.status
+            )
             .json({
                 ok: false,
-                message: errorMessage
+                message:
+                    errorMessage
             });
     }
 
+
+    // ----------------------------------------------
+    // 스트리밍 응답 확인
+    // ----------------------------------------------
+
     if (!upstreamResponse.body) {
+
         return res.status(502).json({
             ok: false,
             message:
@@ -410,7 +639,11 @@ ${message}`
         });
     }
 
-    // SSE 응답 설정
+
+    // ----------------------------------------------
+    // SSE 헤더
+    // ----------------------------------------------
+
     res.status(200);
 
     res.setHeader(
@@ -435,19 +668,6 @@ ${message}`
 
     res.flushHeaders?.();
 
-    const sendEvent = (event, data) => {
-        if (res.writableEnded) {
-            return;
-        }
-
-        res.write(
-            `event: ${event}\n`
-        );
-
-        res.write(
-            `data: ${JSON.stringify(data)}\n\n`
-        );
-    };
 
     const reader =
         upstreamResponse.body.getReader();
@@ -456,17 +676,53 @@ ${message}`
         new TextDecoder("utf-8");
 
     let buffer = "";
+
     let interactionId = null;
+
     let clientClosed = false;
 
-    // 사용자가 중간에 요청을 취소한 경우
+
+    // ----------------------------------------------
+    // 클라이언트가 연결 종료
+    // ----------------------------------------------
+
     req.on("close", () => {
+
         clientClosed = true;
 
         try {
             reader.cancel();
         } catch (_) {}
+
     });
+
+
+    // ----------------------------------------------
+    // 서버 → 브라우저 SSE
+    // ----------------------------------------------
+
+    const sendEvent =
+        (event, data) => {
+
+            if (res.writableEnded) {
+                return;
+            }
+
+            res.write(
+                `event: ${event}\n`
+            );
+
+            res.write(
+                `data: ${JSON.stringify(
+                    data
+                )}\n\n`
+            );
+        };
+
+
+    // ----------------------------------------------
+    // Gemini SSE 이벤트 처리
+    // ----------------------------------------------
 
     const processUpstreamEvent =
         (rawEvent) => {
@@ -479,19 +735,28 @@ ${message}`
 
             const dataLines = [];
 
-            for (const line of lines) {
+
+            for (
+                const line of lines
+            ) {
 
                 if (
-                    line.startsWith("event:")
+                    line.startsWith(
+                        "event:"
+                    )
                 ) {
+
                     eventType =
                         line
                             .slice(6)
                             .trim();
 
                 } else if (
-                    line.startsWith("data:")
+                    line.startsWith(
+                        "data:"
+                    )
                 ) {
+
                     dataLines.push(
                         line
                             .slice(5)
@@ -500,14 +765,24 @@ ${message}`
                 }
             }
 
+
             if (!dataLines.length) {
                 return;
             }
 
+
             const rawData =
                 dataLines.join("\n");
 
-            if (rawData === "[DONE]") {
+
+            // --------------------------------------
+            // DONE
+            // --------------------------------------
+
+            if (
+                rawData ===
+                "[DONE]"
+            ) {
 
                 sendEvent(
                     "done",
@@ -519,23 +794,36 @@ ${message}`
                 return;
             }
 
+
             let data;
 
+
             try {
+
                 data =
-                    JSON.parse(rawData);
+                    JSON.parse(
+                        rawData
+                    );
+
             } catch (_) {
+
                 return;
             }
 
+
+            // --------------------------------------
             // interaction 생성
+            // --------------------------------------
+
             if (
                 eventType ===
                 "interaction.created"
             ) {
+
                 interactionId =
                     data?.interaction?.id ||
                     interactionId;
+
 
                 sendEvent(
                     "interaction",
@@ -547,7 +835,11 @@ ${message}`
                 return;
             }
 
+
+            // --------------------------------------
             // 실시간 텍스트
+            // --------------------------------------
+
             if (
                 eventType ===
                 "step.delta"
@@ -571,7 +863,11 @@ ${message}`
                 return;
             }
 
+
+            // --------------------------------------
             // 응답 완료
+            // --------------------------------------
+
             if (
                 eventType ===
                 "interaction.completed"
@@ -580,6 +876,7 @@ ${message}`
                 interactionId =
                     data?.interaction?.id ||
                     interactionId;
+
 
                 sendEvent(
                     "done",
@@ -591,21 +888,48 @@ ${message}`
                 return;
             }
 
+
+            // --------------------------------------
             // Gemini 오류
+            // --------------------------------------
+
             if (
-                eventType === "error"
+                eventType ===
+                "error"
             ) {
+
+                const errorText =
+                    data?.error?.message ||
+                    "Gemini 스트리밍 오류가 발생했습니다.";
+
+
+                console.error("");
+
+                console.error(
+                    "[Gemini 스트리밍 API 오류]"
+                );
+
+                console.error(
+                    errorText
+                );
+
+                console.error("");
+
 
                 sendEvent(
                     "error",
                     {
                         message:
-                            data?.error?.message ||
-                            "Gemini 스트리밍 오류가 발생했습니다."
+                            errorText
                     }
                 );
             }
         };
+
+
+    // ----------------------------------------------
+    // 스트리밍 시작
+    // ----------------------------------------------
 
     try {
 
@@ -617,9 +941,11 @@ ${message}`
             } =
                 await reader.read();
 
+
             if (done) {
                 break;
             }
+
 
             buffer +=
                 decoder.decode(
@@ -629,11 +955,16 @@ ${message}`
                     }
                 );
 
+
             const events =
-                buffer.split("\n\n");
+                buffer.split(
+                    "\n\n"
+                );
+
 
             buffer =
                 events.pop() || "";
+
 
             for (
                 const event of events
@@ -643,20 +974,24 @@ ${message}`
                     continue;
                 }
 
+
                 processUpstreamEvent(
                     event
                 );
             }
         }
 
-        // 남은 데이터 처리
+
+        // 남아 있는 UTF-8 데이터 처리
         buffer +=
             decoder.decode();
+
 
         if (
             buffer.trim() &&
             !clientClosed
         ) {
+
             processUpstreamEvent(
                 buffer
             );
@@ -666,11 +1001,16 @@ ${message}`
 
         if (!clientClosed) {
 
+            console.error("");
+
             console.error(
                 "[Gemini 스트리밍 오류]"
             );
 
             console.error(error);
+
+            console.error("");
+
 
             sendEvent(
                 "error",
@@ -690,7 +1030,13 @@ ${message}`
     }
 });
 
+
+// ==================================================
+// 존재하지 않는 API
+// ==================================================
+
 app.use("/api", (req, res) => {
+
     res.status(404).json({
         ok: false,
         message:
@@ -698,51 +1044,59 @@ app.use("/api", (req, res) => {
     });
 });
 
-app.listen(PORT, () => {
 
-    console.log("");
+// ==================================================
+// SERVER START
+// ==================================================
 
-    console.log(
-        "======================================"
-    );
+app.listen(
+    PORT,
+    () => {
 
-    console.log(
-        "          COMTIME PRO SERVER"
-    );
+        console.log("");
 
-    console.log(
-        "======================================"
-    );
+        console.log(
+            "======================================"
+        );
 
-    console.log(
-        `http://localhost:${PORT}`
-    );
+        console.log(
+            "          COMTIME PRO SERVER"
+        );
 
-    console.log("");
+        console.log(
+            "======================================"
+        );
 
-    console.log(
-        "학교검색 : /api/search-school"
-    );
+        console.log(
+            `http://localhost:${PORT}`
+        );
 
-    console.log(
-        "시간표   : /api/timetable"
-    );
+        console.log("");
 
-    console.log(
-        "급식     : /api/meal"
-    );
+        console.log(
+            "학교검색 : /api/search-school"
+        );
 
-    console.log(
-        "Gemini   : /api/gemini"
-    );
+        console.log(
+            "시간표   : /api/timetable"
+        );
 
-    console.log(
-        "상태     : /api/health"
-    );
+        console.log(
+            "급식     : /api/meal"
+        );
 
-    console.log(
-        "======================================"
-    );
+        console.log(
+            "Gemini   : /api/gemini"
+        );
 
-    console.log("");
-});
+        console.log(
+            "상태     : /api/health"
+        );
+
+        console.log(
+            "======================================"
+        );
+
+        console.log("");
+    }
+);
