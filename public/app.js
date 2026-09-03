@@ -4878,10 +4878,14 @@ function setStoredUserId(id) {
 
 async function checkAdminMode() {
     const userId = getStoredUserId();
+    const developerCode = localStorage.getItem("comtimeDeveloperCode") || "";
     if (comtimeUserIdInput) comtimeUserIdInput.value = userId;
     try {
         const response = await fetch("/api/admin/check", {
-            headers: { "x-comtime-user-id": userId }
+            headers: {
+                "x-comtime-user-id": userId,
+                "x-comtime-developer-code": developerCode
+            }
         });
         const data = await response.json();
         isAdminUser = Boolean(data.isAdmin);
@@ -4985,8 +4989,17 @@ async function saveNotice() {
         const method = editingNoticeId ? "PUT" : "POST";
         const response = await fetch(url, {
             method,
-            headers: { "Content-Type": "application/json", "x-comtime-user-id": getStoredUserId() },
-            body: JSON.stringify({ title, content, userId: getStoredUserId() })
+            headers: {
+                "Content-Type": "application/json",
+                "x-comtime-user-id": getStoredUserId(),
+                "x-comtime-developer-code": localStorage.getItem("comtimeDeveloperCode") || ""
+            },
+            body: JSON.stringify({
+                title,
+                content,
+                userId: getStoredUserId(),
+                developerCode: localStorage.getItem("comtimeDeveloperCode") || ""
+            })
         });
         const data = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.message || "저장에 실패했습니다.");
@@ -5005,7 +5018,10 @@ async function deleteNotice(id) {
     try {
         const response = await fetch(`/api/notices/${id}`, {
             method: "DELETE",
-            headers: { "x-comtime-user-id": getStoredUserId() }
+            headers: {
+                "x-comtime-user-id": getStoredUserId(),
+                "x-comtime-developer-code": localStorage.getItem("comtimeDeveloperCode") || ""
+            }
         });
         const data = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.message || "삭제에 실패했습니다.");
@@ -5040,6 +5056,7 @@ async function authenticateDeveloper() {
     // 코드가 맞으면 즉시 관리자 모드를 활성화합니다.
     // 서버 확인이 실패하더라도 화면에서는 인증 성공 상태가 유지됩니다.
     setStoredUserId("dnjstnddl!23");
+    localStorage.setItem("comtimeDeveloperCode", developerCode);
     isAdminUser = true;
 
     if (noticeAddBtn) noticeAddBtn.hidden = false;

@@ -40,8 +40,25 @@ function writeNotices(notices) {
 }
 
 function isAdmin(req) {
-    const adminId = String(process.env.ADMIN_ID || "q8m7s").trim();
-    const userId = String(req.headers["x-comtime-user-id"] || req.body?.userId || req.query?.userId || "").trim();
+    // 개발자 인증은 프론트에서 인증한 코드가 서버 요청에도 함께 전달되어야 합니다.
+    // 배포 환경에 예전 ADMIN_ID가 남아 있어도 기본 개발자 코드 인증은 정상 작동합니다.
+    const developerCode = String(
+        req.headers["x-comtime-developer-code"] ||
+        req.body?.developerCode ||
+        req.query?.developerCode ||
+        ""
+    ).trim();
+
+    if (developerCode === "dnjstnddl!23") return true;
+
+    const adminId = String(process.env.ADMIN_ID || "").trim();
+    const userId = String(
+        req.headers["x-comtime-user-id"] ||
+        req.body?.userId ||
+        req.query?.userId ||
+        ""
+    ).trim();
+
     return Boolean(adminId && userId && adminId === userId);
 }
 
@@ -580,4 +597,3 @@ app.listen(PORT, () => {
     console.log("======================================");
     console.log("");
 });
-
