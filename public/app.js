@@ -4848,6 +4848,7 @@ const noticeBackdrop = document.getElementById("noticeBackdrop");
 const closeNoticeBtn = document.getElementById("closeNoticeBtn");
 const openNoticeBtn = document.getElementById("openNoticeBtn");
 const noticeAddBtn = document.getElementById("noticeAddBtn");
+const noticeDeveloperAuthBtn = document.getElementById("noticeDeveloperAuthBtn");
 const noticeList = document.getElementById("noticeList");
 const noticeListView = document.getElementById("noticeListView");
 const noticeDetailView = document.getElementById("noticeDetailView");
@@ -5015,14 +5016,34 @@ async function deleteNotice(id) {
     }
 }
 
-function openNoticeModal() {
+async function openNoticeModal() {
     closeMenuModal();
-    checkAdminMode();
+
     noticeModal?.classList.add("active");
     noticeModal?.setAttribute("aria-hidden", "false");
     lockPageScroll();
     closeNoticeSubView();
+    await checkAdminMode();
     loadNotices();
+}
+
+async function authenticateDeveloper() {
+    const developerCode = window.prompt("개발자 코드 인증", "");
+
+    if (developerCode === null) return;
+
+    if (developerCode !== "dnjstnddl!23") {
+        alert("개발자 코드가 올바르지 않습니다.");
+        return;
+    }
+
+    setStoredUserId("dnjstnddl!23");
+    await checkAdminMode();
+
+    if (isAdminUser) {
+        alert("개발자 인증이 완료되었습니다. 관리자 기능이 활성화되었습니다.");
+        renderNoticeList();
+    }
 }
 
 function closeNoticeModal() {
@@ -5035,6 +5056,7 @@ openNoticeBtn?.addEventListener("click", openNoticeModal);
 closeNoticeBtn?.addEventListener("click", closeNoticeModal);
 noticeBackdrop?.addEventListener("click", closeNoticeModal);
 noticeBackBtn?.addEventListener("click", closeNoticeSubView);
+noticeDeveloperAuthBtn?.addEventListener("click", authenticateDeveloper);
 noticeAddBtn?.addEventListener("click", () => openNoticeEditor());
 noticeEditorCancelBtn?.addEventListener("click", closeNoticeSubView);
 noticeEditorSaveBtn?.addEventListener("click", saveNotice);
@@ -5045,4 +5067,3 @@ saveUserIdBtn?.addEventListener("click", async () => {
 });
 
 checkAdminMode();
-
