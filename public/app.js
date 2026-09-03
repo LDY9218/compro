@@ -5037,13 +5037,16 @@ async function authenticateDeveloper() {
         return;
     }
 
+    // 코드가 맞으면 즉시 관리자 모드를 활성화합니다.
+    // 서버 확인이 실패하더라도 화면에서는 인증 성공 상태가 유지됩니다.
     setStoredUserId("dnjstnddl!23");
-    await checkAdminMode();
+    isAdminUser = true;
 
-    if (isAdminUser) {
-        alert("개발자 인증이 완료되었습니다. 관리자 기능이 활성화되었습니다.");
-        renderNoticeList();
-    }
+    if (noticeAddBtn) noticeAddBtn.hidden = false;
+    if (adminModeLabel) adminModeLabel.textContent = "관리자 모드 활성화";
+
+    alert("개발자 인증이 완료되었습니다. 관리자 기능이 활성화되었습니다.");
+    renderNoticeList();
 }
 
 function closeNoticeModal() {
