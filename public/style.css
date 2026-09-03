@@ -2170,3 +2170,48 @@ footer {
         font-size: 10px;
     }
 }
+
+
+/* ==================================================
+   NOTICE BOARD
+================================================== */
+.notice-modal { position: fixed; inset: 0; z-index: 3000; display: none; align-items: center; justify-content: center; padding: 24px; }
+.notice-modal.active { display: flex; }
+.notice-backdrop { position: absolute; inset: 0; background: rgba(22,27,45,.48); backdrop-filter: blur(6px); }
+.notice-window { position: relative; width: min(620px, 100%); max-height: min(760px, calc(100vh - 40px)); overflow: hidden; background: #fff; border: 1px solid #e6e9f2; border-radius: 22px; box-shadow: 0 24px 70px rgba(28,35,61,.22); display: flex; flex-direction: column; }
+.notice-header { padding: 20px 22px 16px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #edf0f6; }
+.notice-header h2 { margin: 4px 0 0; font-size: 21px; color:#22283a; }
+.notice-header-actions { display:flex; gap:8px; align-items:center; }
+.notice-add-btn { border:0; border-radius:10px; background:#667dff; color:white; height:36px; padding:0 12px; font-weight:700; cursor:pointer; }
+.notice-body { overflow:auto; padding:12px; }
+.notice-list { display:flex; flex-direction:column; gap:8px; }
+.notice-card { width:100%; display:flex; align-items:center; justify-content:space-between; text-align:left; border:1px solid #edf0f5; background:#fff; border-radius:14px; padding:15px 16px; cursor:pointer; transition:.15s; }
+.notice-card:hover { border-color:#cfd5ff; transform:translateY(-1px); box-shadow:0 6px 18px rgba(53,65,120,.08); }
+.notice-card-main { min-width:0; display:flex; flex-direction:column; gap:5px; }
+.notice-card-main strong { color:#252b3d; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.notice-card-main small,.notice-detail-date { color:#9299a8; font-size:11px; }
+.notice-new { align-self:flex-start; font-size:9px; font-weight:800; color:#667dff; background:#eef0ff; padding:3px 6px; border-radius:6px; }
+.notice-arrow { color:#9aa2b2; font-size:23px; }
+.notice-empty,.notice-message { padding:45px 15px; text-align:center; color:#9299a8; }
+.notice-empty { display:flex; flex-direction:column; gap:7px; }
+.notice-empty strong { color:#555d70; }
+.notice-detail,.notice-editor { padding:20px; overflow:auto; }
+.notice-back-btn { border:0; background:transparent; color:#667dff; font-weight:700; padding:0; cursor:pointer; margin-bottom:20px; }
+.notice-detail h3 { margin:0 0 10px; font-size:22px; color:#22283a; }
+.notice-detail-content { margin-top:22px; min-height:180px; color:#4e5669; font-size:14px; line-height:1.8; white-space:normal; }
+.notice-admin-actions { display:flex; gap:8px; margin-top:24px; padding-top:16px; border-top:1px solid #edf0f6; }
+.notice-admin-actions button,.notice-editor-actions button { flex:1; height:42px; border:0; border-radius:10px; background:#667dff; color:#fff; font-weight:700; cursor:pointer; }
+.notice-admin-actions .danger { background:#ef5d6f; }
+.notice-editor-title { font-size:20px; font-weight:800; color:#252b3d; margin-bottom:18px; }
+.notice-editor input,.notice-editor textarea,.menu-user-id input { width:100%; box-sizing:border-box; border:1px solid #dfe3ec; border-radius:11px; padding:12px; font:inherit; outline:none; }
+.notice-editor textarea { resize:vertical; min-height:220px; margin-top:10px; line-height:1.6; }
+.notice-editor input:focus,.notice-editor textarea:focus,.menu-user-id input:focus { border-color:#8796ff; box-shadow:0 0 0 3px rgba(102,125,255,.10); }
+.notice-editor-actions { display:flex; gap:8px; margin-top:12px; }
+.notice-editor-actions button:first-child { background:#eef0f5; color:#596174; }
+.menu-user-id { margin:0 18px 10px; padding:12px; border:1px solid #edf0f5; border-radius:12px; background:#fafbfe; }
+.menu-user-id label { display:block; font-size:10px; font-weight:800; color:#697185; margin-bottom:7px; }
+.menu-user-id-row { display:flex; gap:7px; }
+.menu-user-id-row input { height:36px; font-size:12px; }
+.menu-user-id-row button { flex:0 0 auto; border:0; border-radius:9px; padding:0 12px; background:#667dff; color:#fff; font-weight:700; cursor:pointer; }
+.menu-user-id small { display:block; margin-top:7px; font-size:10px; color:#8e96a7; }
+@media (max-width:560px) { .notice-modal { padding:12px; } .notice-window { max-height:calc(100vh - 24px); border-radius:18px; } .notice-header { padding:16px; } .notice-add-btn { padding:0 9px; font-size:10px; } }
