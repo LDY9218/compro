@@ -1085,8 +1085,10 @@ function updateCurrentClass() {
         return;
     }
 
+
     const dayIndex =
         getKoreanDayIndex();
+
 
     if (
         dayIndex < 0 ||
@@ -1102,29 +1104,118 @@ function updateCurrentClass() {
         nextSubjectEl.textContent =
             "월요일 수업";
 
+        const nextContainer =
+            document.querySelector(
+                ".next"
+            );
+
+        if (nextContainer) {
+
+            nextContainer.innerHTML = `
+                주말에는 수업이 없습니다.
+            `;
+        }
+
         return;
     }
+
 
     const todayItems =
         getTodayItems();
 
+
     const nowMinutes =
         getCurrentMinutes();
 
+
+    // ==================================================
+    // 실제 수업이 있는 교시인지 확인
+    // ==================================================
+
+    function hasRealLesson(item) {
+
+        if (!item) {
+            return false;
+        }
+
+        const subject =
+            getSubject(item);
+
+        if (!subject) {
+            return false;
+        }
+
+        const normalized =
+            String(
+                subject
+            ).trim();
+
+        if (!normalized) {
+            return false;
+        }
+
+        // 비어 있는 교시 / 기본값은 수업 없음
+        if (
+            normalized === "-" ||
+            normalized === "수업"
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+
+    // ==================================================
+    // 오늘 실제 시간표가 존재하는 교시만 사용
+    // ==================================================
+
+    const todayPeriods =
+        PERIODS.filter(
+            period => {
+
+                const item =
+                    todayItems[
+                        period.period - 1
+                    ];
+
+                return hasRealLesson(
+                    item
+                );
+            }
+        );
+
+
+    // ==================================================
+    // 현재 교시 / 다음 교시
+    // ==================================================
+
     let currentPeriod =
+        null;
+
+    let currentItem =
         null;
 
     let nextPeriod =
         null;
 
+    let nextItem =
+        null;
+
+
     for (
         let i = 0;
-        i < PERIODS.length;
+        i < todayPeriods.length;
         i++
     ) {
 
         const period =
-            PERIODS[i];
+            todayPeriods[i];
+
+        const item =
+            todayItems[
+                period.period - 1
+            ];
 
         const start =
             timeToMinutes(
@@ -1136,6 +1227,11 @@ function updateCurrentClass() {
                 period.end
             );
 
+
+        // ==================================================
+        // 현재 수업
+        // ==================================================
+
         if (
             nowMinutes >= start &&
             nowMinutes <= end
@@ -1144,75 +1240,132 @@ function updateCurrentClass() {
             currentPeriod =
                 period;
 
+            currentItem =
+                item;
+
             nextPeriod =
-                PERIODS[
+                todayPeriods[
                     i + 1
-                ] ||
-                null;
+                ] || null;
+
+            if (nextPeriod) {
+
+                nextItem =
+                    todayItems[
+                        nextPeriod.period - 1
+                    ];
+            }
 
             break;
         }
 
+
+        // ==================================================
+        // 다음 수업
+        // ==================================================
+
         if (
-            nowMinutes < start &&
-            !nextPeriod
+            nowMinutes < start
         ) {
 
             nextPeriod =
                 period;
+
+            nextItem =
+                item;
+
+            break;
         }
     }
 
 
+    // ==================================================
+    // 현재 수업
+    // ==================================================
+
     if (currentPeriod) {
 
-        const item =
-            todayItems[
-                currentPeriod.period - 1
-            ];
-
         const subject =
-            getSubject(item);
+            getSubject(
+                currentItem
+            );
 
         const teacher =
-            getTeacher(item);
+            getTeacher(
+                currentItem
+            );
+
 
         currentSubjectEl.textContent =
             `${currentPeriod.period}교시 · ${subject}`;
+
 
         currentTeacherEl.textContent =
             teacher
                 ? `${teacher} 선생님`
                 : "담당 선생님 정보 없음";
 
-        const remaining =
+
+        // ==================================================
+        // 남은 시간
+        //
+        // 표시만 실제 종료시간보다 10분 늦게 계산
+        // ==================================================
+
+        const COUNTDOWN_OFFSET_MINUTES =
+            10;
+
+
+        const adjustedEndMinutes =
             timeToMinutes(
                 currentPeriod.end
-            ) -
+            ) +
+            COUNTDOWN_OFFSET_MINUTES;
+
+
+        const remaining =
+            adjustedEndMinutes -
             nowMinutes;
+
 
         const seconds =
             60 -
             new Date().getSeconds();
+
 
         const remainText =
             remaining > 0
                 ? `${remaining - 1}분 ${seconds}초 남음`
                 : "곧 종료";
 
-        nextSubjectEl.textContent =
-            nextPeriod
-                ? `${getSubject(
-                    todayItems[
-                        nextPeriod.period - 1
-                    ]
-                )} · 다음`
-                : "오늘 마지막 수업";
+
+        // ==================================================
+        // 다음 수업
+        // ==================================================
+
+        if (nextPeriod) {
+
+            nextSubjectEl.textContent =
+                `${nextPeriod.period}교시 ${getSubject(
+                    nextItem
+                )} · 다음`;
+
+        } else {
+
+            nextSubjectEl.textContent =
+                "오늘 마지막 수업";
+        }
+
+
+        // ==================================================
+        // 남은 시간 표시
+        // ==================================================
 
         const nextContainer =
             document.querySelector(
                 ".next"
             );
+
 
         if (nextContainer) {
 
@@ -1230,15 +1383,17 @@ function updateCurrentClass() {
     }
 
 
+    // ==================================================
+    // 다음 수업이 있는 경우
+    // ==================================================
+
     if (nextPeriod) {
 
-        const item =
-            todayItems[
-                nextPeriod.period - 1
-            ];
-
         const subject =
-            getSubject(item);
+            getSubject(
+                nextItem
+            );
+
 
         const remain =
             timeToMinutes(
@@ -1246,19 +1401,24 @@ function updateCurrentClass() {
             ) -
             nowMinutes;
 
+
         currentSubjectEl.textContent =
             "쉬는 시간";
+
 
         currentTeacherEl.textContent =
             "다음 수업 준비하세요";
 
+
         nextSubjectEl.textContent =
             `${nextPeriod.period}교시 ${subject}`;
+
 
         const nextContainer =
             document.querySelector(
                 ".next"
             );
+
 
         if (nextContainer) {
 
@@ -1274,19 +1434,27 @@ function updateCurrentClass() {
     }
 
 
+    // ==================================================
+    // 오늘 수업 종료
+    // ==================================================
+
     currentSubjectEl.textContent =
         "오늘 수업 끝";
+
 
     currentTeacherEl.textContent =
         "수고하셨습니다";
 
+
     nextSubjectEl.textContent =
         "내일 수업";
+
 
     const nextContainer =
         document.querySelector(
             ".next"
         );
+
 
     if (nextContainer) {
 
@@ -1831,12 +1999,10 @@ let birdScale =
 // 게임 지형 설정
 // ==================================================
 
-// 화면 아래쪽으로 확실하게 내림
 const BIRD_GROUND_RATIO =
     0.84;
 
 
-// 천장
 const BIRD_CEILING =
     0;
 
@@ -1847,79 +2013,60 @@ const BIRD_CEILING =
 
 const BIRD_DIFFICULTY = {
 
-    // 기본 속도
     baseSpeed:
         255,
 
-    // 최대 속도
     maxSpeed:
         440,
 
-    // 점수당 속도 증가
     speedPerScore:
         3.8,
 
-    // 기본 통로 크기
     baseGap:
         205,
 
-    // 점수당 통로 감소
     gapShrinkPerScore:
         1.45,
 
-    // 절대 최소 통로
     minGap:
         142,
 
-    // 장애물 기본 폭
     obstacleWidth:
         70,
 
-    // 첫 장애물까지 여유
     firstObstacleDelay:
         1.35,
 
-    // 기본 장애물 간격
     baseObstacleInterval:
         1.52,
 
-    // 점수당 간격 감소
     obstacleIntervalDecrease:
         0.010,
 
-    // 최소 장애물 간격
     minObstacleInterval:
         0.92,
 
-    // 장애물이 움직이기 시작하는 점수
     movingStartScore:
         10,
 
-    // 움직임이 강해지기 시작하는 점수
     hardStartScore:
         20,
 
-    // 이동폭 기본값
     baseMoveRange:
         18,
 
-    // 이동폭 증가
     moveRangePerScore:
         1.6,
 
-    // 장애물 상하 이동속도
     baseMoveSpeed:
         30,
 
-    // 이동속도 증가
     moveSpeedPerScore:
         1.1,
 
-    // 위쪽 최소 여백
     topMargin:
         58,
 
-    // 땅 위 최소 여백
     bottomMargin:
         48
 };
@@ -2705,7 +2852,6 @@ function createBirdObstacle() {
         maxGapY;
 
 
-    // 이동폭이 실제 가능한 공간보다 크지 않도록 제한
     const availableMovement =
         Math.max(
             0,
@@ -2968,10 +3114,6 @@ function updateBirdClouds(
 
 function checkBirdCollision() {
 
-    // ==================================================
-    // 새 충돌 박스
-    // ==================================================
-
     const paddingX =
         6;
 
@@ -2995,10 +3137,6 @@ function checkBirdCollision() {
         paddingY * 2;
 
 
-    // ==================================================
-    // 땅
-    // ==================================================
-
     const groundY =
         getBirdGroundY();
 
@@ -3013,10 +3151,6 @@ function checkBirdCollision() {
     }
 
 
-    // ==================================================
-    // 천장
-    // ==================================================
-
     if (
         by <=
         BIRD_CEILING
@@ -3025,10 +3159,6 @@ function checkBirdCollision() {
         return true;
     }
 
-
-    // ==================================================
-    // 장애물
-    // ==================================================
 
     for (
         const obstacle of
@@ -3050,7 +3180,6 @@ function checkBirdCollision() {
             obstacle.gapSize;
 
 
-        // 좌우 충돌
         const horizontal =
             bx <
                 ox + ow &&
@@ -3063,7 +3192,6 @@ function checkBirdCollision() {
         }
 
 
-        // 위쪽 기둥
         const hitTop =
             by <
                 topPipeBottom &&
@@ -3071,7 +3199,6 @@ function checkBirdCollision() {
                 0;
 
 
-        // 아래쪽 기둥
         const hitBottom =
             by + bh >
                 bottomPipeTop &&
@@ -3625,10 +3752,6 @@ function drawBirdObstacles() {
                 obstacle.gapSize;
 
 
-            // ==================================================
-            // 위쪽 기둥
-            // ==================================================
-
             drawObstaclePipe(
                 x,
                 0,
@@ -3637,10 +3760,6 @@ function drawBirdObstacles() {
                 true
             );
 
-
-            // ==================================================
-            // 아래쪽 기둥
-            // ==================================================
 
             drawObstaclePipe(
                 x,
@@ -3677,10 +3796,6 @@ function drawObstaclePipe(
         return;
     }
 
-
-    // ==================================================
-    // 본체
-    // ==================================================
 
     const gradient =
         birdCtx.createLinearGradient(
@@ -3719,10 +3834,6 @@ function drawObstaclePipe(
     );
 
 
-    // ==================================================
-    // 본체 테두리
-    // ==================================================
-
     birdCtx.strokeStyle =
         "rgba(67, 79, 180, 0.48)";
 
@@ -3739,10 +3850,6 @@ function drawObstaclePipe(
         )
     );
 
-
-    // ==================================================
-    // 기둥 끝 캡
-    // ==================================================
 
     const capHeight =
         Math.min(
@@ -3769,7 +3876,6 @@ function drawObstaclePipe(
 
     if (top) {
 
-        // 위쪽 기둥은 아래쪽에 캡
         capY =
             y +
             height -
@@ -3777,15 +3883,10 @@ function drawObstaclePipe(
 
     } else {
 
-        // 아래쪽 기둥은 위쪽에 캡
         capY =
             y;
     }
 
-
-    // ==================================================
-    // 캡 그림자
-    // ==================================================
 
     birdCtx.fillStyle =
         "rgba(54, 65, 155, 0.18)";
@@ -3802,10 +3903,6 @@ function drawObstaclePipe(
 
     birdCtx.fill();
 
-
-    // ==================================================
-    // 캡 본체
-    // ==================================================
 
     const capGradient =
         birdCtx.createLinearGradient(
@@ -3858,10 +3955,6 @@ function drawObstaclePipe(
     birdCtx.stroke();
 
 
-    // ==================================================
-    // 본체 하이라이트
-    // ==================================================
-
     birdCtx.fillStyle =
         "rgba(255,255,255,0.19)";
 
@@ -3876,10 +3969,6 @@ function drawObstaclePipe(
         )
     );
 
-
-    // ==================================================
-    // 캡 하이라이트
-    // ==================================================
 
     birdCtx.fillStyle =
         "rgba(255,255,255,0.22)";
@@ -3899,10 +3988,6 @@ function drawObstaclePipe(
 
     birdCtx.fill();
 
-
-    // ==================================================
-    // 캡 중앙 광택
-    // ==================================================
 
     birdCtx.fillStyle =
         "rgba(255,255,255,0.08)";
@@ -3946,10 +4031,6 @@ function drawBirdPlayer() {
     );
 
 
-    // ==================================================
-    // 그림자
-    // ==================================================
-
     birdCtx.fillStyle =
         "rgba(54, 69, 91, 0.13)";
 
@@ -3967,10 +4048,6 @@ function drawBirdPlayer() {
 
     birdCtx.fill();
 
-
-    // ==================================================
-    // 몸
-    // ==================================================
 
     const body =
         birdCtx.createLinearGradient(
@@ -4009,10 +4086,6 @@ function drawBirdPlayer() {
     birdCtx.fill();
 
 
-    // ==================================================
-    // 날개
-    // ==================================================
-
     birdCtx.fillStyle =
         "#f5aa2d";
 
@@ -4030,10 +4103,6 @@ function drawBirdPlayer() {
 
     birdCtx.fill();
 
-
-    // ==================================================
-    // 눈
-    // ==================================================
 
     birdCtx.fillStyle =
         "#ffffff";
@@ -4067,10 +4136,6 @@ function drawBirdPlayer() {
     birdCtx.fill();
 
 
-    // ==================================================
-    // 부리
-    // ==================================================
-
     birdCtx.fillStyle =
         "#ff8847";
 
@@ -4095,10 +4160,6 @@ function drawBirdPlayer() {
 
     birdCtx.fill();
 
-
-    // ==================================================
-    // 머리 하이라이트
-    // ==================================================
 
     birdCtx.fillStyle =
         "rgba(255,255,255,0.4)";
@@ -4458,384 +4519,956 @@ console.log(
 console.log(
     "Bird Bump 준비 완료"
 );
+
+
 // ==================================================
 // MENU / GEMINI AI
 // ==================================================
 
-const menuBtn = document.getElementById("menuBtn");
-const menuModal = document.getElementById("menuModal");
-const menuBackdrop = document.getElementById("menuBackdrop");
-const closeMenuBtn = document.getElementById("closeMenuBtn");
-const openGeminiBtn = document.getElementById("openGeminiBtn");
-const openBirdFromMenuBtn = document.getElementById("openBirdFromMenuBtn");
+const menuBtn =
+    document.getElementById(
+        "menuBtn"
+    );
 
-const geminiModal = document.getElementById("geminiModal");
-const geminiBackdrop = document.getElementById("geminiBackdrop");
-const closeGeminiBtn = document.getElementById("closeGeminiBtn");
-const geminiNewChatBtn = document.getElementById("geminiNewChatBtn");
-const geminiInput = document.getElementById("geminiInput");
-const geminiSendBtn = document.getElementById("geminiSendBtn");
-const geminiMessages = document.getElementById("geminiMessages");
-const geminiStatus = document.getElementById("geminiStatus");
+const menuModal =
+    document.getElementById(
+        "menuModal"
+    );
 
-let geminiPreviousInteractionId = null;
-let geminiStreaming = false;
-let geminiAbortController = null;
+const menuBackdrop =
+    document.getElementById(
+        "menuBackdrop"
+    );
+
+const closeMenuBtn =
+    document.getElementById(
+        "closeMenuBtn"
+    );
+
+const openGeminiBtn =
+    document.getElementById(
+        "openGeminiBtn"
+    );
+
+const openBirdFromMenuBtn =
+    document.getElementById(
+        "openBirdFromMenuBtn"
+    );
+
+
+const geminiModal =
+    document.getElementById(
+        "geminiModal"
+    );
+
+const geminiBackdrop =
+    document.getElementById(
+        "geminiBackdrop"
+    );
+
+const closeGeminiBtn =
+    document.getElementById(
+        "closeGeminiBtn"
+    );
+
+const geminiNewChatBtn =
+    document.getElementById(
+        "geminiNewChatBtn"
+    );
+
+const geminiInput =
+    document.getElementById(
+        "geminiInput"
+    );
+
+const geminiSendBtn =
+    document.getElementById(
+        "geminiSendBtn"
+    );
+
+const geminiMessages =
+    document.getElementById(
+        "geminiMessages"
+    );
+
+const geminiStatus =
+    document.getElementById(
+        "geminiStatus"
+    );
+
+
+let geminiPreviousInteractionId =
+    null;
+
+let geminiStreaming =
+    false;
+
+let geminiAbortController =
+    null;
+
 
 function lockPageScroll() {
-    document.body.style.overflow = "hidden";
+
+    document.body.style.overflow =
+        "hidden";
 }
+
 
 function unlockPageScroll() {
-    const menuOpen = menuModal?.classList.contains("active");
-    const geminiOpen = geminiModal?.classList.contains("active");
-    const birdOpen = birdGameModal?.classList.contains("active");
 
-    if (!menuOpen && !geminiOpen && !birdOpen) {
-        document.body.style.overflow = "";
+    const menuOpen =
+        menuModal?.classList.contains(
+            "active"
+        );
+
+    const geminiOpen =
+        geminiModal?.classList.contains(
+            "active"
+        );
+
+    const birdOpen =
+        birdGameModal?.classList.contains(
+            "active"
+        );
+
+    if (
+        !menuOpen &&
+        !geminiOpen &&
+        !birdOpen
+    ) {
+
+        document.body.style.overflow =
+            "";
     }
 }
+
 
 function openMenuModal() {
-    if (!menuModal) return;
 
-    menuModal.classList.add("active");
-    menuModal.setAttribute("aria-hidden", "false");
-    lockPageScroll();
-}
-
-function closeMenuModal() {
-    if (!menuModal) return;
-
-    menuModal.classList.remove("active");
-    menuModal.setAttribute("aria-hidden", "true");
-    unlockPageScroll();
-}
-
-function openGeminiModal() {
-    closeMenuModal();
-
-    if (!geminiModal) return;
-
-    geminiModal.classList.add("active");
-    geminiModal.setAttribute("aria-hidden", "false");
-    lockPageScroll();
-
-    requestAnimationFrame(() => {
-        geminiInput?.focus();
-    });
-}
-
-function closeGeminiModal() {
-    if (!geminiModal) return;
-
-    if (geminiAbortController) {
-        geminiAbortController.abort();
-        geminiAbortController = null;
+    if (!menuModal) {
+        return;
     }
 
-    geminiStreaming = false;
-    geminiModal.classList.remove("active");
-    geminiModal.setAttribute("aria-hidden", "true");
+    menuModal.classList.add(
+        "active"
+    );
+
+    menuModal.setAttribute(
+        "aria-hidden",
+        "false"
+    );
+
+    lockPageScroll();
+}
+
+
+function closeMenuModal() {
+
+    if (!menuModal) {
+        return;
+    }
+
+    menuModal.classList.remove(
+        "active"
+    );
+
+    menuModal.setAttribute(
+        "aria-hidden",
+        "true"
+    );
+
     unlockPageScroll();
 }
 
-function addGeminiMessage(text, type) {
-    if (!geminiMessages) return null;
 
-    const message = document.createElement("div");
-    message.className = `gemini-message ${type}`;
-    message.textContent = text;
-    geminiMessages.appendChild(message);
-    geminiMessages.scrollTop = geminiMessages.scrollHeight;
+function openGeminiModal() {
+
+    closeMenuModal();
+
+    if (!geminiModal) {
+        return;
+    }
+
+    geminiModal.classList.add(
+        "active"
+    );
+
+    geminiModal.setAttribute(
+        "aria-hidden",
+        "false"
+    );
+
+    lockPageScroll();
+
+    requestAnimationFrame(
+        () => {
+
+            geminiInput?.focus();
+        }
+    );
+}
+
+
+function closeGeminiModal() {
+
+    if (!geminiModal) {
+        return;
+    }
+
+    if (
+        geminiAbortController
+    ) {
+
+        geminiAbortController.abort();
+
+        geminiAbortController =
+            null;
+    }
+
+    geminiStreaming =
+        false;
+
+    geminiModal.classList.remove(
+        "active"
+    );
+
+    geminiModal.setAttribute(
+        "aria-hidden",
+        "true"
+    );
+
+    unlockPageScroll();
+}
+
+
+function addGeminiMessage(
+    text,
+    type
+) {
+
+    if (!geminiMessages) {
+        return null;
+    }
+
+    const message =
+        document.createElement(
+            "div"
+        );
+
+    message.className =
+        `gemini-message ${type}`;
+
+    message.textContent =
+        text;
+
+    geminiMessages.appendChild(
+        message
+    );
+
+    geminiMessages.scrollTop =
+        geminiMessages.scrollHeight;
 
     return message;
 }
 
-function setGeminiStatus(text = "") {
+
+function setGeminiStatus(
+    text = ""
+) {
+
     if (geminiStatus) {
-        geminiStatus.textContent = text;
+
+        geminiStatus.textContent =
+            text;
     }
 }
 
-function resetGeminiChat() {
-    if (geminiStreaming) return;
 
-    geminiPreviousInteractionId = null;
+function resetGeminiChat() {
+
+    if (geminiStreaming) {
+        return;
+    }
+
+    geminiPreviousInteractionId =
+        null;
 
     if (geminiMessages) {
+
         geminiMessages.innerHTML =
             '<div class="gemini-message assistant">안녕하세요! 무엇을 도와드릴까요?</div>';
     }
 
     if (geminiInput) {
-        geminiInput.value = "";
-        geminiInput.disabled = false;
+
+        geminiInput.value =
+            "";
+
+        geminiInput.disabled =
+            false;
     }
 
     if (geminiSendBtn) {
-        geminiSendBtn.disabled = false;
-        geminiSendBtn.textContent = "전송";
+
+        geminiSendBtn.disabled =
+            false;
+
+        geminiSendBtn.textContent =
+            "전송";
     }
 
     setGeminiStatus("");
+
     geminiInput?.focus();
 }
 
-function setGeminiSendingState(sending) {
-    geminiStreaming = sending;
+
+function setGeminiSendingState(
+    sending
+) {
+
+    geminiStreaming =
+        sending;
 
     if (geminiInput) {
-        geminiInput.disabled = sending;
+
+        geminiInput.disabled =
+            sending;
     }
 
     if (geminiSendBtn) {
-        geminiSendBtn.disabled = sending;
-        geminiSendBtn.textContent = sending ? "작성 중..." : "전송";
+
+        geminiSendBtn.disabled =
+            sending;
+
+        geminiSendBtn.textContent =
+            sending
+                ? "작성 중..."
+                : "전송";
     }
 }
 
-function appendGeminiStreamText(element, text) {
-    if (!element || !text) return;
 
-    element.textContent += text;
-    geminiMessages.scrollTop = geminiMessages.scrollHeight;
-}
+function appendGeminiStreamText(
+    element,
+    text
+) {
 
-async function sendGeminiMessage() {
-    if (!geminiInput || !geminiSendBtn || geminiStreaming) return;
+    if (
+        !element ||
+        !text
+    ) {
 
-    const message = geminiInput.value.trim();
-
-    if (!message) {
-        geminiInput.focus();
         return;
     }
 
-    addGeminiMessage(message, "user");
-    geminiInput.value = "";
+    element.textContent +=
+        text;
 
-    const assistantMessage = addGeminiMessage("", "assistant");
+    geminiMessages.scrollTop =
+        geminiMessages.scrollHeight;
+}
 
-    setGeminiSendingState(true);
-    setGeminiStatus("Gemini가 답변을 작성하고 있습니다...");
 
-    const context = selectedSchool
-        ? {
-            schoolName: selectedSchool.name,
-            grade: gradeSelect?.value || "",
-            classNum: classSelect?.value || ""
-        }
-        : {};
+async function sendGeminiMessage() {
 
-    geminiAbortController = new AbortController();
+    if (
+        !geminiInput ||
+        !geminiSendBtn ||
+        geminiStreaming
+    ) {
+
+        return;
+    }
+
+    const message =
+        geminiInput.value.trim();
+
+    if (!message) {
+
+        geminiInput.focus();
+
+        return;
+    }
+
+
+    addGeminiMessage(
+        message,
+        "user"
+    );
+
+    geminiInput.value =
+        "";
+
+
+    const assistantMessage =
+        addGeminiMessage(
+            "",
+            "assistant"
+        );
+
+
+    setGeminiSendingState(
+        true
+    );
+
+    setGeminiStatus(
+        "Gemini가 답변을 작성하고 있습니다..."
+    );
+
+
+    const context =
+        selectedSchool
+            ? {
+                schoolName:
+                    selectedSchool.name,
+
+                grade:
+                    gradeSelect?.value ||
+                    "",
+
+                classNum:
+                    classSelect?.value ||
+                    ""
+            }
+            : {};
+
+
+    geminiAbortController =
+        new AbortController();
+
 
     try {
-        const response = await fetch("/api/gemini", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "text/event-stream"
-            },
-            body: JSON.stringify({
-                message,
-                previousInteractionId: geminiPreviousInteractionId,
-                context
-            }),
-            signal: geminiAbortController.signal
-        });
+
+        const response =
+            await fetch(
+                "/api/gemini",
+                {
+                    method:
+                        "POST",
+
+                    headers:
+                        {
+                            "Content-Type":
+                                "application/json",
+
+                            "Accept":
+                                "text/event-stream"
+                        },
+
+                    body:
+                        JSON.stringify(
+                            {
+                                message,
+
+                                previousInteractionId:
+                                    geminiPreviousInteractionId,
+
+                                context
+                            }
+                        ),
+
+                    signal:
+                        geminiAbortController.signal
+                }
+            );
+
 
         if (!response.ok) {
-            let errorMessage = `Gemini 요청에 실패했습니다. (HTTP ${response.status})`;
+
+            let errorMessage =
+                `Gemini 요청에 실패했습니다. (HTTP ${response.status})`;
+
 
             try {
-                const errorData = await response.json();
-                errorMessage = errorData.message || errorMessage;
+
+                const errorData =
+                    await response.json();
+
+                errorMessage =
+                    errorData.message ||
+                    errorMessage;
+
             } catch (_) {
-                // JSON 오류 응답이 아니면 기본 메시지를 사용합니다.
+
+                // JSON 오류 응답이 아니면
+                // 기본 메시지를 사용합니다.
             }
 
-            throw new Error(errorMessage);
+
+            throw new Error(
+                errorMessage
+            );
         }
+
 
         if (!response.body) {
-            throw new Error("스트리밍 응답을 받을 수 없습니다.");
+
+            throw new Error(
+                "스트리밍 응답을 받을 수 없습니다."
+            );
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let buffer = "";
-        let receivedText = false;
 
-        const processEvent = (rawEvent) => {
-            const lines = rawEvent.split("\n");
-            let eventType = "message";
-            const dataLines = [];
+        const reader =
+            response.body.getReader();
 
-            for (const line of lines) {
-                if (line.startsWith("event:")) {
-                    eventType = line.slice(6).trim();
-                } else if (line.startsWith("data:")) {
-                    dataLines.push(line.slice(5).trimStart());
+        const decoder =
+            new TextDecoder(
+                "utf-8"
+            );
+
+        let buffer =
+            "";
+
+        let receivedText =
+            false;
+
+
+        const processEvent =
+            (
+                rawEvent
+            ) => {
+
+                const lines =
+                    rawEvent.split(
+                        "\n"
+                    );
+
+                let eventType =
+                    "message";
+
+                const dataLines =
+                    [];
+
+
+                for (
+                    const line of lines
+                ) {
+
+                    if (
+                        line.startsWith(
+                            "event:"
+                        )
+                    ) {
+
+                        eventType =
+                            line
+                                .slice(
+                                    6
+                                )
+                                .trim();
+
+                    } else if (
+                        line.startsWith(
+                            "data:"
+                        )
+                    ) {
+
+                        dataLines.push(
+                            line
+                                .slice(
+                                    5
+                                )
+                                .trimStart()
+                        );
+                    }
                 }
-            }
 
-            if (!dataLines.length) return;
 
-            const rawData = dataLines.join("\n");
+                if (
+                    !dataLines.length
+                ) {
 
-            if (rawData === "[DONE]") return;
-
-            let data;
-
-            try {
-                data = JSON.parse(rawData);
-            } catch (_) {
-                return;
-            }
-
-            if (eventType === "token") {
-                if (data.text) {
-                    appendGeminiStreamText(assistantMessage, data.text);
-                    receivedText = true;
-                    setGeminiStatus("");
+                    return;
                 }
-                return;
-            }
 
-            if (eventType === "interaction") {
-                if (data.interactionId) {
-                    geminiPreviousInteractionId = data.interactionId;
+
+                const rawData =
+                    dataLines.join(
+                        "\n"
+                    );
+
+
+                if (
+                    rawData ===
+                    "[DONE]"
+                ) {
+
+                    return;
                 }
-                return;
-            }
 
-            if (eventType === "error") {
-                throw new Error(data.message || "Gemini 스트리밍 오류가 발생했습니다.");
-            }
 
-            if (eventType === "done") {
-                if (data.interactionId) {
-                    geminiPreviousInteractionId = data.interactionId;
+                let data;
+
+
+                try {
+
+                    data =
+                        JSON.parse(
+                            rawData
+                        );
+
+                } catch (_) {
+
+                    return;
                 }
-            }
-        };
+
+
+                if (
+                    eventType ===
+                    "token"
+                ) {
+
+                    if (
+                        data.text
+                    ) {
+
+                        appendGeminiStreamText(
+                            assistantMessage,
+                            data.text
+                        );
+
+                        receivedText =
+                            true;
+
+                        setGeminiStatus("");
+                    }
+
+                    return;
+                }
+
+
+                if (
+                    eventType ===
+                    "interaction"
+                ) {
+
+                    if (
+                        data.interactionId
+                    ) {
+
+                        geminiPreviousInteractionId =
+                            data.interactionId;
+                    }
+
+                    return;
+                }
+
+
+                if (
+                    eventType ===
+                    "error"
+                ) {
+
+                    throw new Error(
+                        data.message ||
+                        "Gemini 스트리밍 오류가 발생했습니다."
+                    );
+                }
+
+
+                if (
+                    eventType ===
+                    "done"
+                ) {
+
+                    if (
+                        data.interactionId
+                    ) {
+
+                        geminiPreviousInteractionId =
+                            data.interactionId;
+                    }
+                }
+            };
+
 
         while (true) {
-            const { value, done } = await reader.read();
 
-            if (done) break;
+            const {
+                value,
+                done
+            } =
+                await reader.read();
 
-            buffer += decoder.decode(value, { stream: true });
 
-            const events = buffer.split("\n\n");
-            buffer = events.pop() || "";
+            if (done) {
+                break;
+            }
 
-            for (const event of events) {
-                if (!event.trim()) continue;
-                processEvent(event);
+
+            buffer +=
+                decoder.decode(
+                    value,
+                    {
+                        stream:
+                            true
+                    }
+                );
+
+
+            const events =
+                buffer.split(
+                    "\n\n"
+                );
+
+
+            buffer =
+                events.pop() ||
+                "";
+
+
+            for (
+                const event of events
+            ) {
+
+                if (
+                    !event.trim()
+                ) {
+
+                    continue;
+                }
+
+                processEvent(
+                    event
+                );
             }
         }
 
-        buffer += decoder.decode();
 
-        if (buffer.trim()) {
-            processEvent(buffer);
+        buffer +=
+            decoder.decode();
+
+
+        if (
+            buffer.trim()
+        ) {
+
+            processEvent(
+                buffer
+            );
         }
 
-        if (!receivedText) {
-            throw new Error("Gemini에서 답변을 받지 못했습니다.");
+
+        if (
+            !receivedText
+        ) {
+
+            throw new Error(
+                "Gemini에서 답변을 받지 못했습니다."
+            );
         }
+
 
         setGeminiStatus("");
+
+
     } catch (error) {
-        if (error.name === "AbortError") {
-            if (assistantMessage && !assistantMessage.textContent.trim()) {
+
+        if (
+            error.name ===
+            "AbortError"
+        ) {
+
+            if (
+                assistantMessage &&
+                !assistantMessage.textContent.trim()
+            ) {
+
                 assistantMessage.remove();
             }
+
             setGeminiStatus("");
+
             return;
         }
 
-        console.error("[Gemini 클라이언트 오류]", error);
 
-        if (assistantMessage) {
+        console.error(
+            "[Gemini 클라이언트 오류]",
+            error
+        );
+
+
+        if (
+            assistantMessage
+        ) {
+
             assistantMessage.textContent =
                 `오류가 발생했습니다.\n${error.message}`;
-            assistantMessage.classList.add("error");
+
+            assistantMessage.classList.add(
+                "error"
+            );
+
         } else {
+
             addGeminiMessage(
                 `오류가 발생했습니다.\n${error.message}`,
                 "error"
             );
         }
 
-        setGeminiStatus("요청에 실패했습니다.");
+
+        setGeminiStatus(
+            "요청에 실패했습니다."
+        );
+
+
     } finally {
-        geminiAbortController = null;
-        setGeminiSendingState(false);
+
+        geminiAbortController =
+            null;
+
+        setGeminiSendingState(
+            false
+        );
+
         geminiInput?.focus();
     }
 }
 
+
 if (menuBtn) {
-    menuBtn.addEventListener("click", openMenuModal);
+
+    menuBtn.addEventListener(
+        "click",
+        openMenuModal
+    );
 }
+
 
 if (menuBackdrop) {
-    menuBackdrop.addEventListener("click", closeMenuModal);
+
+    menuBackdrop.addEventListener(
+        "click",
+        closeMenuModal
+    );
 }
+
 
 if (closeMenuBtn) {
-    closeMenuBtn.addEventListener("click", closeMenuModal);
+
+    closeMenuBtn.addEventListener(
+        "click",
+        closeMenuModal
+    );
 }
+
 
 if (openGeminiBtn) {
-    openGeminiBtn.addEventListener("click", openGeminiModal);
+
+    openGeminiBtn.addEventListener(
+        "click",
+        openGeminiModal
+    );
 }
+
 
 if (openBirdFromMenuBtn) {
-    openBirdFromMenuBtn.addEventListener("click", () => {
-        closeMenuModal();
-        openGameModal();
-    });
+
+    openBirdFromMenuBtn.addEventListener(
+        "click",
+        () => {
+
+            closeMenuModal();
+
+            openGameModal();
+        }
+    );
 }
+
 
 if (geminiBackdrop) {
-    geminiBackdrop.addEventListener("click", closeGeminiModal);
+
+    geminiBackdrop.addEventListener(
+        "click",
+        closeGeminiModal
+    );
 }
+
 
 if (closeGeminiBtn) {
-    closeGeminiBtn.addEventListener("click", closeGeminiModal);
+
+    closeGeminiBtn.addEventListener(
+        "click",
+        closeGeminiModal
+    );
 }
+
 
 if (geminiNewChatBtn) {
-    geminiNewChatBtn.addEventListener("click", resetGeminiChat);
+
+    geminiNewChatBtn.addEventListener(
+        "click",
+        resetGeminiChat
+    );
 }
+
 
 if (geminiSendBtn) {
-    geminiSendBtn.addEventListener("click", sendGeminiMessage);
+
+    geminiSendBtn.addEventListener(
+        "click",
+        sendGeminiMessage
+    );
 }
+
 
 if (geminiInput) {
-    geminiInput.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            sendGeminiMessage();
+
+    geminiInput.addEventListener(
+        "keydown",
+        event => {
+
+            if (
+                event.key ===
+                    "Enter" &&
+                !event.shiftKey
+            ) {
+
+                event.preventDefault();
+
+                sendGeminiMessage();
+            }
         }
-    });
+    );
 }
 
-document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
 
-    if (geminiModal?.classList.contains("active")) {
-        closeGeminiModal();
-        return;
+document.addEventListener(
+    "keydown",
+    event => {
+
+        if (
+            event.key !==
+            "Escape"
+        ) {
+
+            return;
+        }
+
+
+        if (
+            geminiModal?.classList.contains(
+                "active"
+            )
+        ) {
+
+            closeGeminiModal();
+
+            return;
+        }
+
+
+        if (
+            menuModal?.classList.contains(
+                "active"
+            )
+        ) {
+
+            closeMenuModal();
+        }
     }
-
-    if (menuModal?.classList.contains("active")) {
-        closeMenuModal();
-    }
-});
-
+);
