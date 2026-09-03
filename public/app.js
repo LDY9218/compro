@@ -4991,14 +4991,19 @@ function openNoticeEditor(notice = null) {
 }
 
 function closeNoticeSubView() {
-    noticeDetailView.hidden = true;
-    noticeEditorView.hidden = true;
-    noticeListView.hidden = false;
+    if (noticeDetailView) noticeDetailView.hidden = true;
+    if (noticeEditorView) noticeEditorView.hidden = true;
+    if (noticeListView) noticeListView.hidden = false;
     editingNoticeId = null;
 }
 
 async function saveNotice() {
-    if (!isAdminUser) return;
+    if (!isAdminUser) {
+        alert("먼저 개발자 인증을 완료해주세요.");
+        return;
+    }
+    if (!noticeTitleInput || !noticeContentInput || !noticeEditorSaveBtn) return;
+
     const title = noticeTitleInput.value.trim();
     const content = noticeContentInput.value.trim();
     if (!title || !content) {
@@ -5006,6 +5011,7 @@ async function saveNotice() {
         return;
     }
     noticeEditorSaveBtn.disabled = true;
+    noticeEditorSaveBtn.textContent = "저장 중...";
     try {
         const url = editingNoticeId ? `/api/notices/${editingNoticeId}` : "/api/notices";
         const method = editingNoticeId ? "PUT" : "POST";
@@ -5022,6 +5028,7 @@ async function saveNotice() {
         alert(error.message);
     } finally {
         noticeEditorSaveBtn.disabled = false;
+        noticeEditorSaveBtn.textContent = "저장";
     }
 }
 
@@ -5049,9 +5056,8 @@ async function openNoticeModal() {
     noticeModal?.setAttribute("aria-hidden", "false");
     lockPageScroll();
     closeNoticeSubView();
-    await startNoticeRealtime();
-checkAdminMode();
     startNoticeRealtime();
+    await checkAdminMode();
     await loadNotices();
 }
 
@@ -5089,8 +5095,36 @@ noticeBackdrop?.addEventListener("click", closeNoticeModal);
 noticeBackBtn?.addEventListener("click", closeNoticeSubView);
 noticeDeveloperAuthBtn?.addEventListener("click", authenticateDeveloper);
 noticeAddBtn?.addEventListener("click", () => openNoticeEditor());
-noticeEditorCancelBtn?.addEventListener("click", closeNoticeSubView);
-noticeEditorSaveBtn?.addEventListener("click", saveNotice);
+noticeEditorCancelBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeNoticeSubView();
+});
+noticeEditorSaveBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    saveNotice();
+});
+
+// 버튼이 다른 모달/레이어에 가려져도 공지 편집 버튼 동작이 끊기지 않도록
+// 공지 모달 자체에서도 클릭을 한 번 더 안전하게 처리합니다.
+noticeModal?.addEventListener("click", (event) => {
+    const target = event.target.closest?.("button");
+    if (!target) return;
+
+    if (target.id === "noticeEditorCancelBtn") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeNoticeSubView();
+        return;
+    }
+
+    if (target.id === "noticeEditorSaveBtn") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!noticeEditorSaveBtn.disabled) saveNotice();
+    }
+});
 saveUserIdBtn?.addEventListener("click", async () => {
     setStoredUserId(comtimeUserIdInput.value);
     await checkAdminMode();
