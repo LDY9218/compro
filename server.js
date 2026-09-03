@@ -45,7 +45,10 @@ app.get("/api/search-school", async (req, res) => {
     console.log(`[학교검색] "${q}" 검색 시작`);
 
     if (!q) {
-        return res.json({ ok: true, schools: [] });
+        return res.json({
+            ok: true,
+            schools: []
+        });
     }
 
     try {
@@ -60,7 +63,10 @@ app.get("/api/search-school", async (req, res) => {
             region: school.region
         }));
 
-        return res.json({ ok: true, schools });
+        return res.json({
+            ok: true,
+            schools
+        });
     } catch (error) {
         console.error("[학교검색 오류]");
         console.error(error);
@@ -78,7 +84,9 @@ app.get("/api/timetable", async (req, res) => {
     const grade = Number(req.query.grade);
     const classNum = Number(req.query.classNum);
 
-    console.log(`[시간표] school=${schoolCode}, grade=${grade}, class=${classNum}`);
+    console.log(
+        `[시간표] school=${schoolCode}, grade=${grade}, class=${classNum}`
+    );
 
     if (!schoolCode || !grade || !classNum) {
         return res.status(400).json({
@@ -98,7 +106,10 @@ app.get("/api/timetable", async (req, res) => {
 
         console.log("[시간표] 불러오기 성공");
 
-        return res.json({ ok: true, timetable });
+        return res.json({
+            ok: true,
+            timetable
+        });
     } catch (error) {
         console.error("[시간표 오류]");
         console.error(error);
@@ -145,7 +156,9 @@ app.get("/api/neis-school", async (req, res) => {
         }
 
         const data = await response.json();
-        const rows = data?.schoolInfo?.[1]?.row || [];
+
+        const rows =
+            data?.schoolInfo?.[1]?.row || [];
 
         const schools = rows.map((school) => ({
             schoolName: school.SCHUL_NM,
@@ -155,7 +168,10 @@ app.get("/api/neis-school", async (req, res) => {
             address: school.ORG_RDNMA
         }));
 
-        return res.json({ ok: true, schools });
+        return res.json({
+            ok: true,
+            schools
+        });
     } catch (error) {
         console.error("[NEIS 학교검색 오류]");
         console.error(error);
@@ -168,9 +184,15 @@ app.get("/api/neis-school", async (req, res) => {
 });
 
 app.get("/api/meal", async (req, res) => {
-    const officeCode = String(req.query.officeCode || "").trim();
-    const schoolCode = String(req.query.schoolCode || "").trim();
-    const date = String(req.query.date || "").trim();
+    const officeCode =
+        String(req.query.officeCode || "").trim();
+
+    const schoolCode =
+        String(req.query.schoolCode || "").trim();
+
+    const date =
+        String(req.query.date || "").trim();
+
     const apiKey = process.env.NEIS_API_KEY;
 
     if (!apiKey) {
@@ -183,14 +205,18 @@ app.get("/api/meal", async (req, res) => {
     if (!officeCode || !schoolCode) {
         return res.status(400).json({
             ok: false,
-            message: "officeCode와 schoolCode가 필요합니다."
+            message:
+                "officeCode와 schoolCode가 필요합니다."
         });
     }
 
     try {
         const targetDate =
             date ||
-            new Date().toISOString().slice(0, 10).replaceAll("-", "");
+            new Date()
+                .toISOString()
+                .slice(0, 10)
+                .replaceAll("-", "");
 
         const url =
             "https://open.neis.go.kr/hub/mealServiceDietInfo" +
@@ -209,7 +235,9 @@ app.get("/api/meal", async (req, res) => {
         }
 
         const data = await response.json();
-        const rows = data?.mealServiceDietInfo?.[1]?.row || [];
+
+        const rows =
+            data?.mealServiceDietInfo?.[1]?.row || [];
 
         const meals = rows.map((meal) => ({
             date: meal.MLSV_YMD,
@@ -220,7 +248,10 @@ app.get("/api/meal", async (req, res) => {
             nutrition: meal.NTR_INFO
         }));
 
-        return res.json({ ok: true, meals });
+        return res.json({
+            ok: true,
+            meals
+        });
     } catch (error) {
         console.error("[급식 오류]");
         console.error(error);
@@ -233,17 +264,23 @@ app.get("/api/meal", async (req, res) => {
 });
 
 // ==================================================
-// GEMINI AI - FAST STREAMING
+// GEMINI AI
 // ==================================================
 
 app.post("/api/gemini", async (req, res) => {
-    const message = String(req.body?.message || "").trim();
-    const previousInteractionId = String(
-        req.body?.previousInteractionId || ""
-    ).trim();
+    const message =
+        String(req.body?.message || "").trim();
 
-    const context = req.body?.context || {};
-    const apiKey = process.env.GEMINI_API_KEY;
+    const previousInteractionId =
+        String(
+            req.body?.previousInteractionId || ""
+        ).trim();
+
+    const context =
+        req.body?.context || {};
+
+    const apiKey =
+        process.env.GEMINI_API_KEY;
 
     if (!message) {
         return res.status(400).json({
@@ -255,10 +292,12 @@ app.post("/api/gemini", async (req, res) => {
     if (!apiKey) {
         return res.status(500).json({
             ok: false,
-            message: "GEMINI_API_KEY가 .env에 없습니다."
+            message:
+                "GEMINI_API_KEY가 .env에 없습니다."
         });
     }
 
+    // 필요한 학교 정보만 전달해서 요청 크기를 최소화
     const schoolContext = [
         context.schoolName
             ? `학교: ${String(context.schoolName)}`
@@ -282,18 +321,23 @@ app.post("/api/gemini", async (req, res) => {
 ${message}`
         : message;
 
+    // 빠른 Flash-Lite 모델 + 실시간 스트리밍
     const body = {
-        model: "gemini-2.5-flash-lite",
+        model: "gemini-3.5-flash-lite",
+
         input,
+
         stream: true,
 
         system_instruction:
-            "너는 COMTIME PRO의 빠른 AI 도우미다. " +
-            "한국어로 정확하고 간결하게 답한다. " +
+            "너는 COMTIME PRO의 빠른 AI 학습·학교생활 도우미다. " +
+            "한국어로 정확하고 자연스럽게 답한다. " +
             "불필요한 서론과 반복을 줄이고 질문에 바로 답한다. " +
+            "사용자가 이해하기 쉽게 설명한다. " +
             "모르는 내용은 추측하지 않는다."
     };
 
+    // 이전 대화를 이어서 사용할 때만 ID 전달
     if (previousInteractionId) {
         body.previous_interaction_id =
             previousInteractionId;
@@ -317,7 +361,10 @@ ${message}`
             }
         );
     } catch (error) {
-        console.error("[Gemini 연결 오류]");
+        console.error(
+            "[Gemini 연결 오류]"
+        );
+
         console.error(error);
 
         return res.status(502).json({
@@ -327,6 +374,7 @@ ${message}`
         });
     }
 
+    // API에서 오류를 반환한 경우
     if (!upstreamResponse.ok) {
         let errorMessage =
             `Gemini HTTP ${upstreamResponse.status}`;
@@ -362,6 +410,7 @@ ${message}`
         });
     }
 
+    // SSE 응답 설정
     res.status(200);
 
     res.setHeader(
@@ -387,7 +436,9 @@ ${message}`
     res.flushHeaders?.();
 
     const sendEvent = (event, data) => {
-        if (res.writableEnded) return;
+        if (res.writableEnded) {
+            return;
+        }
 
         res.write(
             `event: ${event}\n`
@@ -408,6 +459,7 @@ ${message}`
     let interactionId = null;
     let clientClosed = false;
 
+    // 사용자가 중간에 요청을 취소한 경우
     req.on("close", () => {
         clientClosed = true;
 
@@ -432,7 +484,6 @@ ${message}`
                 if (
                     line.startsWith("event:")
                 ) {
-
                     eventType =
                         line
                             .slice(6)
@@ -441,7 +492,6 @@ ${message}`
                 } else if (
                     line.startsWith("data:")
                 ) {
-
                     dataLines.push(
                         line
                             .slice(5)
@@ -461,7 +511,9 @@ ${message}`
 
                 sendEvent(
                     "done",
-                    { interactionId }
+                    {
+                        interactionId
+                    }
                 );
 
                 return;
@@ -476,11 +528,11 @@ ${message}`
                 return;
             }
 
+            // interaction 생성
             if (
                 eventType ===
                 "interaction.created"
             ) {
-
                 interactionId =
                     data?.interaction?.id ||
                     interactionId;
@@ -495,6 +547,7 @@ ${message}`
                 return;
             }
 
+            // 실시간 텍스트
             if (
                 eventType ===
                 "step.delta"
@@ -518,6 +571,7 @@ ${message}`
                 return;
             }
 
+            // 응답 완료
             if (
                 eventType ===
                 "interaction.completed"
@@ -537,6 +591,7 @@ ${message}`
                 return;
             }
 
+            // Gemini 오류
             if (
                 eventType === "error"
             ) {
@@ -562,7 +617,9 @@ ${message}`
             } =
                 await reader.read();
 
-            if (done) break;
+            if (done) {
+                break;
+            }
 
             buffer +=
                 decoder.decode(
@@ -592,6 +649,7 @@ ${message}`
             }
         }
 
+        // 남은 데이터 처리
         buffer +=
             decoder.decode();
 
@@ -599,7 +657,6 @@ ${message}`
             buffer.trim() &&
             !clientClosed
         ) {
-
             processUpstreamEvent(
                 buffer
             );
@@ -636,19 +693,21 @@ ${message}`
 app.use("/api", (req, res) => {
     res.status(404).json({
         ok: false,
-        message: "존재하지 않는 API입니다."
+        message:
+            "존재하지 않는 API입니다."
     });
 });
 
 app.listen(PORT, () => {
 
     console.log("");
+
     console.log(
         "======================================"
     );
 
     console.log(
-        "       COMTIME PRO SERVER"
+        "          COMTIME PRO SERVER"
     );
 
     console.log(
