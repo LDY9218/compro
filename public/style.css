@@ -1725,3 +1725,448 @@ footer {
         font-size: 25px;
     }
 }
+/* ==================================================
+   MENU BUTTON
+================================================== */
+
+.menu-btn {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin-left: 8px;
+    border: 1px solid #e2e6f0;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #ffffff, #f5f7ff);
+    color: #4c5874;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgba(31, 43, 73, 0.06);
+    transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s;
+}
+
+.menu-btn:hover {
+    transform: translateY(-2px);
+    border-color: #bfc7ff;
+    box-shadow: 0 7px 16px rgba(91, 103, 210, 0.14);
+}
+
+.menu-btn:active {
+    transform: scale(0.94);
+}
+
+/* ==================================================
+   MENU MODAL
+================================================== */
+
+.menu-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 92px 28px 28px;
+    z-index: 100000;
+}
+
+.menu-modal.active {
+    display: flex;
+}
+
+.menu-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(25, 30, 48, 0.24);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.menu-window {
+    position: relative;
+    width: min(360px, calc(100vw - 32px));
+    padding: 20px;
+    border: 1px solid rgba(225, 229, 240, 0.95);
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 24px 70px rgba(22, 29, 50, 0.22);
+    animation: menuWindowIn 0.2s ease;
+}
+
+@keyframes menuWindowIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.menu-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 15px;
+}
+
+.menu-label {
+    display: block;
+    margin-bottom: 4px;
+    color: #8d95a7;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+}
+
+.menu-header h2 {
+    margin: 0;
+    color: #1f2739;
+    font-size: 22px;
+    letter-spacing: -0.7px;
+}
+
+.menu-close-btn {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 10px;
+    background: #f3f5fa;
+    color: #626b7e;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.menu-item {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 42px 1fr 20px;
+    align-items: center;
+    gap: 11px;
+    padding: 13px;
+    border: 1px solid #e7eaf2;
+    border-radius: 15px;
+    background: #fbfcff;
+    color: #252d40;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.menu-item:hover {
+    transform: translateY(-1px);
+    border-color: #c8cffb;
+    background: #ffffff;
+    box-shadow: 0 8px 20px rgba(35, 45, 73, 0.07);
+}
+
+.menu-item-icon {
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #eef1ff, #f4edff);
+    color: #6b76d7;
+    font-size: 19px;
+}
+
+.menu-item strong {
+    display: block;
+    font-size: 14px;
+}
+
+.menu-item small {
+    display: block;
+    margin-top: 4px;
+    color: #9299a8;
+    font-size: 11px;
+}
+
+.menu-arrow {
+    color: #a1a8b7;
+    font-size: 23px;
+    text-align: center;
+}
+
+/* ==================================================
+   GEMINI MODAL
+================================================== */
+
+.gemini-window {
+    position: relative;
+    width: min(720px, calc(100vw - 32px));
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(225, 229, 240, 0.95);
+    border-radius: 24px;
+    background: #ffffff;
+    box-shadow: 0 30px 80px rgba(15, 20, 40, 0.28);
+    animation: gameWindowIn 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.gemini-header {
+    min-height: 76px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 17px 20px;
+    border-bottom: 1px solid #edf0f5;
+}
+
+.gemini-header h2 {
+    margin: 5px 0 0;
+    color: #20283a;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+}
+
+.gemini-body {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 18px;
+}
+
+.gemini-welcome {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding: 14px;
+    border-radius: 15px;
+    background: linear-gradient(135deg, #f5f6ff, #fbf7ff);
+    border: 1px solid #e9eaf7;
+}
+
+.gemini-icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 13px;
+    background: linear-gradient(135deg, #667dff, #8d72df);
+    color: #ffffff;
+    font-size: 21px;
+    font-weight: 800;
+}
+
+.gemini-welcome strong {
+    display: block;
+    color: #252d40;
+    font-size: 14px;
+}
+
+.gemini-welcome p {
+    margin: 4px 0 0;
+    color: #8d95a5;
+    font-size: 11px;
+}
+
+.gemini-messages {
+    min-height: 170px;
+    max-height: 420px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 5px 2px 12px;
+}
+
+.gemini-message {
+    width: fit-content;
+    max-width: 82%;
+    padding: 11px 13px;
+    border-radius: 14px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.gemini-message.assistant {
+    align-self: flex-start;
+    background: #f3f5fa;
+    color: #30384a;
+    border-bottom-left-radius: 5px;
+}
+
+.gemini-message.user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #667dff, #8170ed);
+    color: #ffffff;
+    border-bottom-right-radius: 5px;
+}
+
+.gemini-message.error {
+    align-self: flex-start;
+    background: #fff0f1;
+    color: #c65360;
+    border-bottom-left-radius: 5px;
+}
+
+.gemini-input-area {
+    display: flex;
+    align-items: flex-end;
+    gap: 9px;
+    padding-top: 10px;
+    border-top: 1px solid #edf0f5;
+}
+
+.gemini-input-area textarea {
+    flex: 1;
+    min-width: 0;
+    min-height: 48px;
+    max-height: 140px;
+    resize: vertical;
+    padding: 12px 13px;
+    border: 1px solid #dfe3ec;
+    border-radius: 13px;
+    outline: none;
+    background: #fbfcfe;
+    color: #252d40;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.gemini-input-area textarea:focus {
+    border-color: #7888ff;
+    box-shadow: 0 0 0 4px rgba(120, 136, 255, 0.08);
+}
+
+.gemini-input-area textarea:disabled {
+    opacity: 0.6;
+}
+
+.gemini-input-area button {
+    height: 48px;
+    padding: 0 18px;
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 13px;
+    background: linear-gradient(135deg, #637cff, #826dff);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.gemini-input-area button:hover:not(:disabled) {
+    box-shadow: 0 7px 18px rgba(101, 115, 236, 0.2);
+    transform: translateY(-1px);
+}
+
+.gemini-input-area button:disabled {
+    opacity: 0.55;
+    cursor: wait;
+}
+
+.gemini-status {
+    min-height: 17px;
+    margin-top: 6px;
+    color: #9299a8;
+    font-size: 10px;
+    text-align: right;
+}
+
+@media (max-width: 560px) {
+    .menu-modal {
+        padding: 80px 15px 15px;
+    }
+
+    .menu-window {
+        width: 100%;
+    }
+
+    .gemini-window {
+        width: calc(100vw - 24px);
+        max-height: calc(100vh - 24px);
+        border-radius: 20px;
+    }
+
+    .gemini-body {
+        padding: 13px;
+    }
+
+    .gemini-messages {
+        max-height: 46vh;
+    }
+
+    .gemini-message {
+        max-width: 90%;
+    }
+
+    .gemini-input-area {
+        gap: 7px;
+    }
+
+    .gemini-input-area button {
+        padding: 0 13px;
+    }
+
+    .menu-btn {
+        width: 31px;
+        height: 31px;
+        margin-left: 6px;
+        border-radius: 9px;
+        font-size: 18px;
+    }
+}
+
+
+/* ==================================================
+   GEMINI HEADER ACTIONS
+================================================== */
+
+.gemini-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.gemini-new-chat-btn {
+    height: 36px;
+    padding: 0 13px;
+    border: 1px solid #e3e6ef;
+    border-radius: 10px;
+    background: #f8f9fc;
+    color: #687187;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.gemini-new-chat-btn:hover {
+    background: #ffffff;
+    border-color: #c9cff4;
+    transform: translateY(-1px);
+}
+
+.gemini-new-chat-btn:active {
+    transform: scale(0.96);
+}
+
+@media (max-width: 560px) {
+    .gemini-new-chat-btn {
+        height: 34px;
+        padding: 0 10px;
+        font-size: 10px;
+    }
+}
