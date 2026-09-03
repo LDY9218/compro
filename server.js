@@ -58,9 +58,16 @@ function broadcastNotices() {
 }
 
 function isAdmin(req) {
-    const adminId = String(process.env.ADMIN_ID || "dnjstnddl!23").trim();
-    const userId = String(req.headers["x-comtime-user-id"] || req.body?.userId || req.query?.userId || "").trim();
-    return Boolean(adminId && userId && adminId === userId);
+    // 공지 관리자 인증 코드는 클라이언트 인증 코드와 반드시 동일해야 합니다.
+    // 기존 ADMIN_ID 환경변수가 남아 있어도 공지 관리자 인증을 덮어쓰지 않도록 고정합니다.
+    const adminCode = "dnjstnddl!23";
+    const userId = String(
+        req.headers["x-comtime-user-id"] ||
+        req.body?.userId ||
+        req.query?.userId ||
+        ""
+    ).trim();
+    return userId === adminCode;
 }
 
 app.get("/api/notices", (req, res) => {
