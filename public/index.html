@@ -78,7 +78,6 @@
             <h2>시간표</h2>
             <p>학교의 주간 시간표를 확인할 수 있습니다.</p>
         </div>
-
         <div id="timetableGrid" class="timetable">
             <div class="message">학교를 먼저 선택해주세요.</div>
         </div>
@@ -89,7 +88,6 @@
             <h2>오늘의 급식</h2>
             <p>NEIS 학교급식 정보를 불러옵니다.</p>
         </div>
-
         <div id="mealBox" class="meal">
             <div class="message">학교를 먼저 선택해주세요.</div>
         </div>
@@ -102,217 +100,121 @@
 
 <div class="creator-credit">Created for COMTIME PRO</div>
 
-
 <!-- ==================================================
      MENU MODAL
 ================================================== -->
-
 <div id="menuModal" class="menu-modal" aria-hidden="true">
     <div id="menuBackdrop" class="menu-backdrop"></div>
 
     <div class="menu-window" role="dialog" aria-modal="true" aria-label="메뉴">
-
         <div class="menu-header">
             <div>
                 <span class="menu-label">COMTIME PRO</span>
                 <h2>메뉴</h2>
             </div>
-
-            <button
-                id="closeMenuBtn"
-                class="menu-close-btn"
-                type="button"
-                aria-label="메뉴 닫기"
-            >
-                ×
-            </button>
+            <button id="closeMenuBtn" class="menu-close-btn" type="button" aria-label="메뉴 닫기">×</button>
         </div>
 
         <div class="menu-user-id">
             <label for="comtimeUserIdInput">사용자 ID</label>
-
             <div class="menu-user-id-row">
-                <input
-                    id="comtimeUserIdInput"
-                    type="text"
-                    placeholder="내 아이디 입력"
-                    autocomplete="off"
-                >
-
-                <button id="saveUserIdBtn" type="button">
-                    저장
-                </button>
+                <input id="comtimeUserIdInput" type="text" placeholder="내 아이디 입력" autocomplete="off">
+                <button id="saveUserIdBtn" type="button">저장</button>
             </div>
-
-            <small id="adminModeLabel">
-                일반 사용자 모드
-            </small>
+            <small id="adminModeLabel">일반 사용자 모드</small>
         </div>
 
         <div class="menu-list">
-
-            <button
-                id="openGeminiBtn"
-                class="menu-item"
-                type="button"
-            >
+            <button id="openGeminiBtn" class="menu-item" type="button">
                 <span class="menu-item-icon">✦</span>
-
                 <span>
                     <strong>Gemini AI</strong>
                     <small>AI에게 무엇이든 물어보기</small>
                 </span>
-
                 <span class="menu-arrow">›</span>
             </button>
 
-
-            <button
-                id="openNoticeBtn"
-                class="menu-item"
-                type="button"
-            >
+            <button id="openNoticeBtn" class="menu-item" type="button">
                 <span class="menu-item-icon">📢</span>
-
                 <span>
                     <strong>공지사항</strong>
                     <small>COMTIME PRO 공지 확인</small>
                 </span>
-
                 <span class="menu-arrow">›</span>
             </button>
 
-
-            <button
-                id="openCarGameBtn"
-                class="menu-item"
-                type="button"
-            >
+            <button id="openCarGameBtn" class="menu-item" type="button">
                 <span class="menu-item-icon">🚗</span>
-
                 <span>
                     <strong>실시간 카게임</strong>
                     <small>친구와 함께 자동차 피하기</small>
                 </span>
-
                 <span class="menu-arrow">›</span>
             </button>
 
+            <button id="openShortsBtn" class="menu-item" type="button">
+                <span class="menu-item-icon">▶</span>
+                <span>
+                    <strong>YouTube Shorts</strong>
+                    <small>자동으로 불러오는 짧은 영상</small>
+                </span>
+                <span class="menu-arrow">›</span>
+            </button>
 
-            <button
-                id="openBirdFromMenuBtn"
-                class="menu-item"
-                type="button"
-            >
+            <button id="openBirdFromMenuBtn" class="menu-item" type="button">
                 <span class="menu-item-icon">🐦</span>
-
                 <span>
                     <strong>Bird Bump</strong>
                     <small>미니 게임 플레이</small>
                 </span>
-
                 <span class="menu-arrow">›</span>
             </button>
-
         </div>
     </div>
 </div>
 
-
 <!-- ==================================================
      NOTICE MODAL
 ================================================== -->
-
 <div id="noticeModal" class="notice-modal" aria-hidden="true">
-
     <div id="noticeBackdrop" class="notice-backdrop"></div>
 
-    <div
-        class="notice-window"
-        role="dialog"
-        aria-modal="true"
-        aria-label="공지사항"
-    >
-
+    <div class="notice-window" role="dialog" aria-modal="true" aria-label="공지사항">
         <div class="notice-header">
-
             <div>
-                <span class="game-window-label">
-                    COMTIME PRO
-                </span>
-
+                <span class="game-window-label">COMTIME PRO</span>
                 <h2>📢 공지사항</h2>
             </div>
 
             <div class="notice-header-actions">
-
-                <button
-                    id="noticeDeveloperAuthBtn"
-                    class="notice-developer-auth-btn"
-                    type="button"
-                >
+                <button id="noticeDeveloperAuthBtn" class="notice-developer-auth-btn" type="button">
                     개발자 인증
                 </button>
 
-                <button
-                    id="noticeAddBtn"
-                    class="notice-add-btn"
-                    type="button"
-                    hidden
-                >
+                <button id="noticeAddBtn" class="notice-add-btn" type="button" hidden>
                     ＋ 공지 추가
                 </button>
 
-                <button
-                    id="closeNoticeBtn"
-                    class="game-close-btn"
-                    type="button"
-                >
+                <button id="closeNoticeBtn" class="game-close-btn" type="button">
                     ×
                 </button>
-
             </div>
         </div>
 
-
-        <div
-            id="noticeListView"
-            class="notice-body"
-        >
-            <div
-                id="noticeList"
-                class="notice-list"
-            ></div>
+        <div id="noticeListView" class="notice-body">
+            <div id="noticeList" class="notice-list"></div>
         </div>
 
-
-        <div
-            id="noticeDetailView"
-            class="notice-detail"
-            hidden
-        >
-            <button
-                id="noticeBackBtn"
-                class="notice-back-btn"
-                type="button"
-            >
+        <div id="noticeDetailView" class="notice-detail" hidden>
+            <button id="noticeBackBtn" class="notice-back-btn" type="button">
                 ← 공지 목록
             </button>
 
             <div id="noticeDetail"></div>
         </div>
 
-
-        <div
-            id="noticeEditorView"
-            class="notice-editor"
-            hidden
-        >
-
-            <div
-                class="notice-editor-title"
-                id="noticeEditorTitle"
-            >
+        <div id="noticeEditorView" class="notice-editor" hidden>
+            <div class="notice-editor-title" id="noticeEditorTitle">
                 공지 추가
             </div>
 
@@ -331,44 +233,23 @@
             ></textarea>
 
             <div class="notice-editor-actions">
-
-                <button
-                    id="noticeEditorCancelBtn"
-                    type="button"
-                >
+                <button id="noticeEditorCancelBtn" type="button">
                     취소
                 </button>
 
-                <button
-                    id="noticeEditorSaveBtn"
-                    type="button"
-                >
+                <button id="noticeEditorSaveBtn" type="button">
                     저장
                 </button>
-
             </div>
-
         </div>
-
     </div>
 </div>
-
 
 <!-- ==================================================
      REALTIME CAR GAME MODAL
 ================================================== -->
-
-<div
-    id="carGameModal"
-    class="car-game-modal"
-    aria-hidden="true"
->
-
-    <div
-        id="carGameBackdrop"
-        class="car-game-backdrop"
-    ></div>
-
+<div id="carGameModal" class="car-game-modal" aria-hidden="true">
+    <div id="carGameBackdrop" class="car-game-backdrop"></div>
 
     <div
         class="car-game-window"
@@ -376,9 +257,7 @@
         aria-modal="true"
         aria-label="실시간 카게임"
     >
-
         <div class="car-game-header">
-
             <div>
                 <span class="game-window-label">
                     REALTIME MULTIPLAYER
@@ -395,33 +274,17 @@
             >
                 ×
             </button>
-
         </div>
 
-
-        <!-- =========================
-             CAR LOBBY
-        ========================== -->
-
-        <div
-            id="carLobby"
-            class="car-screen"
-        >
-
+        <div id="carLobby" class="car-screen">
             <div class="car-lobby-card">
+                <div class="car-game-icon">🚗</div>
 
-                <div class="car-game-icon">
-                    🚗
-                </div>
-
-                <h3>
-                    친구와 함께 플레이
-                </h3>
+                <h3>친구와 함께 플레이</h3>
 
                 <p>
                     4자리 숫자 방 번호로 2명이 연결됩니다.
                 </p>
-
 
                 <button
                     id="createCarRoomBtn"
@@ -431,11 +294,9 @@
                     방 생성하기
                 </button>
 
-
                 <div class="car-or">
                     <span>또는</span>
                 </div>
-
 
                 <input
                     id="joinCarRoomInput"
@@ -448,7 +309,6 @@
                     autocomplete="off"
                 >
 
-
                 <button
                     id="joinCarRoomBtn"
                     class="car-secondary-btn"
@@ -457,41 +317,19 @@
                     방 참가하기
                 </button>
 
-
-                <div
-                    id="carRoomStatus"
-                    class="car-status"
-                ></div>
-
+                <div id="carRoomStatus" class="car-status"></div>
             </div>
-
         </div>
 
-
-        <!-- =========================
-             WAITING ROOM
-        ========================== -->
-
-        <div
-            id="carWaiting"
-            class="car-screen"
-            hidden
-        >
-
+        <div id="carWaiting" class="car-screen" hidden>
             <div class="car-waiting-card">
-
-                <div class="car-game-icon">
-                    🔗
-                </div>
+                <div class="car-game-icon">🔗</div>
 
                 <span class="car-small-label">
                     ROOM CODE
                 </span>
 
-                <div
-                    id="carRoomCode"
-                    class="car-room-code"
-                >
+                <div id="carRoomCode" class="car-room-code">
                     0000
                 </div>
 
@@ -510,34 +348,17 @@
                 >
                     방 나가기
                 </button>
-
             </div>
-
         </div>
 
-
-        <!-- =========================
-             GAME AREA
-        ========================== -->
-
-        <div
-            id="carGameArea"
-            class="car-game-area"
-            hidden
-        >
-
+        <div id="carGameArea" class="car-game-area" hidden>
             <div class="car-hud">
-
                 <div class="car-hud-player">
-
                     <span>YOU</span>
-
                     <strong id="myCarHearts">
                         ♥ ♥ ♥
                     </strong>
-
                 </div>
-
 
                 <div class="car-room-badge">
                     ROOM
@@ -546,23 +367,13 @@
                     </strong>
                 </div>
 
-
-                <div
-                    class="car-hud-player enemy-hud"
-                >
-
+                <div class="car-hud-player enemy-hud">
                     <span>GHOST</span>
-
                     <strong id="enemyCarHearts">
                         ♥ ♥ ♥
                     </strong>
-
                 </div>
-
             </div>
-
-
-            <!-- ROAD -->
 
             <div
                 id="carRoad"
@@ -570,73 +381,29 @@
                 tabindex="0"
                 aria-label="자동차 게임 도로"
             >
+                <div class="road-edge road-edge-left"></div>
+                <div class="road-edge road-edge-right"></div>
 
-                <div
-                    class="road-edge road-edge-left"
-                ></div>
+                <div class="road-lane-line lane-line-1"></div>
+                <div class="road-lane-line lane-line-2"></div>
 
-                <div
-                    class="road-edge road-edge-right"
-                ></div>
+                <div id="carObstacles" class="car-obstacles"></div>
 
-
-                <div
-                    class="road-lane-line lane-line-1"
-                ></div>
-
-                <div
-                    class="road-lane-line lane-line-2"
-                ></div>
-
-
-                <div
-                    id="carObstacles"
-                    class="car-obstacles"
-                ></div>
-
-
-                <!-- ENEMY -->
-
-                <div
-                    id="enemyCar"
-                    class="car-player enemy-car"
-                >
-
-                    <span class="car-body">
-                        🚗
-                    </span>
-
-                    <span class="car-name">
-                        GHOST
-                    </span>
-
+                <div id="enemyCar" class="car-player enemy-car">
+                    <span class="car-body">🚗</span>
+                    <span class="car-name">GHOST</span>
                 </div>
 
-
-                <!-- PLAYER -->
-
-                <div
-                    id="myCar"
-                    class="car-player my-car"
-                >
-
-                    <span class="car-body">
-                        🚙
-                    </span>
-
-                    <span class="car-name">
-                        YOU
-                    </span>
-
+                <div id="myCar" class="car-player my-car">
+                    <span class="car-body">🚙</span>
+                    <span class="car-name">YOU</span>
                 </div>
-
 
                 <div
                     id="carHitFlash"
                     class="car-hit-flash"
                     hidden
                 ></div>
-
 
                 <div
                     id="carCountdown"
@@ -645,17 +412,12 @@
                 >
                     3
                 </div>
-
             </div>
-
-
-            <!-- MOBILE CONTROL -->
 
             <div
                 class="car-mobile-controls"
                 aria-label="자동차 이동 버튼"
             >
-
                 <button
                     id="carLeftBtn"
                     type="button"
@@ -675,33 +437,16 @@
                 >
                     →
                 </button>
-
             </div>
-
 
             <div class="car-desktop-help">
                 PC: ← → 방향키 · 모바일: 아래 버튼을 누르고 이동
             </div>
-
         </div>
 
-
-        <!-- =========================
-             GAME OVER
-        ========================== -->
-
-        <div
-            id="carGameOver"
-            class="car-screen"
-            hidden
-        >
-
+        <div id="carGameOver" class="car-screen" hidden>
             <div class="car-gameover-card">
-
-                <div
-                    id="carGameOverIcon"
-                    class="car-game-icon"
-                >
+                <div id="carGameOverIcon" class="car-game-icon">
                     🏁
                 </div>
 
@@ -720,31 +465,16 @@
                 >
                     로비로 돌아가기
                 </button>
-
             </div>
-
         </div>
-
     </div>
-
 </div>
-
 
 <!-- ==================================================
      GEMINI MODAL
 ================================================== -->
-
-<div
-    id="geminiModal"
-    class="game-modal"
-    aria-hidden="true"
->
-
-    <div
-        id="geminiBackdrop"
-        class="game-backdrop"
-    ></div>
-
+<div id="geminiModal" class="game-modal" aria-hidden="true">
+    <div id="geminiBackdrop" class="game-backdrop"></div>
 
     <div
         class="gemini-window"
@@ -752,24 +482,16 @@
         aria-modal="true"
         aria-label="Gemini AI"
     >
-
         <div class="gemini-header">
-
             <div>
-
                 <span class="game-window-label">
                     AI ASSISTANT
                 </span>
 
-                <h2>
-                    ✦ Gemini AI
-                </h2>
-
+                <h2>✦ Gemini AI</h2>
             </div>
 
-
             <div class="gemini-header-actions">
-
                 <button
                     id="geminiNewChatBtn"
                     class="gemini-new-chat-btn"
@@ -787,92 +509,89 @@
                 >
                     ×
                 </button>
-
             </div>
-
         </div>
 
-
         <div class="gemini-body">
-
             <div class="gemini-welcome">
-
-                <div class="gemini-icon">
-                    ✦
-                </div>
+                <div class="gemini-icon">✦</div>
 
                 <div>
-
-                    <strong>
-                        무엇이든 물어보세요
-                    </strong>
+                    <strong>무엇이든 물어보세요</strong>
 
                     <p>
                         공부, 코딩, 학교생활 등 궁금한 것을 질문해보세요.
                     </p>
-
                 </div>
-
             </div>
 
-
-            <div
-                id="geminiMessages"
-                class="gemini-messages"
-            >
-
+            <div id="geminiMessages" class="gemini-messages">
                 <div class="gemini-message assistant">
                     안녕하세요! 무엇을 도와드릴까요?
                 </div>
-
             </div>
 
-
             <div class="gemini-input-area">
-
                 <textarea
                     id="geminiInput"
                     placeholder="Gemini에게 질문하세요..."
                     rows="3"
                 ></textarea>
 
-                <button
-                    id="geminiSendBtn"
-                    type="button"
-                >
+                <button id="geminiSendBtn" type="button">
                     전송
                 </button>
-
             </div>
 
-
-            <div
-                id="geminiStatus"
-                class="gemini-status"
-            ></div>
-
+            <div id="geminiStatus" class="gemini-status"></div>
         </div>
-
     </div>
-
 </div>
 
+<!-- ==================================================
+     YOUTUBE SHORTS MODAL
+================================================== -->
+<div id="shortsModal" class="shorts-modal" aria-hidden="true">
+    <div id="shortsBackdrop" class="shorts-backdrop"></div>
+
+    <div
+        class="shorts-window"
+        role="dialog"
+        aria-modal="true"
+        aria-label="YouTube Shorts"
+    >
+        <div class="shorts-header">
+            <div>
+                <span class="game-window-label">
+                    VIDEO FEED
+                </span>
+
+                <h2>▶ YouTube Shorts</h2>
+            </div>
+
+            <button
+                id="closeShortsBtn"
+                class="game-close-btn"
+                type="button"
+                aria-label="Shorts 닫기"
+            >
+                ×
+            </button>
+        </div>
+
+        <div id="shortsFeed" class="shorts-feed"></div>
+
+        <div id="shortsStatus" class="shorts-status">
+            쇼츠를 불러오는 중...
+        </div>
+    </div>
+</div>
 
 <!-- ==================================================
      BIRD BUMP MODAL
 ================================================== -->
-
-<div
-    id="birdGameModal"
-    class="game-modal"
-    aria-hidden="true"
->
-
-    <div
-        id="gameBackdrop"
-        class="game-backdrop"
-    ></div>
-
+<div id="birdGameModal" class="game-modal" aria-hidden="true">
+    <div id="gameBackdrop" class="game-backdrop"></div>
 
     <div
         class="game-window"
@@ -880,19 +599,13 @@
         aria-modal="true"
         aria-label="Bird Bump"
     >
-
         <div class="game-window-header">
-
             <div>
-
                 <span class="game-window-label">
                     MINI GAME
                 </span>
 
-                <h2>
-                    🐦 Bird Bump
-                </h2>
-
+                <h2>🐦 Bird Bump</h2>
             </div>
 
             <button
@@ -903,58 +616,34 @@
             >
                 ×
             </button>
-
         </div>
-
 
         <div
             id="birdGameContainer"
             class="bird-game-container"
         >
-
             <canvas id="birdGameCanvas"></canvas>
 
-
             <div class="bird-hud">
-
                 <div class="bird-score-box">
-
                     <span>SCORE</span>
-
-                    <strong id="birdScore">
-                        0
-                    </strong>
-
+                    <strong id="birdScore">0</strong>
                 </div>
-
 
                 <div class="bird-best-box">
-
                     <span>BEST</span>
-
-                    <strong id="birdBest">
-                        0
-                    </strong>
-
+                    <strong id="birdBest">0</strong>
                 </div>
-
             </div>
-
 
             <div
                 id="birdStartScreen"
                 class="bird-game-screen"
             >
-
                 <div class="bird-game-card">
+                    <div class="bird-game-icon">🐦</div>
 
-                    <div class="bird-game-icon">
-                        🐦
-                    </div>
-
-                    <h3>
-                        Bird Bump
-                    </h3>
+                    <h3>Bird Bump</h3>
 
                     <p>
                         장애물을 피하면서 최대한 오래 날아보세요.
@@ -967,32 +656,21 @@
                     >
                         게임 시작
                     </button>
-
                 </div>
-
             </div>
-
 
             <div
                 id="birdGameOverScreen"
                 class="bird-game-screen hidden"
             >
-
                 <div class="bird-game-card">
+                    <div class="bird-game-icon">💥</div>
 
-                    <div class="bird-game-icon">
-                        💥
-                    </div>
-
-                    <h3>
-                        GAME OVER
-                    </h3>
+                    <h3>GAME OVER</h3>
 
                     <p>
                         점수
-                        <strong id="birdFinalScore">
-                            0
-                        </strong>
+                        <strong id="birdFinalScore">0</strong>
                     </p>
 
                     <div
@@ -1007,11 +685,8 @@
                     >
                         다시 하기
                     </button>
-
                 </div>
-
             </div>
-
 
             <div
                 id="birdControlHint"
@@ -1019,13 +694,9 @@
             >
                 클릭 또는 SPACE
             </div>
-
         </div>
-
     </div>
-
 </div>
-
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/app.js"></script>

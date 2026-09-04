@@ -5077,22 +5077,19 @@ async function openNoticeModal() {
 
 async function authenticateDeveloper() {
     const developerCode = window.prompt("개발자 코드 인증", "");
-
     if (developerCode === null) return;
 
-    if (developerCode !== "dnjstnddl!23") {
+    // 실제 코드는 서버의 .env에서만 판정합니다.
+    setStoredUserId(developerCode.trim());
+    await checkAdminMode();
+
+    if (!isAdminUser) {
         alert("개발자 코드가 올바르지 않습니다.");
         return;
     }
 
-    // 코드가 맞으면 즉시 관리자 모드를 활성화합니다.
-    // 서버 확인이 실패하더라도 화면에서는 인증 성공 상태가 유지됩니다.
-    setStoredUserId("dnjstnddl!23");
-    isAdminUser = true;
-
     if (noticeAddBtn) noticeAddBtn.hidden = false;
     if (adminModeLabel) adminModeLabel.textContent = "관리자 모드 활성화";
-
     alert("개발자 인증이 완료되었습니다. 관리자 기능이 활성화되었습니다.");
     renderNoticeList();
 }
@@ -5146,3 +5143,293 @@ saveUserIdBtn?.addEventListener("click", async () => {
 });
 
 checkAdminMode();
+
+
+// ==================================================
+// YOUTUBE SHORTS + PERSONALIZED ALGORITHM
+// ==================================================
+const openShortsBtn = document.getElementById("openShortsBtn");
+const shortsModal = document.getElementById("shortsModal");
+const shortsBackdrop = document.getElementById("shortsBackdrop");
+const closeShortsBtn = document.getElementById("closeShortsBtn");
+const shortsFeed = document.getElementById("shortsFeed");
+const shortsStatus = document.getElementById("shortsStatus");
+
+let shortsNextPageToken = null;
+let shortsLoading = false;
+let shortsLoadedOnce = false;
+let shortsSearchQuery = "";
+let shortsObserver = null;
+let activeShortId = null;
+let activeShortStartedAt = 0;
+
+const SHORTS_HISTORY_KEY = "comtime_shorts_history";
+const SHORTS_HISTORY_LIMIT = 40;
+
+function setShortsStatus(text) {
+    if (shortsStatus) shortsStatus.textContent = text || "";
+}
+
+function getShortsHistory() {
+    try {
+        const value = JSON.parse(localStorage.getItem(SHORTS_HISTORY_KEY) || "[]");
+        return Array.isArray(value) ? value : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveShortsHistory(history) {
+    localStorage.setItem(
+        SHORTS_HISTORY_KEY,
+        JSON.stringify(history.slice(-SHORTS_HISTORY_LIMIT))
+    );
+}
+
+function recordShortHistory(video, watchSeconds, action = "view") {
+    if (!video?.id) return;
+
+    const seconds = Math.max(0, Math.min(180, Number(watchSeconds) || 0));
+    if (seconds < 1 && action === "view") return;
+
+    const history = getShortsHistory();
+    history.push({
+        id: String(video.id),
+        title: String(video.title || "").slice(0, 160),
+        channelTitle: String(video.channelTitle || "").slice(0, 80),
+        watchSeconds: Math.round(seconds * 10) / 10,
+        action,
+        viewedAt: new Date().toISOString()
+    });
+    saveShortsHistory(history);
+}
+
+function finishActiveShort() {
+    if (!activeShortId || !activeShortStartedAt) return;
+
+    const item = [...document.querySelectorAll(".shorts-item")]
+        .find((element) => element.dataset.videoId === String(activeShortId));
+
+    if (item?.dataset.videoJson) {
+        try {
+            const video = JSON.parse(item.dataset.videoJson);
+            const seconds = (Date.now() - activeShortStartedAt) / 1000;
+            recordShortHistory(video, seconds, seconds < 3 ? "skip" : "view");
+        } catch {
+            // 기록 오류는 쇼츠 재생을 방해하지 않습니다.
+        }
+    }
+
+    activeShortId = null;
+    activeShortStartedAt = 0;
+}
+
+function makeShortCard(video) {
+    const item = document.createElement("section");
+    item.className = "shorts-item";
+    item.dataset.videoId = String(video.id);
+    item.dataset.videoJson = JSON.stringify(video);
+
+    const iframe = document.createElement("iframe");
+    const shortsVideoSrc = `https://www.youtube.com/embed/${encodeURIComponent(video.id)}?playsinline=1&rel=0&modestbranding=1&enablejsapi=1`;
+    iframe.src = shortsVideoSrc;
+    iframe.dataset.videoSrc = shortsVideoSrc;
+    iframe.title = video.title || "YouTube Shorts";
+    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+    iframe.allowFullscreen = true;
+
+    const meta = document.createElement("div");
+    meta.className = "shorts-meta";
+
+    const title = document.createElement("strong");
+    title.textContent = video.title || "YouTube Shorts";
+
+    const channel = document.createElement("span");
+    channel.textContent = video.channelTitle || "YouTube";
+
+    meta.append(title, channel);
+    item.append(iframe, meta);
+    return item;
+}
+
+function setupShortsObserver() {
+    if (!shortsFeed) return;
+
+    shortsObserver?.disconnect();
+    shortsObserver = new IntersectionObserver(
+        (entries) => {
+            for (const entry of entries) {
+                if (entry.isIntersecting && entry.intersectionRatio >= 0.65) {
+                    const id = entry.target.dataset.videoId;
+                    if (id === activeShortId) continue;
+
+                    finishActiveShort();
+                    activeShortId = id;
+                    activeShortStartedAt = Date.now();
+                }
+            }
+        },
+        {
+            root: shortsFeed,
+            threshold: [0.65, 0.9]
+        }
+    );
+
+    shortsFeed.querySelectorAll(".shorts-item").forEach((item) => {
+        shortsObserver.observe(item);
+    });
+}
+
+async function getShortsRecommendationProfile() {
+    const history = getShortsHistory();
+
+    try {
+        const response = await fetch("/api/shorts/recommendation-profile", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ history })
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+            throw new Error(data.message || "추천 알고리즘 분석에 실패했습니다.");
+        }
+
+        return data.profile || {
+            query: "한국어 쇼츠 재미있는 영상",
+            keywords: ["한국어", "쇼츠"],
+            koreanPriority: 0.9
+        };
+    } catch (error) {
+        console.warn("[Shorts 추천 분석 실패]", error);
+        return {
+            query: "한국어 쇼츠 재미있는 영상",
+            keywords: ["한국어", "쇼츠"],
+            koreanPriority: 0.9
+        };
+    }
+}
+
+async function loadMoreShorts(reset = false) {
+    if (!shortsFeed || shortsLoading) return;
+    if (!reset && !shortsNextPageToken && shortsLoadedOnce) return;
+
+    shortsLoading = true;
+    setShortsStatus(reset ? "내 취향을 분석하고 한국어 쇼츠를 찾는 중..." : "다음 쇼츠를 불러오는 중...");
+
+    try {
+        let profile = null;
+
+        if (reset) {
+            profile = await getShortsRecommendationProfile();
+            shortsSearchQuery = String(profile.query || "한국어 쇼츠 재미있는 영상").trim();
+        }
+
+        const params = new URLSearchParams();
+        if (!reset && shortsNextPageToken) {
+            params.set("pageToken", shortsNextPageToken);
+        }
+        if (shortsSearchQuery) {
+            params.set("q", shortsSearchQuery);
+        }
+
+        const queryString = params.toString();
+        const response = await fetch(`/api/shorts${queryString ? `?${queryString}` : ""}`);
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+            throw new Error(data.message || "쇼츠를 불러오지 못했습니다.");
+        }
+
+        if (reset) {
+            finishActiveShort();
+            shortsFeed.innerHTML = "";
+        }
+
+        const videos = Array.isArray(data.videos) ? data.videos : [];
+        for (const video of videos) {
+            shortsFeed.appendChild(makeShortCard(video));
+        }
+
+        shortsNextPageToken = data.nextPageToken || null;
+        shortsSearchQuery = data.searchQuery || shortsSearchQuery;
+        shortsLoadedOnce = true;
+
+        setupShortsObserver();
+        setShortsStatus(videos.length ? "" : "추천할 쇼츠가 없습니다.");
+    } catch (error) {
+        console.error("[Shorts 로드 오류]", error);
+        setShortsStatus(error.message || "쇼츠를 불러오지 못했습니다.");
+    } finally {
+        shortsLoading = false;
+    }
+}
+
+async function openShortsModal() {
+    closeMenuModal();
+    shortsModal?.classList.add("active");
+    shortsModal?.setAttribute("aria-hidden", "false");
+    restoreShortsVideos();
+    lockPageScroll();
+
+    if (!shortsLoadedOnce) {
+        await loadMoreShorts(true);
+    }
+}
+
+function stopAllShortsVideos() {
+    if (!shortsFeed) return;
+
+    shortsFeed.querySelectorAll(".shorts-item iframe").forEach((iframe) => {
+        // YouTube iframe에 정지 명령을 먼저 보내고 src를 비워 확실하게 음성/재생을 종료합니다.
+        try {
+            iframe.contentWindow?.postMessage(
+                JSON.stringify({
+                    event: "command",
+                    func: "stopVideo",
+                    args: []
+                }),
+                "*"
+            );
+        } catch {
+            // cross-origin iframe 통신 실패는 아래 src 제거로 처리합니다.
+        }
+
+        iframe.src = "about:blank";
+    });
+}
+
+function restoreShortsVideos() {
+    if (!shortsFeed) return;
+
+    shortsFeed.querySelectorAll(".shorts-item iframe").forEach((iframe) => {
+        const src = iframe.dataset.videoSrc;
+        if (src && iframe.src !== src) {
+            iframe.src = src;
+        }
+    });
+}
+
+function closeShortsModal() {
+    finishActiveShort();
+    stopAllShortsVideos();
+    shortsModal?.classList.remove("active");
+    shortsModal?.setAttribute("aria-hidden", "true");
+    unlockPageScroll();
+}
+
+openShortsBtn?.addEventListener("click", openShortsModal);
+closeShortsBtn?.addEventListener("click", closeShortsModal);
+shortsBackdrop?.addEventListener("click", closeShortsModal);
+
+shortsFeed?.addEventListener("scroll", () => {
+    const nearBottom =
+        shortsFeed.scrollTop + shortsFeed.clientHeight >=
+        shortsFeed.scrollHeight - 140;
+
+    if (nearBottom) loadMoreShorts(false);
+}, { passive: true });
+
+window.addEventListener("beforeunload", finishActiveShort);

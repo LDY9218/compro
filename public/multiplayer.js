@@ -162,6 +162,8 @@
     }
 
     function renderObstacles(obstacles) {
+        // 서버가 이미 제거했거나 화면 아래를 벗어난 자동차는 클라이언트에서도 즉시 삭제합니다.
+        obstacles = obstacles.filter(o => Number.isFinite(Number(o.y)) && Number(o.y) < 103);
         const wanted = new Map(obstacles.map(o => [String(o.id), o]));
         for (const child of [...obstaclesEl.children]) {
             if (!wanted.has(child.dataset.id)) child.remove();

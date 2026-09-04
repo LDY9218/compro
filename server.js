@@ -58,9 +58,7 @@ function broadcastNotices() {
 }
 
 function isAdmin(req) {
-    // 공지 관리자 인증 코드는 클라이언트 인증 코드와 반드시 동일해야 합니다.
-    // 기존 ADMIN_ID 환경변수가 남아 있어도 공지 관리자 인증을 덮어쓰지 않도록 고정합니다.
-    const adminCode = "dnjstnddl!23";
+    const adminCode = String(process.env.ADMIN_CODE || "").trim();
     const userId = String(
         req.headers["x-comtime-user-id"] ||
         req.body?.userId ||
@@ -590,6 +588,218 @@ app.post("/api/gemini", async (req, res) => {
 
 
 // ==================================================
+// YOUTUBE SHORTS FEED + PERSONALIZED ALGORITHM
+// ==================================================
+function containsKorean(text = "") {
+    return /[가-힣]/.test(String(text));
+}
+
+function normalizeShortVideo(item) {
+    return {
+        id: item?.id?.videoId || item?.id || "",
+        title: item?.snippet?.title || item?.title || "YouTube Short",
+        channelTitle: item?.snippet?.channelTitle || item?.channelTitle || "",
+        publishedAt: item?.snippet?.publishedAt || item?.publishedAt || ""
+    };
+}
+
+function shortLanguageScore(video) {
+    const title = String(video.title || "");
+    const channel = String(video.channelTitle || "");
+    let score = 0;
+
+    if (containsKorean(title)) score += 5;
+    if (containsKorean(channel)) score += 4;
+    if (/[가-힣]{2,}/.test(title)) score += 2;
+    if (/[가-힣]{2,}/.test(channel)) score += 2;
+
+    // 한국에서 자주 쓰이는 메타데이터 표현을 추가 가점합니다.
+    if (/(한국|대한민국|국내|한국어|먹방|브이로그|일상|게임|개그|예능|뉴스|공부|요리|축구|야구)/i.test(`${title} ${channel}`)) {
+        score += 3;
+    }
+
+    // 외국어 제목만 있는 영상은 한국어 우선 피드에서 후순위로 보냅니다.
+    if (!containsKorean(title) && !containsKorean(channel)) score -= 4;
+
+    return score;
+}
+
+async function askGeminiForShortsProfile(history) {
+    const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
+    if (!apiKey || !Array.isArray(history) || history.length === 0) {
+        return {
+            query: "한국어 쇼츠 재미있는 영상",
+            keywords: ["한국어", "쇼츠"],
+            koreanPriority: 0.9
+        };
+    }
+
+    const compactHistory = history
+        .slice(-40)
+        .map((item) => ({
+            title: String(item?.title || "").slice(0, 160),
+            channelTitle: String(item?.channelTitle || "").slice(0, 80),
+            watchSeconds: Math.max(0, Math.min(180, Number(item?.watchSeconds) || 0)),
+            action: String(item?.action || "view").slice(0, 20)
+        }));
+
+    const prompt = `너는 COMTIME PRO YouTube Shorts 추천 알고리즘 분석 AI다.
+사용자의 최근 시청 기록을 분석해서 다음 쇼츠를 찾기 위한 검색 전략을 만들어라.
+
+중요 규칙:
+1. 사용자가 오래 본 영상일수록 관심도가 높다고 판단한다.
+2. 짧게 보고 넘긴 영상은 관심도가 낮다고 판단한다.
+3. 한국어 콘텐츠를 강하게 우선한다. 가능하면 한국어 제목/한국 채널뿐 아니라 실제 한국어 음성이 나올 가능성이 높은 주제와 검색어를 선택한다.
+4. 검색어는 YouTube 검색에 바로 넣을 수 있는 자연스러운 한국어 문장으로 만든다.
+5. 외국 영상만 반복 추천하지 않도록 한다.
+6. 사용자의 취향은 기록에서만 추론하고, 기록에 없는 취향을 임의로 확정하지 않는다.
+7. 결과는 반드시 JSON 하나만 출력한다.
+
+JSON 형식:
+{
+  "query": "YouTube 검색어",
+  "keywords": ["키워드1", "키워드2", "키워드3"],
+  "koreanPriority": 0.0
+}
+
+koreanPriority는 0~1 사이 숫자이며, 한국어 영상 우선 정도다.
+
+사용자 시청 기록:
+${JSON.stringify(compactHistory, null, 2)}`;
+
+    try {
+        const response = await fetch(
+            "https://generativelanguage.googleapis.com/v1beta/interactions",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": apiKey
+                },
+                body: JSON.stringify({
+                    model: "gemini-3.7-flash",
+                    input: prompt
+                })
+            }
+        );
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data?.error?.message || `Gemini HTTP ${response.status}`);
+        }
+
+        let text = data.output_text || "";
+        if (!text && Array.isArray(data.steps)) {
+            for (const step of data.steps) {
+                if (step.type === "model_output" && Array.isArray(step.content)) {
+                    const texts = step.content
+                        .filter((block) => block.type === "text")
+                        .map((block) => block.text);
+                    if (texts.length) {
+                        text = texts.join("\n");
+                        break;
+                    }
+                }
+            }
+        }
+
+        const jsonText = String(text)
+            .replace(/^```json\s*/i, "")
+            .replace(/^```\s*/i, "")
+            .replace(/\s*```$/i, "")
+            .trim();
+
+        const profile = JSON.parse(jsonText);
+        return {
+            query: String(profile.query || "한국어 쇼츠 재미있는 영상").trim().slice(0, 200),
+            keywords: Array.isArray(profile.keywords)
+                ? profile.keywords.map((x) => String(x).trim()).filter(Boolean).slice(0, 8)
+                : [],
+            koreanPriority: Math.max(0, Math.min(1, Number(profile.koreanPriority) || 0.9))
+        };
+    } catch (error) {
+        console.error("[Shorts Gemini 분석 오류]", error);
+        return {
+            query: "한국어 쇼츠 재미있는 영상",
+            keywords: ["한국어", "쇼츠"],
+            koreanPriority: 0.9
+        };
+    }
+}
+
+app.post("/api/shorts/recommendation-profile", async (req, res) => {
+    const history = Array.isArray(req.body?.history) ? req.body.history : [];
+    const profile = await askGeminiForShortsProfile(history);
+
+    console.log(
+        `[Shorts 알고리즘] query=${profile.query} / koreanPriority=${profile.koreanPriority}`
+    );
+
+    return res.json({ ok: true, profile });
+});
+
+app.get("/api/shorts", async (req, res) => {
+    const apiKey = String(process.env.YOUTUBE_API_KEY || "").trim();
+    if (!apiKey) {
+        return res.status(500).json({
+            ok: false,
+            message: "YOUTUBE_API_KEY가 .env에 없습니다."
+        });
+    }
+
+    const pageToken = String(req.query.pageToken || "").trim();
+    const suppliedQuery = String(req.query.q || "").trim();
+    const query = suppliedQuery || "한국어 쇼츠 재미있는 영상";
+
+    const params = new URLSearchParams({
+        part: "snippet",
+        type: "video",
+        videoDuration: "short",
+        maxResults: "25",
+        order: "relevance",
+        regionCode: "KR",
+        relevanceLanguage: "ko",
+        safeSearch: "moderate",
+        q: query,
+        key: apiKey
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+
+    try {
+        const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`);
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data?.error?.message || `YouTube HTTP ${response.status}`);
+        }
+
+        const videos = (data.items || [])
+            .map(normalizeShortVideo)
+            .filter((video) => video.id)
+            .map((video, index) => ({
+                ...video,
+                koreanScore: shortLanguageScore(video),
+                originalIndex: index
+            }))
+            .sort((a, b) => {
+                const scoreDiff = b.koreanScore - a.koreanScore;
+                if (scoreDiff !== 0) return scoreDiff;
+                return a.originalIndex - b.originalIndex;
+            })
+            .map(({ koreanScore, originalIndex, ...video }) => video);
+
+        return res.json({
+            ok: true,
+            videos,
+            nextPageToken: data.nextPageToken || null,
+            searchQuery: query
+        });
+    } catch (error) {
+        console.error("[YouTube Shorts 오류]", error);
+        return res.status(502).json({ ok: false, message: error.message });
+    }
+});
+
+// ==================================================
 // BIRD BUMP SCORE LOG
 // ==================================================
 app.post("/api/bird-score", (req, res) => {
@@ -792,6 +1002,10 @@ function startCarGameLoop() {
                 obstacle.y += obstacle.speed * dt;
             }
 
+            // 도로 화면을 완전히 벗어난 차량은 즉시 서버 상태에서 제거합니다.
+            // CSS transform 중심점 때문에 100%보다 조금 전에 제거해야 화면 아래에 남지 않습니다.
+            room.obstacles = room.obstacles.filter(o => Number.isFinite(o.y) && o.y < 103);
+
             for (const player of room.players) {
                 if (!player.alive) continue;
                 if (player.invincibleUntil > now) continue;
@@ -809,7 +1023,7 @@ function startCarGameLoop() {
                 }
             }
 
-            room.obstacles = room.obstacles.filter(o => o.y < 110);
+            room.obstacles = room.obstacles.filter(o => Number.isFinite(o.y) && o.y < 103);
 
             const alive = room.players.filter(p => p.alive);
             if (alive.length <= 1) {
