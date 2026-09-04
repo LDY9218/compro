@@ -4645,7 +4645,7 @@ async function sendGeminiMessage() {
     geminiAbortController = new AbortController();
 
     try {
-        const response = await fetch("/api/gemini", {
+        const response = await authFetch("/api/gemini", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -4654,6 +4654,7 @@ async function sendGeminiMessage() {
             body: JSON.stringify({
                 message,
                 previousInteractionId: geminiPreviousInteractionId,
+                conversationId: geminiConversationId,
                 context
             }),
             signal: geminiAbortController.signal
@@ -4714,6 +4715,11 @@ async function sendGeminiMessage() {
                     receivedText = true;
                     setGeminiStatus("");
                 }
+                return;
+            }
+
+            if (eventType === "conversation") {
+                if (data.conversationId) geminiConversationId = data.conversationId;
                 return;
             }
 
@@ -5614,3 +5620,413 @@ window.addEventListener("beforeunload", () => {
     finishActiveShort();
     stopAllShortsVideos();
 });
+
+// ==================================================
+// ACCOUNT / PERSISTENCE / FRIEND CHAT
+// ==================================================
+const authModal = document.getElementById("authModal");
+const loginForm = document.getElementById("loginForm");
+const registerForm = document.getElementById("registerForm");
+const authTitle = document.getElementById("authTitle");
+const authDescription = document.getElementById("authDescription");
+const authSwitchBtn = document.getElementById("authSwitchBtn");
+const authStatus = document.getElementById("authStatus");
+const menuAccountName = document.getElementById("menuAccountName");
+const logoutBtn = document.getElementById("logoutBtn");
+const openChatBtn = document.getElementById("openChatBtn");
+const chatModal = document.getElementById("chatModal");
+const chatBackdrop = document.getElementById("chatBackdrop");
+const closeChatBtn = document.getElementById("closeChatBtn");
+const friendUsernameInput = document.getElementById("friendUsernameInput");
+const addFriendBtn = document.getElementById("addFriendBtn");
+const friendStatus = document.getElementById("friendStatus");
+const friendList = document.getElementById("friendList");
+const friendCount = document.getElementById("friendCount");
+const chatEmpty = document.getElementById("chatEmpty");
+const chatConversation = document.getElementById("chatConversation");
+const chatFriendName = document.getElementById("chatFriendName");
+const chatFriendUsername = document.getElementById("chatFriendUsername");
+const chatMessages = document.getElementById("chatMessages");
+const chatSendForm = document.getElementById("chatSendForm");
+const chatInput = document.getElementById("chatInput");
+
+const AUTH_TOKEN_KEY = "comtime_auth_token";
+let currentUser = null;
+let authToken = localStorage.getItem(AUTH_TOKEN_KEY) || "";
+let authMode = "login";
+let selectedChatFriend = null;
+let chatSocket = null;
+let chatPollTimer = null;
+let shortsSyncTimer = null;
+let geminiConversationId = null;
+let geminiHistoryLoaded = false;
+
+function getAuthToken() { return authToken; }
+function setAuthToken(token) {
+    authToken = String(token || "").trim();
+    if (authToken) localStorage.setItem(AUTH_TOKEN_KEY, authToken);
+    else localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+async function authFetch(url, options = {}) {
+    const headers = new Headers(options.headers || {});
+    if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+    if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
+    const response = await fetch(url, { ...options, headers });
+    if (response.status === 401) {
+        setAuthToken("");
+        currentUser = null;
+        showAuthModal("login", "로그인이 필요합니다.");
+    }
+    return response;
+}
+
+function showAuthModal(mode = "login", status = "") {
+    authMode = mode;
+    loginForm.hidden = mode !== "login";
+    registerForm.hidden = mode !== "register";
+    authTitle.textContent = mode === "login" ? "로그인" : "회원가입";
+    authDescription.textContent = mode === "login"
+        ? "계정에 로그인하면 학교, 반, 추천 알고리즘, Gemini 대화 기록을 저장할 수 있습니다."
+        : "COMTIME PRO 계정을 만들면 내 설정과 대화, 추천 기록이 계정에 저장됩니다.";
+    authSwitchBtn.textContent = mode === "login" ? "계정이 없나요? 회원가입" : "이미 계정이 있나요? 로그인";
+    authStatus.textContent = status || "";
+    authModal?.classList.add("active");
+    authModal?.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+}
+
+function hideAuthModal() {
+    authModal?.classList.remove("active");
+    authModal?.setAttribute("aria-hidden", "true");
+    unlockPageScroll();
+}
+
+function applyUserProfile(profile) {
+    if (!profile) return;
+    if (profile.school?.code) {
+        selectedSchool = profile.school;
+        localStorage.setItem("comtime_selected_school", JSON.stringify(selectedSchool));
+        if (schoolNameEl) schoolNameEl.textContent = selectedSchool.name || "학교 미선택";
+        if (schoolInfoEl) schoolInfoEl.textContent = `${selectedSchool.region || "학교"} · 저장된 계정 정보`;
+    }
+    if (profile.grade && gradeSelect) gradeSelect.value = profile.grade;
+    if (classSelect && profile.classNum) classSelect.value = profile.classNum;
+}
+
+async function saveProfileToServer() {
+    if (!currentUser) return;
+    try {
+        const response = await authFetch("/api/me/profile", {
+            method: "PUT",
+            body: JSON.stringify({
+                profile: {
+                    school: selectedSchool,
+                    grade: gradeSelect?.value || "",
+                    classNum: classSelect?.value || ""
+                }
+            })
+        });
+        if (response.ok) console.log("[계정 저장] 학교/학년/반 저장 완료");
+    } catch (error) {
+        console.warn("[계정 저장 오류]", error);
+    }
+}
+
+function setAuthAccountUI() {
+    const name = currentUser ? `${currentUser.displayName} (@${currentUser.username})` : "로그인되지 않음";
+    if (menuAccountName) menuAccountName.textContent = name;
+    if (comtimeUserIdInput) comtimeUserIdInput.value = currentUser?.username || "";
+}
+
+async function loginOrRegister(endpoint, payload) {
+    const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) throw new Error(data.message || "요청에 실패했습니다.");
+    setAuthToken(data.token);
+    currentUser = data.user;
+    setAuthAccountUI();
+    hideAuthModal();
+    appendClientLog("auth_success", { action: endpoint.includes("register") ? "register" : "login" });
+    await finishAccountLogin();
+}
+
+async function finishAccountLogin() {
+    applyUserProfile(currentUser?.profile);
+    if (currentUser?.algorithm) console.log("[저장된 알고리즘]", currentUser.algorithm);
+    await saveProfileToServer();
+    await checkAdminMode();
+    startChatSocket();
+    await loadGeminiHistoryFromServer();
+    await syncShortsHistoryNow();
+    await loadFriends();
+    try { await restoreSchool(); } catch (_) {}
+}
+
+async function initAuth() {
+    if (!authToken) {
+        setAuthAccountUI();
+        showAuthModal("login");
+        return;
+    }
+    try {
+        const response = await authFetch("/api/me");
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.message || "세션이 만료되었습니다.");
+        currentUser = data.user;
+        setAuthAccountUI();
+        await finishAccountLogin();
+    } catch (error) {
+        setAuthToken("");
+        currentUser = null;
+        setAuthAccountUI();
+        showAuthModal("login", "로그인이 만료되었거나 유효하지 않습니다.");
+    }
+}
+
+function appendClientLog(type, payload = {}) {
+    console.log(`[사용자 활동] ${type}`, payload);
+}
+
+loginForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    authStatus.textContent = "로그인 중...";
+    try {
+        await loginOrRegister("/api/auth/login", {
+            username: document.getElementById("loginUsername").value,
+            password: document.getElementById("loginPassword").value
+        });
+    } catch (error) { authStatus.textContent = error.message; }
+});
+
+registerForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const password = document.getElementById("registerPassword").value;
+    const confirm = document.getElementById("registerPasswordConfirm").value;
+    if (password !== confirm) { authStatus.textContent = "비밀번호가 서로 다릅니다."; return; }
+    authStatus.textContent = "회원가입 중...";
+    try {
+        await loginOrRegister("/api/auth/register", {
+            username: document.getElementById("registerUsername").value,
+            displayName: document.getElementById("registerDisplayName").value,
+            password
+        });
+    } catch (error) { authStatus.textContent = error.message; }
+});
+
+authSwitchBtn?.addEventListener("click", () => showAuthModal(authMode === "login" ? "register" : "login"));
+
+logoutBtn?.addEventListener("click", async () => {
+    try { await authFetch("/api/auth/logout", { method: "POST" }); } catch (_) {}
+    setAuthToken("");
+    currentUser = null;
+    chatSocket?.disconnect();
+    chatSocket = null;
+    clearInterval(chatPollTimer);
+    closeChatModal();
+    closeMenuModal();
+    showAuthModal("login", "로그아웃되었습니다.");
+});
+
+// ==================================================
+// GEMINI ACCOUNT HISTORY OVERRIDE
+// ==================================================
+async function loadGeminiHistoryFromServer() {
+    if (!currentUser || geminiHistoryLoaded) return;
+    try {
+        const response = await authFetch("/api/gemini/history");
+        const data = await response.json();
+        if (!response.ok || !data.ok) return;
+        const conversations = Array.isArray(data.conversations) ? data.conversations : [];
+        const active = conversations[conversations.length - 1];
+        geminiConversationId = active?.id || null;
+        geminiPreviousInteractionId = active?.previousInteractionId || null;
+        if (active?.messages?.length && geminiMessages) {
+            geminiMessages.innerHTML = "";
+            active.messages.forEach((message) => addGeminiMessage(message.text, message.role === "user" ? "user" : "assistant"));
+        }
+        geminiHistoryLoaded = true;
+        console.log("[Gemini 기록 복구]", { conversations: conversations.length, activeConversationId: geminiConversationId });
+    } catch (error) { console.warn("[Gemini 기록 복구 실패]", error); }
+}
+
+const originalResetGeminiChat = resetGeminiChat;
+resetGeminiChat = async function () {
+    if (geminiStreaming) return;
+    try {
+        const response = await authFetch("/api/gemini/new", { method: "POST" });
+        const data = await response.json();
+        if (response.ok && data.ok) geminiConversationId = data.conversationId;
+    } catch (error) { console.warn("[Gemini 새 대화 저장 실패]", error); }
+    geminiPreviousInteractionId = null;
+    if (geminiMessages) geminiMessages.innerHTML = '<div class="gemini-message assistant">새 대화를 시작했습니다. 무엇을 도와드릴까요?</div>';
+    if (geminiInput) geminiInput.value = "";
+    setGeminiStatus("");
+    geminiInput?.focus();
+};
+
+// 기존 전송 함수는 authFetch와 conversationId를 사용하도록 감쌉니다.
+const originalSendGeminiMessage = sendGeminiMessage;
+sendGeminiMessage = async function () {
+    // 아래 원본 함수가 사용하는 fetch를 직접 가로채기보다, 현재 함수 소스의 요청 직전에 필요한
+    // conversationId를 전역으로 전달할 수 있도록 원본 함수가 읽는 값은 별도로 저장합니다.
+    return originalSendGeminiMessage();
+};
+
+// ==================================================
+// FRIEND CHAT
+// ==================================================
+async function syncShortsHistoryNow() {
+    if (!currentUser) return;
+    const history = getShortsHistory();
+    if (!history.length) return;
+    try {
+        await authFetch("/api/shorts/history", { method: "POST", body: JSON.stringify({ history: history.slice(-40) }) });
+        console.log("[쇼츠 기록 복구] 로컬 기록을 계정에 동기화했습니다.");
+    } catch (error) { console.warn("[쇼츠 기록 복구 실패]", error); }
+}
+
+function startChatSocket() {
+    if (!window.io || !authToken || chatSocket) return;
+    chatSocket = window.io();
+    chatSocket.on("connect", () => chatSocket.emit("auth:identify", { token: authToken }));
+    chatSocket.on("chat:message", (message) => {
+        if (selectedChatFriend && (message.from === selectedChatFriend.username || message.to === selectedChatFriend.username)) {
+            appendChatMessage(message);
+        }
+    });
+    chatSocket.on("auth:error", (payload) => console.warn("[채팅 인증 오류]", payload?.message));
+}
+
+async function loadFriends() {
+    if (!currentUser || !friendList) return;
+    try {
+        const response = await authFetch("/api/friends");
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.message || "친구 목록을 불러오지 못했습니다.");
+        const friends = data.friends || [];
+        friendList.innerHTML = "";
+        if (friendCount) friendCount.textContent = friends.length;
+        friends.sort((a,b) => String(a.displayName).localeCompare(String(b.displayName), "ko"));
+        friends.forEach((friend) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = `friend-item${selectedChatFriend?.username === friend.username ? " active" : ""}`;
+            const avatar = document.createElement("span"); avatar.className = "friend-avatar"; avatar.textContent = String(friend.displayName || friend.username).charAt(0).toUpperCase();
+            const copy = document.createElement("span"); copy.className = "friend-copy";
+            const strong = document.createElement("strong"); strong.textContent = friend.displayName;
+            const small = document.createElement("small"); small.textContent = `@${friend.username}`;
+            copy.append(strong, small); button.append(avatar, copy);
+            button.addEventListener("click", () => selectChatFriend(friend));
+            friendList.appendChild(button);
+        });
+    } catch (error) { if (friendStatus) friendStatus.textContent = error.message; }
+}
+
+async function selectChatFriend(friend) {
+    selectedChatFriend = friend;
+    chatEmpty.hidden = true; chatConversation.hidden = false;
+    chatFriendName.textContent = friend.displayName;
+    chatFriendUsername.textContent = `@${friend.username}`;
+    chatMessages.innerHTML = "";
+    await loadChatMessages();
+    loadFriends();
+    requestAnimationFrame(() => chatInput?.focus());
+}
+
+function appendChatMessage(message) {
+    if (!chatMessages || !selectedChatFriend) return;
+    const existing = chatMessages.querySelector(`[data-message-id="${CSS.escape(String(message.id))}"]`);
+    if (existing) return;
+    const wrap = document.createElement("div");
+    wrap.className = `chat-bubble ${message.from === currentUser?.username ? "mine" : "theirs"}`;
+    wrap.dataset.messageId = String(message.id);
+    wrap.textContent = message.text;
+    const time = document.createElement("div"); time.className = "chat-time"; time.textContent = new Intl.DateTimeFormat("ko-KR", { hour:"2-digit", minute:"2-digit" }).format(new Date(message.createdAt));
+    wrap.appendChild(time); chatMessages.appendChild(wrap); chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+async function loadChatMessages() {
+    if (!selectedChatFriend) return;
+    try {
+        const response = await authFetch(`/api/messages/${encodeURIComponent(selectedChatFriend.username)}`);
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.message || "메시지를 불러오지 못했습니다.");
+        chatMessages.innerHTML = "";
+        (data.messages || []).forEach(appendChatMessage);
+    } catch (error) { chatMessages.innerHTML = `<div class="chat-empty">${escapeHtml(error.message)}</div>`; }
+}
+
+async function addFriend() {
+    const username = friendUsernameInput?.value.trim();
+    if (!username) return;
+    friendStatus.textContent = "친구 추가 중...";
+    try {
+        const response = await authFetch("/api/friends/add", { method:"POST", body:JSON.stringify({ username }) });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.message || "친구 추가에 실패했습니다.");
+        friendUsernameInput.value = "";
+        friendStatus.textContent = `${data.friend.displayName}님을 친구로 추가했습니다.`;
+        await loadFriends();
+    } catch (error) { friendStatus.textContent = error.message; }
+}
+
+function openChatModal() {
+    closeMenuModal();
+    chatModal?.classList.add("active"); chatModal?.setAttribute("aria-hidden", "false"); lockPageScroll();
+    startChatSocket(); loadFriends();
+}
+function closeChatModal() {
+    chatModal?.classList.remove("active"); chatModal?.setAttribute("aria-hidden", "true"); unlockPageScroll();
+}
+
+openChatBtn?.addEventListener("click", openChatModal);
+closeChatBtn?.addEventListener("click", closeChatModal);
+chatBackdrop?.addEventListener("click", closeChatModal);
+addFriendBtn?.addEventListener("click", addFriend);
+friendUsernameInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addFriend(); } });
+chatSendForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text || !selectedChatFriend) return;
+    chatInput.value = "";
+    try {
+        const response = await authFetch("/api/messages/send", { method:"POST", body:JSON.stringify({ to:selectedChatFriend.username, text }) });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.message || "메시지 전송에 실패했습니다.");
+        appendChatMessage(data.message);
+    } catch (error) { friendStatus.textContent = error.message; }
+});
+
+// 5초마다 서버와 동기화하여 상대가 페이지를 새로고침해도 메시지를 볼 수 있게 합니다.
+chatPollTimer = setInterval(() => {
+    if (chatModal?.classList.contains("active") && selectedChatFriend) loadChatMessages();
+}, 5000);
+
+// ==================================================
+// SHORTS SERVER-SIDE PERSISTENCE
+// ==================================================
+const originalRecordShortHistory = recordShortHistory;
+recordShortHistory = function(video, watchSeconds, action = "view") {
+    originalRecordShortHistory(video, watchSeconds, action);
+    clearTimeout(shortsSyncTimer);
+    shortsSyncTimer = setTimeout(async () => {
+        if (!currentUser) return;
+        try {
+            await authFetch("/api/shorts/history", { method:"POST", body:JSON.stringify({ history:getShortsHistory().slice(-20) }) });
+        } catch (error) { console.warn("[쇼츠 기록 서버 저장 실패]", error); }
+    }, 1200);
+};
+
+// 기존 학교/학년/반 선택 이벤트에 계정 저장을 추가합니다.
+const originalSelectSchool = selectSchool;
+selectSchool = async function(school) {
+    await originalSelectSchool(school);
+    await saveProfileToServer();
+};
+
+gradeSelect?.addEventListener("change", () => { if (currentUser) saveProfileToServer(); });
+classSelect?.addEventListener("change", () => { if (currentUser) saveProfileToServer(); });
+
+// 인증된 상태에서는 서버 저장 데이터를 최우선으로 사용합니다.
+initAuth();
