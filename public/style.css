@@ -2409,14 +2409,17 @@ footer {
 .shorts-backdrop { position:absolute; inset:0; background:rgba(20,25,42,.46); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
 .shorts-window { position:relative; z-index:2; width:min(430px, calc(100vw - 24px)); height:min(820px, calc(100vh - 24px)); display:flex; flex-direction:column; overflow:hidden; border-radius:24px; background:#101114; box-shadow:0 30px 80px rgba(0,0,0,.42); }
 .shorts-header { min-height:66px; box-sizing:border-box; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; background:#fff; color:#222; z-index:3; }
+
+/* 모바일에서 영상 위에 X 버튼을 내려 배치해 손가락으로 누르기 쉽게 합니다. */
+.shorts-window > .game-close-btn { position:absolute; top:74px; right:12px; z-index:20; width:44px; height:44px; min-width:44px; min-height:44px; display:flex; align-items:center; justify-content:center; border-radius:50%; }
 .shorts-header h2 { margin:2px 0 0; font-size:19px; color:#252d42; }
 .shorts-feed { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; scroll-snap-type:y mandatory; overscroll-behavior:contain; background:#000; scrollbar-width:none; }
 .shorts-feed::-webkit-scrollbar { display:none; }
 .shorts-item { position:relative; height:100%; min-height:100%; scroll-snap-align:start; scroll-snap-stop:always; background:#000; }
-.shorts-item iframe { width:100%; height:100%; border:0; display:block; background:#000; }
+.shorts-item iframe { width:100%; height:100%; border:0; display:block; background:#000; contain:strict; }
 .shorts-meta { position:absolute; left:14px; right:14px; bottom:18px; z-index:2; color:#fff; text-shadow:0 2px 12px rgba(0,0,0,.8); pointer-events:none; }
 .shorts-meta strong { display:block; font-size:14px; line-height:1.35; }
 .shorts-meta span { display:block; margin-top:5px; font-size:11px; opacity:.85; }
 .shorts-status { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); z-index:5; padding:7px 11px; border-radius:999px; color:#fff; background:rgba(0,0,0,.62); font-size:10px; pointer-events:none; transition:opacity .2s; }
 .shorts-status:empty { opacity:0; }
-@media (max-width:600px) { .shorts-window { width:100vw; height:100vh; border-radius:0; } .shorts-header { min-height:58px; padding:9px 13px; } }
+@media (max-width:600px) { .shorts-window { width:100vw; height:100dvh; max-height:none; border-radius:0; } .shorts-header { min-height:58px; padding:9px 13px; } .shorts-window > .game-close-btn { top:68px; right:10px; width:46px; height:46px; min-width:46px; min-height:46px; font-size:26px; } .shorts-feed { scroll-behavior:auto; } }

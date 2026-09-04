@@ -659,13 +659,22 @@ JSON 형식:
 {
   "query": "YouTube 검색어",
   "keywords": ["키워드1", "키워드2", "키워드3"],
+  "interestSummary": "사용자가 현재 좋아하는 콘텐츠를 기록에 근거해 한 문장으로 요약",
   "koreanPriority": 0.0
 }
 
 koreanPriority는 0~1 사이 숫자이며, 한국어 영상 우선 정도다.
+interestSummary는 시청 기록에서 실제로 확인되는 관심사만 요약하고, 근거가 부족하면 추측하지 말고 "아직 충분한 데이터 없음"이라고 쓴다.
 
 사용자 시청 기록:
-${JSON.stringify(compactHistory, null, 2)}`;
+${JSON.stringify(compactHistory, null, 2)}
+
+추가 판단 규칙:
+8. action이 "skip"이고 watchSeconds가 매우 짧은 기록이 연속해서 나타나면 현재 추천 주제가 사용자의 관심사와 맞지 않을 가능성이 높다고 판단한다.
+9. 최근 연속으로 넘긴 영상의 제목과 채널을 분석해서 그 영상들과 비슷한 주제는 다음 추천 검색어에서 피한다.
+10. 사용자가 갑자기 다른 주제를 오래 본 기록이 생기면 이전 취향보다 최신의 오래 본 시청 기록을 더 강하게 반영한다.
+11. 단순히 "쇼츠"라는 단어만 반복해서 검색하지 말고, 실제 관심 주제를 구체적인 한국어 검색어로 만든다.
+12. 결과적으로 사용자가 영상을 빠르게 여러 개 넘기면 "관심사가 바뀌었거나 현재 추천이 틀렸다"고 보고 추천 방향을 적극적으로 바꾼다.`;
 
     try {
         const response = await fetch(
@@ -715,6 +724,9 @@ ${JSON.stringify(compactHistory, null, 2)}`;
             keywords: Array.isArray(profile.keywords)
                 ? profile.keywords.map((x) => String(x).trim()).filter(Boolean).slice(0, 8)
                 : [],
+            interestSummary: String(
+                profile.interestSummary || "아직 충분한 데이터 없음"
+            ).trim().slice(0, 300),
             koreanPriority: Math.max(0, Math.min(1, Number(profile.koreanPriority) || 0.9))
         };
     } catch (error) {
@@ -731,9 +743,16 @@ app.post("/api/shorts/recommendation-profile", async (req, res) => {
     const history = Array.isArray(req.body?.history) ? req.body.history : [];
     const profile = await askGeminiForShortsProfile(history);
 
-    console.log(
-        `[Shorts 알고리즘] query=${profile.query} / koreanPriority=${profile.koreanPriority}`
-    );
+    const keywords = profile.keywords.length
+        ? profile.keywords.join(", ")
+        : "없음";
+
+    console.log("[Shorts 알고리즘 사용자 취향 분석]");
+    console.log(`  관심 알고리즘: ${profile.interestSummary}`);
+    console.log(`  선호 키워드: ${keywords}`);
+    console.log(`  추천 검색어: ${profile.query}`);
+    console.log(`  한국어 우선도: ${(profile.koreanPriority * 100).toFixed(0)}%`);
+    console.log(`  분석 기록 수: ${history.length}개`);
 
     return res.json({ ok: true, profile });
 });
@@ -755,7 +774,7 @@ app.get("/api/shorts", async (req, res) => {
         part: "snippet",
         type: "video",
         videoDuration: "short",
-        maxResults: "25",
+        maxResults: "12",
         order: "relevance",
         regionCode: "KR",
         relevanceLanguage: "ko",

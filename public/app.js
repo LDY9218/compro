@@ -5162,6 +5162,11 @@ let shortsSearchQuery = "";
 let shortsObserver = null;
 let activeShortId = null;
 let activeShortStartedAt = 0;
+let shortsOpenGeneration = 0;
+let shortsSkipStreak = 0;
+let shortsRecommendationRefreshing = false;
+let shortsRecommendationRefreshTimer = null;
+let shortsSeenVideoIds = new Set();
 
 const SHORTS_HISTORY_KEY = "comtime_shorts_history";
 const SHORTS_HISTORY_LIMIT = 40;
@@ -5204,17 +5209,29 @@ function recordShortHistory(video, watchSeconds, action = "view") {
     saveShortsHistory(history);
 }
 
+function getShortItemById(id) {
+    return [...document.querySelectorAll(".shorts-item")]
+        .find((element) => element.dataset.videoId === String(id));
+}
+
 function finishActiveShort() {
     if (!activeShortId || !activeShortStartedAt) return;
 
-    const item = [...document.querySelectorAll(".shorts-item")]
-        .find((element) => element.dataset.videoId === String(activeShortId));
-
+    const item = getShortItemById(activeShortId);
     if (item?.dataset.videoJson) {
         try {
             const video = JSON.parse(item.dataset.videoJson);
             const seconds = (Date.now() - activeShortStartedAt) / 1000;
-            recordShortHistory(video, seconds, seconds < 3 ? "skip" : "view");
+            const action = seconds < 3 ? "skip" : "view";
+
+            recordShortHistory(video, seconds, action);
+
+            if (action === "skip") {
+                shortsSkipStreak += 1;
+                scheduleShortsRecommendationRefresh();
+            } else {
+                shortsSkipStreak = 0;
+            }
         } catch {
             // 기록 오류는 쇼츠 재생을 방해하지 않습니다.
         }
@@ -5224,6 +5241,124 @@ function finishActiveShort() {
     activeShortStartedAt = 0;
 }
 
+function scheduleShortsRecommendationRefresh() {
+    // 한두 개를 실수로 넘긴 것만으로 취향이 바뀌었다고 판단하지 않습니다.
+    // 짧은 시간에 여러 개를 연속으로 넘기면 현재 추천 주제가 맞지 않는 것으로 보고
+    // Gemini에게 최신 기록을 다시 분석하게 합니다.
+    if (shortsSkipStreak < 3 || shortsRecommendationRefreshing) return;
+
+    clearTimeout(shortsRecommendationRefreshTimer);
+    shortsRecommendationRefreshTimer = setTimeout(() => {
+        refreshShortsRecommendationIfNeeded();
+    }, 250);
+}
+
+async function refreshShortsRecommendationIfNeeded() {
+    if (shortsRecommendationRefreshing || !shortsModal?.classList.contains("active")) return;
+    if (shortsSkipStreak < 3) return;
+
+    shortsRecommendationRefreshing = true;
+    const generation = shortsOpenGeneration;
+    const previousQuery = shortsSearchQuery;
+
+    try {
+        setShortsStatus("최근에 넘긴 영상을 보고 취향을 다시 분석하는 중...");
+
+        const profile = await getShortsRecommendationProfile();
+        if (generation !== shortsOpenGeneration) return;
+
+        const nextQuery = String(
+            profile.query || "한국어 쇼츠 재미있는 영상"
+        ).trim();
+
+        shortsSkipStreak = 0;
+
+        // 기존 피드를 비우지 않고 새 추천을 뒤에 붙입니다.
+        // 피드를 통째로 초기화하면 현재 위치가 첫 영상으로 튀면서 같은 영상이 반복되는 것처럼
+        // 보일 수 있으므로, 새로운 추천만 추가하고 이미 본 영상은 Set으로 차단합니다.
+        shortsSearchQuery = nextQuery;
+        shortsNextPageToken = null;
+
+        if (nextQuery !== previousQuery || getShortsHistory().length >= 3) {
+            await loadMoreShorts(false, true);
+        }
+    } catch (error) {
+        console.warn("[Shorts 취향 재분석 실패]", error);
+    } finally {
+        shortsRecommendationRefreshing = false;
+    }
+}
+
+function stopIframe(iframe) {
+    if (!iframe) return;
+
+    // YouTube IFrame API 명령으로 먼저 정지시켜 오디오가 남지 않게 합니다.
+    try {
+        iframe.contentWindow?.postMessage(
+            JSON.stringify({
+                event: "command",
+                func: "stopVideo",
+                args: []
+            }),
+            "*"
+        );
+    } catch {
+        // src 제거로 최종 처리합니다.
+    }
+
+    iframe.src = "about:blank";
+}
+
+function loadShortIframe(item) {
+    if (!item) return;
+
+    const iframe = item.querySelector("iframe");
+    const src = iframe?.dataset.videoSrc;
+    if (!iframe || !src) return;
+
+    // 이미 같은 영상이 로드되어 있으면 다시 만들지 않습니다.
+    if (iframe.dataset.loaded === "1" && iframe.src === src) return;
+
+    // autoplay=1로 넘긴 뒤 즉시 로드합니다. 브라우저가 자동재생을 막는 경우에도
+    // 사용자가 쇼츠를 넘기는 순간에는 iframe이 바로 준비되도록 합니다.
+    iframe.src = src;
+    iframe.dataset.loaded = "1";
+}
+
+function unloadShortIframe(item) {
+    const iframe = item?.querySelector("iframe");
+    if (!iframe) return;
+
+    stopIframe(iframe);
+    iframe.dataset.loaded = "0";
+}
+
+function stopAllShortsVideos(exceptId = null) {
+    if (!shortsFeed) return;
+
+    shortsFeed.querySelectorAll(".shorts-item").forEach((item) => {
+        if (exceptId !== null && item.dataset.videoId === String(exceptId)) return;
+        unloadShortIframe(item);
+    });
+}
+
+function activateShort(item) {
+    if (!item || !shortsModal?.classList.contains("active")) return;
+
+    const id = String(item.dataset.videoId || "");
+    if (!id) return;
+
+    if (id === activeShortId) return;
+
+    // 이전 영상의 재생과 오디오를 먼저 완전히 종료합니다.
+    finishActiveShort();
+    stopAllShortsVideos(id);
+
+    activeShortId = id;
+    activeShortStartedAt = Date.now();
+    loadShortIframe(item);
+}
+
 function makeShortCard(video) {
     const item = document.createElement("section");
     item.className = "shorts-item";
@@ -5231,10 +5366,14 @@ function makeShortCard(video) {
     item.dataset.videoJson = JSON.stringify(video);
 
     const iframe = document.createElement("iframe");
-    const shortsVideoSrc = `https://www.youtube.com/embed/${encodeURIComponent(video.id)}?playsinline=1&rel=0&modestbranding=1&enablejsapi=1`;
-    iframe.src = shortsVideoSrc;
+    const shortsVideoSrc = `https://www.youtube.com/embed/${encodeURIComponent(video.id)}?playsinline=1&autoplay=1&mute=0&rel=0&modestbranding=1&enablejsapi=1`;
+
+    // 초기에는 iframe을 로드하지 않습니다. 화면에 들어온 영상만 로드해서 첫 로딩을 크게 줄입니다.
+    iframe.src = "about:blank";
     iframe.dataset.videoSrc = shortsVideoSrc;
+    iframe.dataset.loaded = "0";
     iframe.title = video.title || "YouTube Shorts";
+    iframe.loading = "eager";
     iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
     iframe.allowFullscreen = true;
 
@@ -5258,15 +5397,12 @@ function setupShortsObserver() {
     shortsObserver?.disconnect();
     shortsObserver = new IntersectionObserver(
         (entries) => {
-            for (const entry of entries) {
-                if (entry.isIntersecting && entry.intersectionRatio >= 0.65) {
-                    const id = entry.target.dataset.videoId;
-                    if (id === activeShortId) continue;
+            const visible = entries
+                .filter((entry) => entry.isIntersecting)
+                .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
 
-                    finishActiveShort();
-                    activeShortId = id;
-                    activeShortStartedAt = Date.now();
-                }
+            if (visible && visible.intersectionRatio >= 0.65) {
+                activateShort(visible.target);
             }
         },
         {
@@ -5312,56 +5448,97 @@ async function getShortsRecommendationProfile() {
     }
 }
 
-async function loadMoreShorts(reset = false) {
+async function loadMoreShorts(reset = false, forceFreshQuery = false) {
     if (!shortsFeed || shortsLoading) return;
-    if (!reset && !shortsNextPageToken && shortsLoadedOnce) return;
+    if (!reset && !forceFreshQuery && !shortsNextPageToken && shortsLoadedOnce) return;
 
     shortsLoading = true;
+    const generation = shortsOpenGeneration;
     setShortsStatus(reset ? "내 취향을 분석하고 한국어 쇼츠를 찾는 중..." : "다음 쇼츠를 불러오는 중...");
 
     try {
-        let profile = null;
-
         if (reset) {
-            profile = await getShortsRecommendationProfile();
+            const profile = await getShortsRecommendationProfile();
+            if (generation !== shortsOpenGeneration) return;
             shortsSearchQuery = String(profile.query || "한국어 쇼츠 재미있는 영상").trim();
-        }
-
-        const params = new URLSearchParams();
-        if (!reset && shortsNextPageToken) {
-            params.set("pageToken", shortsNextPageToken);
-        }
-        if (shortsSearchQuery) {
-            params.set("q", shortsSearchQuery);
-        }
-
-        const queryString = params.toString();
-        const response = await fetch(`/api/shorts${queryString ? `?${queryString}` : ""}`);
-        const data = await response.json();
-
-        if (!response.ok || !data.ok) {
-            throw new Error(data.message || "쇼츠를 불러오지 못했습니다.");
+            shortsNextPageToken = null;
+            shortsSeenVideoIds.clear();
         }
 
         if (reset) {
             finishActiveShort();
+            stopAllShortsVideos();
             shortsFeed.innerHTML = "";
+            shortsFeed.scrollTop = 0;
         }
 
-        const videos = Array.isArray(data.videos) ? data.videos : [];
-        for (const video of videos) {
+        // 같은 영상이 API 페이지 경계나 추천 재분석 때문에 다시 들어와도 화면에 추가하지 않습니다.
+        // 중복 페이지가 나오면 다음 pageToken까지 자동으로 넘겨 새 영상을 확보합니다.
+        let nextToken = forceFreshQuery ? null : shortsNextPageToken;
+        let addedVideos = [];
+        let lastSearchQuery = shortsSearchQuery;
+        let pagesChecked = 0;
+
+        while (pagesChecked < 4) {
+            const params = new URLSearchParams();
+            if (nextToken) params.set("pageToken", nextToken);
+            if (shortsSearchQuery) params.set("q", shortsSearchQuery);
+
+            const queryString = params.toString();
+            const response = await fetch(`/api/shorts${queryString ? `?${queryString}` : ""}`, {
+                signal: AbortSignal.timeout(15000)
+            });
+            const data = await response.json();
+
+            if (generation !== shortsOpenGeneration) return;
+            if (!response.ok || !data.ok) {
+                throw new Error(data.message || "쇼츠를 불러오지 못했습니다.");
+            }
+
+            const videos = Array.isArray(data.videos) ? data.videos : [];
+            lastSearchQuery = data.searchQuery || lastSearchQuery;
+
+            for (const video of videos) {
+                const id = String(video?.id || "");
+                if (!id || shortsSeenVideoIds.has(id)) continue;
+                shortsSeenVideoIds.add(id);
+                addedVideos.push(video);
+            }
+
+            nextToken = data.nextPageToken || null;
+
+            // 새 영상이 확보됐으면 일단 화면에 넣고 종료합니다.
+            // 전부 중복이었다면 다음 페이지를 확인해 반복 노출을 막습니다.
+            if (addedVideos.length > 0 || !nextToken) break;
+            pagesChecked += 1;
+        }
+
+        if (generation !== shortsOpenGeneration) return;
+
+        for (const video of addedVideos) {
             shortsFeed.appendChild(makeShortCard(video));
         }
 
-        shortsNextPageToken = data.nextPageToken || null;
-        shortsSearchQuery = data.searchQuery || shortsSearchQuery;
+        shortsNextPageToken = nextToken;
+        shortsSearchQuery = lastSearchQuery;
         shortsLoadedOnce = true;
 
         setupShortsObserver();
-        setShortsStatus(videos.length ? "" : "추천할 쇼츠가 없습니다.");
+
+        // 첫 로딩 때만 첫 영상을 즉시 재생합니다. 추천 재분석으로 새 목록을 붙일 때는
+        // 현재 영상을 건드리지 않아 갑자기 첫 영상으로 되돌아가는 현상을 막습니다.
+        if (reset && shortsFeed.firstElementChild) {
+            activateShort(shortsFeed.firstElementChild);
+        }
+
+        setShortsStatus(addedVideos.length ? "" : "더 새로운 쇼츠가 없습니다.");
     } catch (error) {
-        console.error("[Shorts 로드 오류]", error);
-        setShortsStatus(error.message || "쇼츠를 불러오지 못했습니다.");
+        if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+            setShortsStatus("쇼츠 로딩 시간이 초과되었습니다. 다시 시도해주세요.");
+        } else {
+            console.error("[Shorts 로드 오류]", error);
+            setShortsStatus(error.message || "쇼츠를 불러오지 못했습니다.");
+        }
     } finally {
         shortsLoading = false;
     }
@@ -5369,52 +5546,53 @@ async function loadMoreShorts(reset = false) {
 
 async function openShortsModal() {
     closeMenuModal();
+    shortsOpenGeneration++;
     shortsModal?.classList.add("active");
     shortsModal?.setAttribute("aria-hidden", "false");
-    restoreShortsVideos();
     lockPageScroll();
 
-    if (!shortsLoadedOnce) {
+    // 기존 iframe 전체를 복구하지 않습니다. 현재 보이는 영상 하나만 필요할 때 로드합니다.
+    if (shortsLoadedOnce && shortsFeed?.children.length) {
+        stopAllShortsVideos();
+        setupShortsObserver();
+
+        const firstVisible = [...shortsFeed.querySelectorAll(".shorts-item")]
+            .map((item) => ({
+                item,
+                rect: item.getBoundingClientRect(),
+                ratio: (() => {
+                    const feedRect = shortsFeed.getBoundingClientRect();
+                    const top = Math.max(rectTop(item), feedRect.top);
+                    const bottom = Math.min(rectBottom(item), feedRect.bottom);
+                    return Math.max(0, bottom - top) / Math.max(1, item.offsetHeight);
+                })()
+            }))
+            .sort((a, b) => b.ratio - a.ratio)[0]?.item;
+
+        activateShort(firstVisible || shortsFeed.firstElementChild);
+    } else {
         await loadMoreShorts(true);
     }
 }
 
-function stopAllShortsVideos() {
-    if (!shortsFeed) return;
-
-    shortsFeed.querySelectorAll(".shorts-item iframe").forEach((iframe) => {
-        // YouTube iframe에 정지 명령을 먼저 보내고 src를 비워 확실하게 음성/재생을 종료합니다.
-        try {
-            iframe.contentWindow?.postMessage(
-                JSON.stringify({
-                    event: "command",
-                    func: "stopVideo",
-                    args: []
-                }),
-                "*"
-            );
-        } catch {
-            // cross-origin iframe 통신 실패는 아래 src 제거로 처리합니다.
-        }
-
-        iframe.src = "about:blank";
-    });
+function rectTop(item) {
+    return item.getBoundingClientRect().top;
 }
 
-function restoreShortsVideos() {
-    if (!shortsFeed) return;
-
-    shortsFeed.querySelectorAll(".shorts-item iframe").forEach((iframe) => {
-        const src = iframe.dataset.videoSrc;
-        if (src && iframe.src !== src) {
-            iframe.src = src;
-        }
-    });
+function rectBottom(item) {
+    return item.getBoundingClientRect().bottom;
 }
 
 function closeShortsModal() {
+    shortsOpenGeneration++;
+    clearTimeout(shortsRecommendationRefreshTimer);
+    shortsSkipStreak = 0;
+    shortsRecommendationRefreshing = false;
     finishActiveShort();
+    shortsObserver?.disconnect();
     stopAllShortsVideos();
+    activeShortId = null;
+    activeShortStartedAt = 0;
     shortsModal?.classList.remove("active");
     shortsModal?.setAttribute("aria-hidden", "true");
     unlockPageScroll();
@@ -5427,9 +5605,12 @@ shortsBackdrop?.addEventListener("click", closeShortsModal);
 shortsFeed?.addEventListener("scroll", () => {
     const nearBottom =
         shortsFeed.scrollTop + shortsFeed.clientHeight >=
-        shortsFeed.scrollHeight - 140;
+        shortsFeed.scrollHeight - 500;
 
     if (nearBottom) loadMoreShorts(false);
 }, { passive: true });
 
-window.addEventListener("beforeunload", finishActiveShort);
+window.addEventListener("beforeunload", () => {
+    finishActiveShort();
+    stopAllShortsVideos();
+});
