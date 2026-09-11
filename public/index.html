@@ -19,7 +19,7 @@
         </div>
     </div>
 
-    <button id="birdGameBtn" class="bird-game-btn" type="button" aria-label="Bird Bump 열기" title="Bird Bump">🐦</button>
+    <button id="gameHubBtn" class="bird-game-btn" type="button" aria-label="게임 모음" title="게임 모음">🎮</button>
     <button id="menuBtn" class="menu-btn" type="button" aria-label="메뉴 열기" title="메뉴">☰</button>
 
     <div class="clock">
@@ -172,15 +172,6 @@
                 <span class="menu-arrow">›</span>
             </button>
 
-            <button id="openCarGameBtn" class="menu-item" type="button">
-                <span class="menu-item-icon">🚗</span>
-                <span>
-                    <strong>실시간 카게임</strong>
-                    <small>친구와 함께 자동차 피하기</small>
-                </span>
-                <span class="menu-arrow">›</span>
-            </button>
-
             <button id="openShortsBtn" class="menu-item" type="button">
                 <span class="menu-item-icon">▶</span>
                 <span>
@@ -199,15 +190,189 @@
                 <span class="menu-arrow">›</span>
             </button>
 
-            <button id="openBirdFromMenuBtn" class="menu-item" type="button">
-                <span class="menu-item-icon">🐦</span>
+            <button id="openMapBtn" class="menu-item" type="button">
+                <span class="menu-item-icon">🗺️</span>
                 <span>
-                    <strong>Bird Bump</strong>
-                    <small>미니 게임 플레이</small>
+                    <strong>지도</strong>
+                    <small>Google 지도와 현재 위치 보기</small>
+                </span>
+                <span class="menu-arrow">›</span>
+            </button>
+
+            <button id="openUrlBtn" class="menu-item" type="button">
+                <span class="menu-item-icon">↗</span>
+                <span>
+                    <strong>URL 이동</strong>
+                    <small>주소를 붙여 넣어 사이트로 이동</small>
                 </span>
                 <span class="menu-arrow">›</span>
             </button>
         </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     GAME HUB / ARCADE
+================================================== -->
+<div id="gameHubModal" class="game-hub-modal" aria-hidden="true">
+    <div id="gameHubBackdrop" class="game-hub-backdrop"></div>
+    <div class="game-hub-window" role="dialog" aria-modal="true" aria-label="게임 모음">
+        <div class="game-hub-header">
+            <div>
+                <span class="game-hub-label">COMTIME ARCADE</span>
+                <h2>게임 모음</h2>
+                <p>원하는 게임을 골라 바로 플레이하세요.</p>
+            </div>
+            <button id="closeGameHubBtn" class="game-close-btn" type="button" aria-label="게임 모음 닫기">×</button>
+        </div>
+        <div class="game-hub-grid">
+            <button id="hubSurvivalGame" class="game-card survival-hub-card" type="button">
+                <div class="game-card-art survival-art">⚔️</div>
+                <div class="game-card-body">
+                    <span class="game-card-tag">SURVIVAL ROGUELITE</span>
+                    <strong>5분 생존</strong>
+                    <small>수천 마리의 적을 상대하고 20가지 성장 선택지로 나만의 빌드를 만드세요.</small>
+                </div>
+                <span class="game-card-arrow">›</span>
+            </button>
+            <button id="hubBirdGame" class="game-card" type="button">
+                <div class="game-card-art bird-art">🐦</div>
+                <div class="game-card-body">
+                    <span class="game-card-tag">ARCADE</span>
+                    <strong>Bird Bump</strong>
+                    <small>기존 Bird Bump 게임을 그대로 플레이합니다.</small>
+                </div>
+                <span class="game-card-arrow">›</span>
+            </button>
+            <button id="hubCarGame" class="game-card" type="button">
+                <div class="game-card-art car-art">🚗</div>
+                <div class="game-card-body">
+                    <span class="game-card-tag">REALTIME MULTIPLAYER</span>
+                    <strong>실시간 카게임</strong>
+                    <small>기존 2인 실시간 카게임을 그대로 플레이합니다.</small>
+                </div>
+                <span class="game-card-arrow">›</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     5-MIN SURVIVAL GAME
+================================================== -->
+<div id="survivalGameModal" class="survival-game-modal" aria-hidden="true">
+    <div id="survivalBackdrop" class="survival-backdrop"></div>
+    <div class="survival-game-window" role="dialog" aria-modal="true" aria-label="5분 생존 게임">
+        <div class="survival-game-header">
+            <div>
+                <span class="survival-eyebrow">COMTIME SURVIVAL</span>
+                <h2>5분 생존</h2>
+                <p>이동하면서 자동 공격으로 몬스터 웨이브를 버티세요.</p>
+            </div>
+            <button id="closeSurvivalBtn" class="survival-close-btn" type="button" aria-label="게임 닫기">×</button>
+        </div>
+        <div id="survivalGameStage" class="survival-game-stage">
+            <canvas id="survivalCanvas"></canvas>
+            <div class="survival-hud">
+                <div class="survival-hud-top">
+                    <div class="survival-time"><span>TIME</span><strong id="survivalTime">05:00</strong></div>
+                    <div class="survival-wave"><span>WAVE</span><strong id="survivalWave">1</strong></div>
+                    <div class="survival-kills"><span>KILLS</span><strong id="survivalKills">0</strong></div>
+                </div>
+                <div class="survival-bars">
+                    <div class="survival-bar-row"><span>HP</span><div><i id="survivalHpBar"></i></div></div>
+                    <div class="survival-bar-row xp"><span>XP</span><div><i id="survivalXpBar"></i></div></div>
+                </div>
+            </div>
+            <div id="survivalBossBanner" class="survival-boss-banner">BOSS WAVE</div>
+            <div id="survivalBossHp" class="survival-boss-hp"><i id="survivalBossHpBar"></i></div>
+            <div id="survivalStartScreen" class="survival-overlay">
+                <div class="survival-start-card">
+                    <div class="survival-logo">⚔</div>
+                    <span class="survival-eyebrow">5 MINUTE RUN</span>
+                    <h3>끝까지 살아남아라</h3>
+                    <p>PC: WASD / 모바일: 조이스틱<br>공격은 자동으로 진행됩니다.</p>
+                    <button id="survivalStartBtn" class="survival-primary-btn" type="button">게임 시작</button>
+                </div>
+            </div>
+            <div id="survivalLevelUp" class="survival-overlay hidden">
+                <div class="survival-level-card">
+                    <span class="survival-eyebrow">LEVEL UP</span>
+                    <h3>새로운 능력을 선택하세요</h3>
+                    <div id="survivalUpgradeChoices" class="survival-upgrade-grid"></div>
+                </div>
+            </div>
+            <div id="survivalEndScreen" class="survival-overlay hidden">
+                <div class="survival-start-card">
+                    <div id="survivalEndIcon" class="survival-logo">☠</div>
+                    <span id="survivalEndEyebrow" class="survival-eyebrow">RUN OVER</span>
+                    <h3 id="survivalEndTitle">쓰러졌습니다</h3>
+                    <p id="survivalEndStats">처치 0 · 레벨 1</p>
+                    <button id="survivalRestartBtn" class="survival-primary-btn" type="button">다시 하기</button>
+                </div>
+            </div>
+            <div id="survivalJoystick" class="survival-joystick" aria-label="이동 조이스틱">
+                <div id="survivalJoystickKnob" class="survival-joystick-knob"></div>
+            </div>
+            <div class="survival-mobile-tip">드래그해서 이동</div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     MAP MODAL
+================================================== -->
+<div id="mapModal" class="map-modal" aria-hidden="true">
+    <div id="mapBackdrop" class="map-backdrop"></div>
+    <div class="map-window" role="dialog" aria-modal="true" aria-label="Google 지도">
+        <div class="map-header">
+            <div>
+                <span class="map-eyebrow">COMTIME MAP</span>
+                <h2>지도</h2>
+                <p id="mapStatus">Google 지도를 불러오는 중...</p>
+            </div>
+            <button id="closeMapBtn" class="map-close-btn" type="button" aria-label="지도 닫기">×</button>
+        </div>
+        <div class="map-toolbar">
+            <button id="mapMyLocationBtn" class="map-tool-btn" type="button">내 위치</button>
+            <button id="mapZoomInBtn" class="map-tool-btn" type="button">+</button>
+            <button id="mapZoomOutBtn" class="map-tool-btn" type="button">−</button>
+        </div>
+        <div id="mapCanvas" class="map-canvas"></div>
+        <div id="mapSetupPanel" class="map-setup-panel hidden">
+            <strong>Google Maps API 키가 필요합니다.</strong>
+            <p>Maps JavaScript API를 활성화한 브라우저용 API 키를 설정하면 지도가 표시됩니다. 배포 시에는 HTTP Referrer 제한을 걸어두세요.</p>
+            <div class="map-key-row">
+                <input id="mapApiKeyInput" type="password" placeholder="Google Maps API Key" autocomplete="off">
+                <button id="saveMapApiKeyBtn" type="button">저장</button>
+            </div>
+            <small>키는 이 브라우저의 localStorage에만 저장됩니다.</small>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     URL NAVIGATOR
+================================================== -->
+<div id="urlModal" class="url-modal" aria-hidden="true">
+    <div id="urlBackdrop" class="url-backdrop"></div>
+    <div class="url-window" role="dialog" aria-modal="true" aria-label="URL 이동">
+        <div class="url-header">
+            <div>
+                <span class="url-eyebrow">QUICK NAVIGATOR</span>
+                <h2>URL 이동</h2>
+                <p>사이트 주소를 붙여 넣으면 새 탭에서 이동합니다.</p>
+            </div>
+            <button id="closeUrlBtn" class="url-close-btn" type="button" aria-label="URL 창 닫기">×</button>
+        </div>
+        <form id="urlForm" class="url-form">
+            <label for="urlInput">웹사이트 주소</label>
+            <input id="urlInput" type="url" inputmode="url" placeholder="https://example.com" autocomplete="url" spellcheck="false">
+            <div class="url-actions">
+                <button id="urlCancelBtn" type="button">취소</button>
+                <button type="submit">사이트로 이동</button>
+            </div>
+        </form>
     </div>
 </div>
 

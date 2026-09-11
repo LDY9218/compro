@@ -51,54 +51,31 @@ const nextSubjectEl =
 
 
 // ==================================================
-// BIRD BUMP DOM
+// GAME HUB / EXISTING GAMES
 // ==================================================
 
-const birdGameBtn =
-    document.getElementById("birdGameBtn");
+const gameHubBtn = document.getElementById("gameHubBtn");
+const gameHubModal = document.getElementById("gameHubModal");
+const gameHubBackdrop = document.getElementById("gameHubBackdrop");
+const closeGameHubBtn = document.getElementById("closeGameHubBtn");
+const hubSurvivalGame = document.getElementById("hubSurvivalGame");
+const hubBirdGame = document.getElementById("hubBirdGame");
+const hubCarGame = document.getElementById("hubCarGame");
 
-const birdGameModal =
-    document.getElementById("birdGameModal");
-
-const gameBackdrop =
-    document.getElementById("gameBackdrop");
-
-const closeGameBtn =
-    document.getElementById("closeGameBtn");
-
-const birdGameContainer =
-    document.getElementById("birdGameContainer");
-
-const birdGameCanvas =
-    document.getElementById("birdGameCanvas");
-
-const birdScoreEl =
-    document.getElementById("birdScore");
-
-const birdBestEl =
-    document.getElementById("birdBest");
-
-const birdStartScreen =
-    document.getElementById("birdStartScreen");
-
-const birdStartBtn =
-    document.getElementById("birdStartBtn");
-
-const birdGameOverScreen =
-    document.getElementById("birdGameOverScreen");
-
-const birdRestartBtn =
-    document.getElementById("birdRestartBtn");
-
-const birdFinalScoreEl =
-    document.getElementById("birdFinalScore");
-
-const birdNewBestEl =
-    document.getElementById("birdNewBest");
-
-const birdControlHint =
-    document.getElementById("birdControlHint");
-
+const birdGameModal = document.getElementById("birdGameModal");
+const gameBackdrop = document.getElementById("gameBackdrop");
+const closeGameBtn = document.getElementById("closeGameBtn");
+const birdGameContainer = document.getElementById("birdGameContainer");
+const birdGameCanvas = document.getElementById("birdGameCanvas");
+const birdScoreEl = document.getElementById("birdScore");
+const birdBestEl = document.getElementById("birdBest");
+const birdStartScreen = document.getElementById("birdStartScreen");
+const birdStartBtn = document.getElementById("birdStartBtn");
+const birdGameOverScreen = document.getElementById("birdGameOverScreen");
+const birdRestartBtn = document.getElementById("birdRestartBtn");
+const birdFinalScoreEl = document.getElementById("birdFinalScore");
+const birdNewBestEl = document.getElementById("birdNewBest");
+const birdControlHint = document.getElementById("birdControlHint");
 
 // ==================================================
 // 상태
@@ -1783,6 +1760,27 @@ async function restoreSchool() {
     }
 }
 
+
+// ==================================================
+// GAME HUB / ARCADE
+// ==================================================
+
+function openGameHub() {
+    if (!gameHubModal) {
+        if (typeof openSurvivalGame === "function") openSurvivalGame();
+        return;
+    }
+    gameHubModal.classList.add("active");
+    gameHubModal.setAttribute("aria-hidden", "false");
+    lockPageScroll();
+}
+
+function closeGameHub() {
+    if (!gameHubModal) return;
+    gameHubModal.classList.remove("active");
+    gameHubModal.setAttribute("aria-hidden", "true");
+    unlockPageScroll();
+}
 
 // ==================================================
 // ==================================================
@@ -4397,13 +4395,27 @@ function closeGameModal() {
 // 게임 버튼
 // ==================================================
 
-if (birdGameBtn) {
-
-    birdGameBtn.addEventListener(
-        "click",
-        openGameModal
-    );
+if (gameHubBtn) {
+    gameHubBtn.addEventListener("click", openGameHub);
 }
+
+closeGameHubBtn?.addEventListener("click", closeGameHub);
+gameHubBackdrop?.addEventListener("click", closeGameHub);
+
+hubSurvivalGame?.addEventListener("click", () => {
+    closeGameHub();
+    openSurvivalGame();
+});
+
+hubBirdGame?.addEventListener("click", () => {
+    closeGameHub();
+    openGameModal();
+});
+
+hubCarGame?.addEventListener("click", () => {
+    closeGameHub();
+    openCarGameModal();
+});
 
 
 // ==================================================
@@ -4472,6 +4484,1078 @@ console.log(
 console.log(
     "Bird Bump 준비 완료"
 );
+
+// ==================================================
+// 5-MIN SURVIVAL GAME
+// Original COMTIME PRO canvas game inspired by the survivor-roguelite genre.
+// ==================================================
+
+const survivalGameModal = document.getElementById("survivalGameModal");
+const survivalBackdrop = document.getElementById("survivalBackdrop");
+const closeSurvivalBtn = document.getElementById("closeSurvivalBtn");
+const survivalGameStage = document.getElementById("survivalGameStage");
+const survivalCanvas = document.getElementById("survivalCanvas");
+const survivalStartScreen = document.getElementById("survivalStartScreen");
+const survivalStartBtn = document.getElementById("survivalStartBtn");
+const survivalLevelUp = document.getElementById("survivalLevelUp");
+const survivalUpgradeChoices = document.getElementById("survivalUpgradeChoices");
+const survivalEndScreen = document.getElementById("survivalEndScreen");
+const survivalEndIcon = document.getElementById("survivalEndIcon");
+const survivalEndEyebrow = document.getElementById("survivalEndEyebrow");
+const survivalEndTitle = document.getElementById("survivalEndTitle");
+const survivalEndStats = document.getElementById("survivalEndStats");
+const survivalRestartBtn = document.getElementById("survivalRestartBtn");
+const survivalTimeEl = document.getElementById("survivalTime");
+const survivalWaveEl = document.getElementById("survivalWave");
+const survivalKillsEl = document.getElementById("survivalKills");
+const survivalHpBar = document.getElementById("survivalHpBar");
+const survivalXpBar = document.getElementById("survivalXpBar");
+const survivalBossBanner = document.getElementById("survivalBossBanner");
+const survivalBossHp = document.getElementById("survivalBossHp");
+const survivalBossHpBar = document.getElementById("survivalBossHpBar");
+const survivalJoystick = document.getElementById("survivalJoystick");
+const survivalJoystickKnob = document.getElementById("survivalJoystickKnob");
+
+const survivalCtx = survivalCanvas?.getContext("2d");
+
+const survivalState = {
+    running: false,
+    pausedForLevel: false,
+    won: false,
+    elapsed: 0,
+    last: 0,
+    spawnTimer: 0,
+    shotTimer: 0,
+    kills: 0,
+    wave: 1,
+    level: 1,
+    xp: 0,
+    xpNeed: 10,
+    score: 0,
+    nextBossAt: 55,
+    bossNumber: 0,
+    player: null,
+    enemies: [],
+    bullets: [],
+    gems: [],
+    particles: [],
+    upgrades: {
+        damage: 1, fireRate: 1, moveSpeed: 1, maxHp: 1, magnet: 1, projectile: 1,
+        crit: 0, bulletSpeed: 1, pierce: 0, area: 1, armor: 0, regen: 0,
+        frost: 0, orbital: 0, lightning: 0, bomb: 0, drone: 0, lifesteal: 0, xpBoost: 1, range: 1,
+    },
+    lightningTimer: 0,
+    bombTimer: 0,
+    orbitalAngle: 0,
+    regenTimer: 0,
+    joystick: { x: 0, y: 0, active: false, pointerId: null },
+    keys: new Set(),
+    raf: null,
+    dpr: 1,
+    width: 0,
+    height: 0,
+};
+
+const SURVIVAL_UPGRADES = [
+    { key: "damage", icon: "✦", title: "화력 강화", desc: "모든 무기 피해 +18%" },
+    { key: "fireRate", icon: "⚡", title: "연사 강화", desc: "공격 속도 +20%" },
+    { key: "moveSpeed", icon: "➜", title: "기동력", desc: "이동 속도 +12%" },
+    { key: "maxHp", icon: "♥", title: "체력 강화", desc: "최대 체력 +18%, 즉시 회복" },
+    { key: "magnet", icon: "◉", title: "자석", desc: "경험치 흡수 범위 +28%" },
+    { key: "projectile", icon: "✹", title: "다중 탄환", desc: "기본 탄환 +1, 최대 8발" },
+    { key: "crit", icon: "◆", title: "치명타", desc: "치명타 확률 +7%" },
+    { key: "bulletSpeed", icon: "➤", title: "탄속 강화", desc: "탄환 속도 +18%" },
+    { key: "pierce", icon: "↠", title: "관통탄", desc: "탄환 관통 횟수 +1" },
+    { key: "area", icon: "◎", title: "범위 강화", desc: "폭발과 투사체 크기 +14%" },
+    { key: "armor", icon: "⬟", title: "방어 장갑", desc: "받는 피해 4% 감소" },
+    { key: "regen", icon: "✚", title: "재생", desc: "초당 체력 0.5% 회복" },
+    { key: "frost", icon: "❄", title: "빙결 탄환", desc: "적 이동속도를 추가로 감소" },
+    { key: "orbital", icon: "✺", title: "회전 검", desc: "플레이어 주변 회전 칼날 +1" },
+    { key: "lightning", icon: "ϟ", title: "번개", desc: "주기적으로 주변 적에게 연쇄 번개" },
+    { key: "bomb", icon: "✹", title: "폭격", desc: "주기적으로 주변을 폭발시킴" },
+    { key: "drone", icon: "◈", title: "전투 드론", desc: "자동 보조 탄환을 추가" },
+    { key: "lifesteal", icon: "♡", title: "흡혈", desc: "적 처치 시 체력 회복 확률 증가" },
+    { key: "xpBoost", icon: "★", title: "성장 촉진", desc: "획득 경험치 +15%" },
+    { key: "range", icon: "⌖", title: "사거리", desc: "자동 조준 사거리 +22%" },
+];
+
+function survivalResize() {
+    if (!survivalGameStage || !survivalCanvas) return;
+    const rect = survivalGameStage.getBoundingClientRect();
+    survivalState.width = Math.max(320, rect.width);
+    survivalState.height = Math.max(420, rect.height);
+    survivalState.dpr = Math.min(2, window.devicePixelRatio || 1);
+    survivalCanvas.width = Math.floor(survivalState.width * survivalState.dpr);
+    survivalCanvas.height = Math.floor(survivalState.height * survivalState.dpr);
+    survivalCanvas.style.width = `${survivalState.width}px`;
+    survivalCanvas.style.height = `${survivalState.height}px`;
+    survivalCtx?.setTransform(survivalState.dpr, 0, 0, survivalState.dpr, 0, 0);
+}
+
+function survivalRandom(min, max) {
+    return min + Math.random() * (max - min);
+}
+
+function survivalDist(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function survivalClamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
+}
+
+function survivalWorldToScreen(x, y) {
+    const p = survivalState.player;
+    return {
+        x: x - p.x + survivalState.width / 2,
+        y: y - p.y + survivalState.height / 2,
+    };
+}
+
+function survivalReset() {
+    survivalState.elapsed = 0;
+    survivalState.last = performance.now();
+    survivalState.spawnTimer = 0;
+    survivalState.shotTimer = 0;
+    survivalState.kills = 0;
+    survivalState.wave = 1;
+    survivalState.level = 1;
+    survivalState.xp = 0;
+    survivalState.xpNeed = 10;
+    survivalState.score = 0;
+    survivalState.nextBossAt = 55;
+    survivalState.bossNumber = 0;
+    survivalState.lightningTimer = 0;
+    survivalState.bombTimer = 0;
+    survivalState.orbitalAngle = 0;
+    survivalState.regenTimer = 0;
+    survivalState.enemies = [];
+    survivalState.bullets = [];
+    survivalState.gems = [];
+    survivalState.particles = [];
+    survivalState.upgrades = {
+        damage: 1, fireRate: 1, moveSpeed: 1, maxHp: 1, magnet: 1, projectile: 1,
+        crit: 0, bulletSpeed: 1, pierce: 0, area: 1, armor: 0, regen: 0,
+        frost: 0, orbital: 0, lightning: 0, bomb: 0, drone: 0, lifesteal: 0, xpBoost: 1, range: 1,
+    };
+    survivalState.player = {
+        x: 0,
+        y: 0,
+        radius: 17,
+        hp: 100,
+        maxHp: 100,
+        invuln: 0,
+        facing: 0,
+    };
+    survivalState.won = false;
+    survivalState.pausedForLevel = false;
+    survivalState.joystick.x = 0;
+    survivalState.joystick.y = 0;
+    survivalState.joystick.active = false;
+    if (survivalJoystickKnob) survivalJoystickKnob.style.transform = "translate(-50%, -50%)";
+    survivalResize();
+    survivalUpdateHud();
+}
+
+function survivalEnemyType() {
+    const r = Math.random();
+    if (survivalState.elapsed > 180 && r < 0.12) return "runner";
+    if (survivalState.elapsed > 100 && r < 0.22) return "tank";
+    if (survivalState.elapsed > 35 && r < 0.32) return "fast";
+    return "basic";
+}
+
+function survivalSpawnEnemy(forceType = null) {
+    const p = survivalState.player;
+    if (!p) return;
+    const angle = survivalRandom(0, Math.PI * 2);
+    const distance = Math.max(survivalState.width, survivalState.height) * 0.62 + 80;
+    const scale = 1 + survivalState.elapsed / 360;
+    const type = forceType || survivalEnemyType();
+    const base = {
+        basic: { r: 13, hp: 24, speed: 38, damage: 8, xp: 2, color: "#65e6a8" },
+        fast: { r: 10, hp: 17, speed: 66, damage: 6, xp: 3, color: "#f4d35e" },
+        tank: { r: 20, hp: 100, speed: 23, damage: 16, xp: 7, color: "#f28b8b" },
+        runner: { r: 11, hp: 34, speed: 90, damage: 10, xp: 5, color: "#b38cff" },
+    }[type];
+    const hpScale = 1 + survivalState.elapsed * 0.0038;
+    survivalState.enemies.push({
+        x: p.x + Math.cos(angle) * distance,
+        y: p.y + Math.sin(angle) * distance,
+        ...base,
+        hp: base.hp * hpScale * scale,
+        maxHp: base.hp * hpScale * scale,
+        speed: base.speed * (1 + survivalState.elapsed * 0.0015),
+        damage: base.damage * (1 + survivalState.elapsed * 0.001),
+        type,
+        hitFlash: 0,
+        boss: false,
+    });
+}
+
+function survivalSpawnBoss(finalBoss = false) {
+    const p = survivalState.player;
+    if (!p) return;
+    survivalState.bossNumber += 1;
+    const angle = survivalRandom(0, Math.PI * 2);
+    const distance = Math.max(survivalState.width, survivalState.height) * 0.7;
+    const multiplier = 1 + survivalState.bossNumber * 0.3;
+    const hp = (finalBoss ? 6200 : 1800) * multiplier * (1 + survivalState.elapsed * 0.002);
+    survivalState.enemies.push({
+        x: p.x + Math.cos(angle) * distance,
+        y: p.y + Math.sin(angle) * distance,
+        r: finalBoss ? 42 : 34,
+        hp,
+        maxHp: hp,
+        speed: finalBoss ? 26 : 31,
+        damage: finalBoss ? 28 : 20,
+        xp: finalBoss ? 80 : 35,
+        type: finalBoss ? "finalBoss" : "boss",
+        color: finalBoss ? "#ff4d7d" : "#ff7b54",
+        hitFlash: 0,
+        boss: true,
+        finalBoss,
+        shootTimer: 0,
+    });
+}
+
+function survivalSpawnBurst() {
+    const count = Math.min(14, 5 + Math.floor(survivalState.elapsed / 55));
+    for (let i = 0; i < count; i += 1) survivalSpawnEnemy();
+}
+
+function survivalNearestEnemy() {
+    const p = survivalState.player;
+    let best = null;
+    let bestD = Infinity;
+    const maxRange = 620 * survivalState.upgrades.range;
+    for (const e of survivalState.enemies) {
+        const d = survivalDist(p, e);
+        if (d > maxRange) continue;
+        if (d < bestD) {
+            best = e;
+            bestD = d;
+        }
+    }
+    return best;
+}
+
+function survivalShoot(target) {
+    if (!target) return;
+    const p = survivalState.player;
+    const u = survivalState.upgrades;
+    const dx = target.x - p.x;
+    const dy = target.y - p.y;
+    const angle = Math.atan2(dy, dx);
+    p.facing = angle;
+    const count = Math.min(8, u.projectile);
+    const spread = count > 1 ? Math.min(0.55, 0.12 + count * 0.025) : 0;
+    for (let i = 0; i < count; i += 1) {
+        const offset = (i - (count - 1) / 2) * spread;
+        const a = angle + offset;
+        const critical = Math.random() < u.crit;
+        survivalState.bullets.push({
+            x: p.x + Math.cos(a) * 21,
+            y: p.y + Math.sin(a) * 21,
+            vx: Math.cos(a) * 430 * u.bulletSpeed,
+            vy: Math.sin(a) * 430 * u.bulletSpeed,
+            radius: 5 * Math.sqrt(u.area),
+            damage: 18 * u.damage * (critical ? 2.2 : 1),
+            life: 1.9 * u.range,
+            pierceLeft: u.pierce,
+            critical,
+        });
+    }
+
+    if (u.drone > 0) {
+        for (let d = 0; d < Math.min(3, u.drone); d += 1) {
+            const side = d % 2 === 0 ? 1 : -1;
+            const a = angle + side * 0.28;
+            survivalState.bullets.push({
+                x: p.x + Math.cos(a) * (28 + d * 8),
+                y: p.y + Math.sin(a) * (28 + d * 8),
+                vx: Math.cos(a) * 360 * u.bulletSpeed,
+                vy: Math.sin(a) * 360 * u.bulletSpeed,
+                radius: 4.5,
+                damage: 11 * u.damage,
+                life: 1.5 * u.range,
+                pierceLeft: Math.max(0, Math.floor(u.pierce / 2)),
+                drone: true,
+            });
+        }
+    }
+}
+
+function survivalAddParticle(x, y, color, count = 5) {
+    for (let i = 0; i < count; i += 1) {
+        const a = survivalRandom(0, Math.PI * 2);
+        const speed = survivalRandom(20, 100);
+        survivalState.particles.push({
+            x,
+            y,
+            vx: Math.cos(a) * speed,
+            vy: Math.sin(a) * speed,
+            life: survivalRandom(0.25, 0.6),
+            maxLife: 0.6,
+            color,
+            size: survivalRandom(2, 5),
+        });
+    }
+}
+
+function survivalDropGem(enemy) {
+    survivalState.gems.push({
+        x: enemy.x,
+        y: enemy.y,
+        value: enemy.xp * survivalState.upgrades.xpBoost,
+        radius: enemy.boss ? 9 : 5,
+        color: enemy.boss ? "#ffe36e" : "#66d9ff",
+    });
+}
+
+function survivalKillEnemy(index) {
+    const e = survivalState.enemies[index];
+    if (!e) return;
+    survivalState.kills += 1;
+    survivalState.score += e.boss ? 250 : 10;
+    survivalDropGem(e);
+    survivalAddParticle(e.x, e.y, e.color, e.boss ? 18 : 6);
+    survivalState.enemies.splice(index, 1);
+    if (survivalState.upgrades.lifesteal > 0 && Math.random() < Math.min(0.75, survivalState.upgrades.lifesteal * 0.08)) {
+        survivalState.player.hp = Math.min(survivalState.player.maxHp, survivalState.player.hp + survivalState.player.maxHp * 0.035);
+    }
+}
+
+function survivalTakeDamage(amount) {
+    const p = survivalState.player;
+    if (!p || p.invuln > 0) return;
+    const reduced = amount * Math.max(0.28, 1 - survivalState.upgrades.armor * 0.04);
+    p.hp -= reduced;
+    p.invuln = 0.35;
+    survivalAddParticle(p.x, p.y, "#ff6b7a", 8);
+    if (p.hp <= 0) survivalEnd(false);
+}
+
+function survivalCollectXp(value) {
+    survivalState.xp += value;
+    while (survivalState.xp >= survivalState.xpNeed) {
+        survivalState.xp -= survivalState.xpNeed;
+        survivalState.level += 1;
+        survivalState.xpNeed = Math.floor(survivalState.xpNeed * 1.28 + 5);
+        survivalOpenLevelUp();
+        break;
+    }
+}
+
+function survivalOpenLevelUp() {
+    if (!survivalState.running || survivalState.won) return;
+    survivalState.pausedForLevel = true;
+    survivalLevelUp?.classList.remove("hidden");
+    const shuffled = [...SURVIVAL_UPGRADES].sort(() => Math.random() - 0.5).slice(0, 3);
+    if (survivalUpgradeChoices) {
+        survivalUpgradeChoices.innerHTML = shuffled.map((u) => `
+            <button class="survival-upgrade-btn" type="button" data-upgrade="${u.key}">
+                <span class="upgrade-icon">${u.icon}</span>
+                <strong>${u.title}</strong>
+                <small>${u.desc}</small>
+            </button>
+        `).join("");
+        survivalUpgradeChoices.querySelectorAll("[data-upgrade]").forEach((btn) => {
+            btn.addEventListener("click", () => survivalChooseUpgrade(btn.dataset.upgrade), { once: true });
+        });
+    }
+}
+
+function survivalChooseUpgrade(key) {
+    if (!key) return;
+    const u = survivalState.upgrades;
+    switch (key) {
+        case "damage": u.damage *= 1.18; break;
+        case "fireRate": u.fireRate *= 1.20; break;
+        case "moveSpeed": u.moveSpeed *= 1.12; break;
+        case "maxHp": survivalState.player.maxHp *= 1.18; survivalState.player.hp = survivalState.player.maxHp; u.maxHp *= 1.18; break;
+        case "magnet": u.magnet *= 1.28; break;
+        case "projectile": u.projectile = Math.min(8, u.projectile + 1); break;
+        case "crit": u.crit = Math.min(0.65, u.crit + 0.07); break;
+        case "bulletSpeed": u.bulletSpeed *= 1.18; break;
+        case "pierce": u.pierce += 1; break;
+        case "area": u.area *= 1.14; break;
+        case "armor": u.armor += 1; break;
+        case "regen": u.regen += 1; break;
+        case "frost": u.frost += 1; break;
+        case "orbital": u.orbital += 1; break;
+        case "lightning": u.lightning += 1; break;
+        case "bomb": u.bomb += 1; break;
+        case "drone": u.drone += 1; break;
+        case "lifesteal": u.lifesteal += 1; break;
+        case "xpBoost": u.xpBoost *= 1.15; break;
+        case "range": u.range *= 1.22; break;
+        default: return;
+    }
+    survivalState.pausedForLevel = false;
+    survivalLevelUp?.classList.add("hidden");
+    survivalUpdateHud();
+}
+
+function survivalUpdateHud() {
+    const remaining = Math.max(0, 300 - survivalState.elapsed);
+    const minutes = Math.floor(remaining / 60);
+    const seconds = Math.floor(remaining % 60);
+    if (survivalTimeEl) survivalTimeEl.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    if (survivalWaveEl) survivalWaveEl.textContent = String(survivalState.wave);
+    if (survivalKillsEl) survivalKillsEl.textContent = String(survivalState.kills);
+    if (survivalHpBar && survivalState.player) survivalHpBar.style.width = `${survivalClamp(survivalState.player.hp / survivalState.player.maxHp, 0, 1) * 100}%`;
+    if (survivalXpBar) survivalXpBar.style.width = `${survivalClamp(survivalState.xp / survivalState.xpNeed, 0, 1) * 100}%`;
+    const boss = survivalState.enemies.find((enemy) => enemy.boss);
+    if (boss && survivalState.running) {
+        survivalBossBanner?.classList.add("active");
+        survivalBossHp?.classList.add("active");
+        if (survivalBossBanner) survivalBossBanner.textContent = boss.finalBoss ? "FINAL BOSS" : "BOSS WAVE";
+        if (survivalBossHpBar) survivalBossHpBar.style.width = `${survivalClamp(boss.hp / boss.maxHp, 0, 1) * 100}%`;
+    } else {
+        survivalBossBanner?.classList.remove("active");
+        survivalBossHp?.classList.remove("active");
+    }
+}
+
+function survivalMoveVector() {
+    let x = 0;
+    let y = 0;
+    if (survivalState.keys.has("KeyW") || survivalState.keys.has("ArrowUp")) y -= 1;
+    if (survivalState.keys.has("KeyS") || survivalState.keys.has("ArrowDown")) y += 1;
+    if (survivalState.keys.has("KeyA") || survivalState.keys.has("ArrowLeft")) x -= 1;
+    if (survivalState.keys.has("KeyD") || survivalState.keys.has("ArrowRight")) x += 1;
+    if (survivalState.joystick.active || Math.abs(survivalState.joystick.x) + Math.abs(survivalState.joystick.y) > 0) {
+        x = survivalState.joystick.x;
+        y = survivalState.joystick.y;
+    }
+    const len = Math.hypot(x, y) || 1;
+    return { x: x / len, y: y / len, magnitude: Math.min(1, Math.hypot(x, y)) };
+}
+
+function survivalUpdate(dt) {
+    const p = survivalState.player;
+    if (!p || !survivalState.running || survivalState.pausedForLevel || survivalState.won) return;
+
+    survivalState.elapsed += dt;
+    p.invuln = Math.max(0, p.invuln - dt);
+    survivalState.wave = Math.min(10, 1 + Math.floor(survivalState.elapsed / 30));
+    survivalState.orbitalAngle += dt * 1.8;
+    survivalState.lightningTimer += dt;
+    survivalState.bombTimer += dt;
+    survivalState.regenTimer += dt;
+    if (survivalState.upgrades.regen > 0 && survivalState.regenTimer >= 1) {
+        survivalState.regenTimer = 0;
+        p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.005 * survivalState.upgrades.regen);
+    }
+
+    const move = survivalMoveVector();
+    const speed = 170 * survivalState.upgrades.moveSpeed;
+    p.x += move.x * speed * move.magnitude * dt;
+    p.y += move.y * speed * move.magnitude * dt;
+
+    survivalState.spawnTimer += dt;
+    const spawnEvery = Math.max(0.18, 0.9 - survivalState.elapsed * 0.0019);
+    if (survivalState.elapsed < 295 && survivalState.spawnTimer >= spawnEvery) {
+        survivalState.spawnTimer = 0;
+        const amount = survivalState.elapsed > 210 ? 2 : 1;
+        for (let i = 0; i < amount; i += 1) survivalSpawnEnemy();
+    }
+
+    if (survivalState.elapsed >= survivalState.nextBossAt && survivalState.bossNumber < 5) {
+        const finalBoss = survivalState.nextBossAt >= 280;
+        survivalSpawnBurst();
+        survivalSpawnBoss(finalBoss);
+        survivalState.nextBossAt += finalBoss ? 999 : 60;
+    }
+
+    const target = survivalNearestEnemy();
+    survivalState.shotTimer += dt;
+    const shotDelay = Math.max(0.12, 0.42 / Math.sqrt(survivalState.upgrades.fireRate));
+    if (target && survivalState.shotTimer >= shotDelay) {
+        survivalState.shotTimer = 0;
+        survivalShoot(target);
+    }
+
+    for (const b of survivalState.bullets) {
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        b.life -= dt;
+    }
+    survivalState.bullets = survivalState.bullets.filter((b) => b.life > 0);
+
+    for (let i = survivalState.enemies.length - 1; i >= 0; i -= 1) {
+        const e = survivalState.enemies[i];
+        const dx = p.x - e.x;
+        const dy = p.y - e.y;
+        const d = Math.hypot(dx, dy) || 1;
+        e.hitFlash = Math.max(0, e.hitFlash - dt);
+        const frostSlow = 1 / (1 + survivalState.upgrades.frost * 0.11);
+        e.x += (dx / d) * e.speed * frostSlow * dt;
+        e.y += (dy / d) * e.speed * frostSlow * dt;
+        if (e.boss) {
+            e.shootTimer += dt;
+            if (e.shootTimer > 2.2 && d < 650) {
+                e.shootTimer = 0;
+                // Boss shockwave: several short-lived projectiles.
+                for (let n = 0; n < 8; n += 1) {
+                    const a = (Math.PI * 2 * n) / 8;
+                    survivalState.bullets.push({
+                        x: e.x,
+                        y: e.y,
+                        vx: Math.cos(a) * 170,
+                        vy: Math.sin(a) * 170,
+                        radius: 8,
+                        damage: 12,
+                        life: 2.5,
+                        enemyBullet: true,
+                    });
+                }
+            }
+        }
+        if (d < p.radius + e.r) {
+            survivalTakeDamage(e.damage * dt * 2.2);
+            const push = Math.max(0, p.radius + e.r - d);
+            p.x += (dx / d) * push * 0.45;
+            p.y += (dy / d) * push * 0.45;
+        }
+    }
+
+    for (let bi = survivalState.bullets.length - 1; bi >= 0; bi -= 1) {
+        const b = survivalState.bullets[bi];
+        if (b.enemyBullet) {
+            const d = Math.hypot(b.x - p.x, b.y - p.y);
+            if (d < p.radius + b.radius) {
+                survivalTakeDamage(b.damage);
+                survivalState.bullets.splice(bi, 1);
+            }
+            continue;
+        }
+        let hit = false;
+        for (let ei = survivalState.enemies.length - 1; ei >= 0; ei -= 1) {
+            const e = survivalState.enemies[ei];
+            const d = Math.hypot(b.x - e.x, b.y - e.y);
+            if (d < e.r + b.radius) {
+                e.hp -= b.damage;
+                e.hitFlash = 0.08;
+                survivalAddParticle(b.x, b.y, b.critical ? "#ffe36e" : e.color, b.critical ? 5 : 2);
+                hit = true;
+                if (e.hp <= 0) survivalKillEnemy(ei);
+                if (b.pierceLeft > 0) {
+                    b.pierceLeft -= 1;
+                    hit = false;
+                }
+                if (!b.pierceLeft && hit) break;
+            }
+        }
+        if (hit) survivalState.bullets.splice(bi, 1);
+    }
+
+    const magnetRadius = 70 * survivalState.upgrades.magnet;
+    for (let gi = survivalState.gems.length - 1; gi >= 0; gi -= 1) {
+        const g = survivalState.gems[gi];
+        const d = Math.hypot(g.x - p.x, g.y - p.y);
+        if (d < magnetRadius) {
+            const pull = d < 20 ? 8 : 5;
+            g.x += ((p.x - g.x) / (d || 1)) * pull * 55 * dt;
+            g.y += ((p.y - g.y) / (d || 1)) * pull * 55 * dt;
+        }
+        if (d < p.radius + g.radius + 5) {
+            survivalCollectXp(g.value);
+            survivalAddParticle(g.x, g.y, g.color, 3);
+            survivalState.gems.splice(gi, 1);
+        }
+    }
+
+    // Orbital blades
+    if (survivalState.upgrades.orbital > 0) {
+        const blades = Math.min(6, survivalState.upgrades.orbital);
+        const orbitRadius = 66 * Math.sqrt(survivalState.upgrades.area);
+        for (let b = 0; b < blades; b += 1) {
+            const a = survivalState.orbitalAngle + (Math.PI * 2 * b) / blades;
+            const ox = p.x + Math.cos(a) * orbitRadius;
+            const oy = p.y + Math.sin(a) * orbitRadius;
+            for (const e of survivalState.enemies) {
+                if (Math.hypot(e.x - ox, e.y - oy) < e.r + 14) {
+                    e.hp -= 34 * survivalState.upgrades.damage * dt * 2.2;
+                    e.hitFlash = 0.05;
+                }
+            }
+        }
+    }
+
+    // Lightning chain
+    if (survivalState.upgrades.lightning > 0 && survivalState.lightningTimer >= Math.max(1.0, 3.0 - survivalState.upgrades.lightning * 0.18)) {
+        survivalState.lightningTimer = 0;
+        const targets = [...survivalState.enemies].sort((a,b) => survivalDist(p,a) - survivalDist(p,b)).slice(0, Math.min(8, 2 + survivalState.upgrades.lightning));
+        for (const e of targets) {
+            e.hp -= 85 * survivalState.upgrades.damage;
+            e.hitFlash = 0.14;
+            survivalAddParticle(e.x, e.y, "#9be7ff", 10);
+        }
+        survivalState.lightningFlash = 0.15;
+    }
+
+    // Bomb pulse
+    if (survivalState.upgrades.bomb > 0 && survivalState.bombTimer >= Math.max(2.8, 8 - survivalState.upgrades.bomb * 0.35)) {
+        survivalState.bombTimer = 0;
+        const radius = 150 * Math.sqrt(survivalState.upgrades.area) + survivalState.upgrades.bomb * 10;
+        for (const e of survivalState.enemies) {
+            const d = survivalDist(p,e);
+            if (d < radius) e.hp -= 150 * survivalState.upgrades.damage * (1 - d / radius * 0.55);
+        }
+        survivalAddParticle(p.x, p.y, "#ffb45d", 35);
+    }
+
+    // Remove enemies defeated by special weapons.
+    for (let ei = survivalState.enemies.length - 1; ei >= 0; ei -= 1) {
+        if (survivalState.enemies[ei].hp <= 0) survivalKillEnemy(ei);
+    }
+
+    for (const part of survivalState.particles) {
+        part.x += part.vx * dt;
+        part.y += part.vy * dt;
+        part.vx *= 0.94;
+        part.vy *= 0.94;
+        part.life -= dt;
+    }
+    survivalState.particles = survivalState.particles.filter((part) => part.life > 0);
+
+    if (survivalState.elapsed >= 300) survivalEnd(true);
+    survivalUpdateHud();
+}
+
+function survivalDrawGrid() {
+    const ctx = survivalCtx;
+    const p = survivalState.player;
+    if (!ctx || !p) return;
+    ctx.fillStyle = "#071019";
+    ctx.fillRect(0, 0, survivalState.width, survivalState.height);
+    const grid = 48;
+    const ox = ((-p.x % grid) + grid) % grid;
+    const oy = ((-p.y % grid) + grid) % grid;
+    ctx.strokeStyle = "rgba(120, 180, 210, 0.075)";
+    ctx.lineWidth = 1;
+    for (let x = ox; x < survivalState.width; x += grid) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, survivalState.height); ctx.stroke();
+    }
+    for (let y = oy; y < survivalState.height; y += grid) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(survivalState.width, y); ctx.stroke();
+    }
+    const gradient = ctx.createRadialGradient(survivalState.width / 2, survivalState.height / 2, 30, survivalState.width / 2, survivalState.height / 2, Math.max(survivalState.width, survivalState.height) * 0.7);
+    gradient.addColorStop(0, "rgba(20, 60, 90, 0.10)");
+    gradient.addColorStop(1, "rgba(0, 0, 0, 0.45)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, survivalState.width, survivalState.height);
+}
+
+function survivalDraw() {
+    const ctx = survivalCtx;
+    const p = survivalState.player;
+    if (!ctx || !p) return;
+    survivalDrawGrid();
+
+    for (const g of survivalState.gems) {
+        const s = survivalWorldToScreen(g.x, g.y);
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, g.radius, 0, Math.PI * 2);
+        ctx.fillStyle = g.color;
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = g.color;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    for (const b of survivalState.bullets) {
+        const s = survivalWorldToScreen(b.x, b.y);
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, b.radius, 0, Math.PI * 2);
+        ctx.fillStyle = b.enemyBullet ? "#ff758f" : "#f6fbff";
+        ctx.shadowBlur = b.enemyBullet ? 12 : 9;
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    for (const e of survivalState.enemies) {
+        const s = survivalWorldToScreen(e.x, e.y);
+        if (s.x < -80 || s.x > survivalState.width + 80 || s.y < -80 || s.y > survivalState.height + 80) continue;
+        ctx.save();
+        ctx.translate(s.x, s.y);
+        ctx.rotate(Math.atan2(p.y - e.y, p.x - e.x));
+        ctx.beginPath();
+        ctx.arc(0, 0, e.r, 0, Math.PI * 2);
+        ctx.fillStyle = e.hitFlash > 0 ? "#ffffff" : e.color;
+        ctx.shadowBlur = e.boss ? 24 : 8;
+        ctx.shadowColor = e.color;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        if (e.boss) {
+            ctx.strokeStyle = "rgba(255,255,255,.85)";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.fillStyle = "rgba(8,10,18,.65)";
+            ctx.fillRect(-e.r, -e.r - 12, e.r * 2, 5);
+            ctx.fillStyle = "#ff5478";
+            ctx.fillRect(-e.r, -e.r - 12, e.r * 2 * survivalClamp(e.hp / e.maxHp, 0, 1), 5);
+        } else {
+            ctx.fillStyle = "rgba(8,10,18,.55)";
+            ctx.beginPath(); ctx.arc(5, -4, 3, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    for (const part of survivalState.particles) {
+        const s = survivalWorldToScreen(part.x, part.y);
+        ctx.globalAlpha = survivalClamp(part.life / part.maxLife, 0, 1);
+        ctx.beginPath(); ctx.arc(s.x, s.y, part.size, 0, Math.PI * 2);
+        ctx.fillStyle = part.color;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    }
+
+    // Orbital blades
+    if (survivalState.upgrades.orbital > 0) {
+        const blades = Math.min(6, survivalState.upgrades.orbital);
+        const orbitRadius = 66 * Math.sqrt(survivalState.upgrades.area);
+        for (let b = 0; b < blades; b += 1) {
+            const a = survivalState.orbitalAngle + (Math.PI * 2 * b) / blades;
+            const ox = survivalState.width / 2 + Math.cos(a) * orbitRadius;
+            const oy = survivalState.height / 2 + Math.sin(a) * orbitRadius;
+            ctx.save(); ctx.translate(ox, oy); ctx.rotate(a);
+            ctx.fillStyle = "#a7edff"; ctx.shadowBlur = 14; ctx.shadowColor = "#55d8ff";
+            ctx.beginPath(); ctx.moveTo(13,0); ctx.lineTo(-8,-5); ctx.lineTo(-3,0); ctx.lineTo(-8,5); ctx.closePath(); ctx.fill(); ctx.restore();
+        }
+    }
+
+    // Player
+    const cx = survivalState.width / 2;
+    const cy = survivalState.height / 2;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(p.facing);
+    ctx.globalAlpha = p.invuln > 0 && Math.floor(p.invuln * 18) % 2 === 0 ? 0.45 : 1;
+    ctx.shadowBlur = 22;
+    ctx.shadowColor = "#64d8ff";
+    ctx.fillStyle = "#eaf9ff";
+    ctx.beginPath(); ctx.arc(0, 0, p.radius, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#52b8e8";
+    ctx.beginPath(); ctx.moveTo(8, -8); ctx.lineTo(28, 0); ctx.lineTo(8, 8); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#0d1720";
+    ctx.beginPath(); ctx.arc(-4, -5, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    if (survivalState.elapsed > 0) {
+        const pulse = 0.12 + Math.sin(performance.now() / 800) * 0.03;
+        ctx.fillStyle = `rgba(255, 70, 100, ${pulse * (survivalState.elapsed > 285 ? 1 : 0)})`;
+        ctx.fillRect(0, 0, survivalState.width, survivalState.height);
+    }
+}
+
+function survivalLoop(now) {
+    if (!survivalState.running) return;
+    const dt = Math.min(0.033, Math.max(0, (now - survivalState.last) / 1000));
+    survivalState.last = now;
+    survivalUpdate(dt);
+    survivalDraw();
+    survivalState.raf = requestAnimationFrame(survivalLoop);
+}
+
+function survivalStart() {
+    survivalReset();
+    survivalState.keys.clear();
+    survivalState.running = true;
+    survivalStartScreen?.classList.add("hidden");
+    survivalEndScreen?.classList.add("hidden");
+    survivalLevelUp?.classList.add("hidden");
+    survivalGameStage?.classList.add("playing");
+    survivalState.last = performance.now();
+    survivalState.raf = requestAnimationFrame(survivalLoop);
+    survivalSpawnBurst();
+    survivalUpdateHud();
+}
+
+function survivalEnd(won) {
+    if (!survivalState.running) return;
+    survivalState.running = false;
+    survivalState.won = won;
+    if (survivalState.raf) cancelAnimationFrame(survivalState.raf);
+    survivalState.raf = null;
+    survivalLevelUp?.classList.add("hidden");
+    survivalEndScreen?.classList.remove("hidden");
+    if (survivalEndIcon) survivalEndIcon.textContent = won ? "★" : "☠";
+    if (survivalEndEyebrow) survivalEndEyebrow.textContent = won ? "RUN COMPLETE" : "RUN OVER";
+    if (survivalEndTitle) survivalEndTitle.textContent = won ? "5분 생존 성공" : "쓰러졌습니다";
+    if (survivalEndStats) survivalEndStats.textContent = `처치 ${survivalState.kills} · 레벨 ${survivalState.level} · 점수 ${survivalState.score}`;
+    survivalGameStage?.classList.remove("playing");
+}
+
+function openSurvivalGame() {
+    if (!survivalGameModal) return;
+    survivalGameModal.classList.add("active");
+    survivalGameModal.setAttribute("aria-hidden", "false");
+    lockPageScroll();
+    survivalResize();
+}
+
+function closeSurvivalGame() {
+    if (!survivalGameModal) return;
+    survivalGameModal.classList.remove("active");
+    survivalGameModal.setAttribute("aria-hidden", "true");
+    if (survivalState.running) survivalEnd(false);
+    unlockPageScroll();
+}
+
+function survivalSetJoystick(clientX, clientY) {
+    if (!survivalJoystick) return;
+    const rect = survivalJoystick.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const max = rect.width * 0.33;
+    let dx = clientX - cx;
+    let dy = clientY - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    if (len > max) { dx = (dx / len) * max; dy = (dy / len) * max; }
+    survivalState.joystick.x = dx / max;
+    survivalState.joystick.y = dy / max;
+    survivalState.joystick.active = true;
+    if (survivalJoystickKnob) survivalJoystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+}
+
+function survivalResetJoystick() {
+    survivalState.joystick.x = 0;
+    survivalState.joystick.y = 0;
+    survivalState.joystick.active = false;
+    if (survivalJoystickKnob) survivalJoystickKnob.style.transform = "translate(-50%, -50%)";
+}
+
+if (survivalStartBtn) survivalStartBtn.addEventListener("click", survivalStart);
+if (survivalRestartBtn) survivalRestartBtn.addEventListener("click", survivalStart);
+if (closeSurvivalBtn) closeSurvivalBtn.addEventListener("click", closeSurvivalGame);
+if (survivalBackdrop) survivalBackdrop.addEventListener("click", closeSurvivalGame);
+window.addEventListener("resize", survivalResize);
+window.addEventListener("keydown", (event) => {
+    if (event.code === "Escape" && gameHubModal?.classList.contains("active")) {
+        closeGameHub();
+        return;
+    }
+    if (event.code === "Escape" && survivalGameModal?.classList.contains("active")) {
+        closeSurvivalGame();
+        return;
+    }
+    if (!survivalGameModal?.classList.contains("active")) return;
+    if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.code)) {
+        survivalState.keys.add(event.code);
+        event.preventDefault();
+    }
+});
+window.addEventListener("keyup", (event) => survivalState.keys.delete(event.code));
+
+if (survivalJoystick) {
+    survivalJoystick.addEventListener("pointerdown", (event) => {
+        survivalJoystick.setPointerCapture?.(event.pointerId);
+        survivalState.joystick.pointerId = event.pointerId;
+        survivalSetJoystick(event.clientX, event.clientY);
+    });
+    survivalJoystick.addEventListener("pointermove", (event) => {
+        if (survivalState.joystick.pointerId === event.pointerId) survivalSetJoystick(event.clientX, event.clientY);
+    });
+    const release = (event) => {
+        if (survivalState.joystick.pointerId === event.pointerId) {
+            survivalState.joystick.pointerId = null;
+            survivalResetJoystick();
+        }
+    };
+    survivalJoystick.addEventListener("pointerup", release);
+    survivalJoystick.addEventListener("pointercancel", release);
+    survivalJoystick.addEventListener("lostpointercapture", survivalResetJoystick);
+}
+
+// ==================================================
+// GOOGLE MAPS + CURRENT LOCATION
+// ==================================================
+
+const mapModal = document.getElementById("mapModal");
+const mapBackdrop = document.getElementById("mapBackdrop");
+const closeMapBtn = document.getElementById("closeMapBtn");
+const mapCanvas = document.getElementById("mapCanvas");
+const mapStatus = document.getElementById("mapStatus");
+const mapSetupPanel = document.getElementById("mapSetupPanel");
+const mapApiKeyInput = document.getElementById("mapApiKeyInput");
+const saveMapApiKeyBtn = document.getElementById("saveMapApiKeyBtn");
+const mapMyLocationBtn = document.getElementById("mapMyLocationBtn");
+const mapZoomInBtn = document.getElementById("mapZoomInBtn");
+const mapZoomOutBtn = document.getElementById("mapZoomOutBtn");
+
+let comtimeGoogleMap = null;
+let comtimeGoogleMarker = null;
+let googleMapsLoadingPromise = null;
+
+function getGoogleMapsKey() {
+    return String(window.COMTIME_GOOGLE_MAPS_API_KEY || localStorage.getItem("comtime_google_maps_api_key") || "").trim();
+}
+
+function showMapSetup(message = "Google Maps API 키를 설정해주세요.") {
+    if (mapStatus) mapStatus.textContent = message;
+    mapSetupPanel?.classList.remove("hidden");
+    if (mapApiKeyInput && !mapApiKeyInput.value) mapApiKeyInput.value = localStorage.getItem("comtime_google_maps_api_key") || "";
+}
+
+function loadGoogleMaps() {
+    if (window.google?.maps) return Promise.resolve();
+    if (googleMapsLoadingPromise) return googleMapsLoadingPromise;
+    const key = getGoogleMapsKey();
+    if (!key) {
+        showMapSetup();
+        return Promise.reject(new Error("Google Maps API key is missing"));
+    }
+    googleMapsLoadingPromise = new Promise((resolve, reject) => {
+        const callbackName = `comtimeMapsInit_${Date.now()}`;
+        window[callbackName] = () => {
+            delete window[callbackName];
+            resolve();
+        };
+        const script = document.createElement("script");
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&callback=${callbackName}&v=weekly`;
+        script.async = true;
+        script.defer = true;
+        script.onerror = () => {
+            delete window[callbackName];
+            googleMapsLoadingPromise = null;
+            reject(new Error("Google Maps script failed to load"));
+        };
+        document.head.appendChild(script);
+    });
+    return googleMapsLoadingPromise;
+}
+
+function initComtimeMap() {
+    if (!mapCanvas || !window.google?.maps) return;
+    mapSetupPanel?.classList.add("hidden");
+    if (mapStatus) mapStatus.textContent = "지도를 준비했습니다. 내 위치 버튼을 누르면 위치 권한을 요청합니다.";
+    if (!comtimeGoogleMap) {
+        comtimeGoogleMap = new google.maps.Map(mapCanvas, {
+            center: { lat: 36.6424, lng: 127.4890 },
+            zoom: 13,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: true,
+            gestureHandling: "greedy",
+        });
+    }
+}
+
+function requestCurrentLocation() {
+    if (!navigator.geolocation) {
+        if (mapStatus) mapStatus.textContent = "이 브라우저에서는 위치 기능을 지원하지 않습니다.";
+        return;
+    }
+    if (mapStatus) mapStatus.textContent = "현재 위치 권한을 요청하는 중...";
+    navigator.geolocation.getCurrentPosition((position) => {
+        const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
+        if (!comtimeGoogleMap) return;
+        comtimeGoogleMap.setCenter(pos);
+        comtimeGoogleMap.setZoom(17);
+        if (comtimeGoogleMarker) comtimeGoogleMarker.setMap(null);
+        comtimeGoogleMarker = new google.maps.Marker({
+            position: pos,
+            map: comtimeGoogleMap,
+            title: "내 위치",
+            animation: google.maps.Animation.DROP,
+        });
+        if (mapStatus) mapStatus.textContent = "현재 위치를 지도에 표시했습니다.";
+    }, (error) => {
+        const message = error.code === 1 ? "위치 권한이 거부되었습니다. 브라우저 주소창의 위치 권한을 허용해주세요." : "현재 위치를 가져오지 못했습니다.";
+        if (mapStatus) mapStatus.textContent = message;
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 });
+}
+
+async function openMapModal() {
+    if (!mapModal) return;
+    mapModal.classList.add("active");
+    mapModal.setAttribute("aria-hidden", "false");
+    lockPageScroll();
+    try {
+        await loadGoogleMaps();
+        initComtimeMap();
+    } catch (error) {
+        console.warn("[Google Maps]", error.message);
+    }
+}
+
+function closeMapModal() {
+    mapModal?.classList.remove("active");
+    mapModal?.setAttribute("aria-hidden", "true");
+    unlockPageScroll();
+}
+
+saveMapApiKeyBtn?.addEventListener("click", async () => {
+    const key = String(mapApiKeyInput?.value || "").trim();
+    if (!key) return showMapSetup("API 키를 입력해주세요.");
+    localStorage.setItem("comtime_google_maps_api_key", key);
+    googleMapsLoadingPromise = null;
+    try {
+        await loadGoogleMaps();
+        initComtimeMap();
+    } catch (error) {
+        showMapSetup("API 키가 유효한지, Maps JavaScript API가 활성화되어 있는지 확인해주세요.");
+    }
+});
+mapMyLocationBtn?.addEventListener("click", requestCurrentLocation);
+mapZoomInBtn?.addEventListener("click", () => comtimeGoogleMap?.setZoom(Math.min(21, (comtimeGoogleMap.getZoom() || 13) + 1)));
+mapZoomOutBtn?.addEventListener("click", () => comtimeGoogleMap?.setZoom(Math.max(2, (comtimeGoogleMap.getZoom() || 13) - 1)));
+closeMapBtn?.addEventListener("click", closeMapModal);
+mapBackdrop?.addEventListener("click", closeMapModal);
+
+// ==================================================
+// URL NAVIGATOR
+// ==================================================
+
+const urlModal = document.getElementById("urlModal");
+const urlBackdrop = document.getElementById("urlBackdrop");
+const closeUrlBtn = document.getElementById("closeUrlBtn");
+const urlCancelBtn = document.getElementById("urlCancelBtn");
+const urlForm = document.getElementById("urlForm");
+const urlInput = document.getElementById("urlInput");
+
+function openUrlModal() {
+    urlModal?.classList.add("active");
+    urlModal?.setAttribute("aria-hidden", "false");
+    lockPageScroll();
+    setTimeout(() => urlInput?.focus(), 50);
+}
+
+function closeUrlModal() {
+    urlModal?.classList.remove("active");
+    urlModal?.setAttribute("aria-hidden", "true");
+    unlockPageScroll();
+}
+
+function navigateToUrl(raw) {
+    let value = String(raw || "").trim();
+    if (!value) return;
+    if (!/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value)) value = `https://${value}`;
+    let parsed;
+    try { parsed = new URL(value); } catch { return; }
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+        if (urlInput) urlInput.setCustomValidity("http 또는 https 주소만 사용할 수 있습니다.");
+        urlInput?.reportValidity();
+        return;
+    }
+    urlInput?.setCustomValidity("");
+    window.open(parsed.href, "_blank", "noopener,noreferrer");
+    closeUrlModal();
+}
+
+urlForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    navigateToUrl(urlInput?.value);
+});
+closeUrlBtn?.addEventListener("click", closeUrlModal);
+urlCancelBtn?.addEventListener("click", closeUrlModal);
+urlBackdrop?.addEventListener("click", closeUrlModal);
+
 // ==================================================
 // MENU / GEMINI AI
 // ==================================================
@@ -4481,7 +5565,8 @@ const menuModal = document.getElementById("menuModal");
 const menuBackdrop = document.getElementById("menuBackdrop");
 const closeMenuBtn = document.getElementById("closeMenuBtn");
 const openGeminiBtn = document.getElementById("openGeminiBtn");
-const openBirdFromMenuBtn = document.getElementById("openBirdFromMenuBtn");
+const openMapBtn = document.getElementById("openMapBtn");
+const openUrlBtn = document.getElementById("openUrlBtn");
 
 const geminiModal = document.getElementById("geminiModal");
 const geminiBackdrop = document.getElementById("geminiBackdrop");
@@ -4504,8 +5589,12 @@ function unlockPageScroll() {
     const menuOpen = menuModal?.classList.contains("active");
     const geminiOpen = geminiModal?.classList.contains("active");
     const birdOpen = birdGameModal?.classList.contains("active");
+    const survivalOpen = survivalGameModal?.classList.contains("active");
+    const mapOpen = mapModal?.classList.contains("active");
+    const urlOpen = urlModal?.classList.contains("active");
+    const gameHubOpen = gameHubModal?.classList.contains("active");
 
-    if (!menuOpen && !geminiOpen && !birdOpen) {
+    if (!menuOpen && !geminiOpen && !birdOpen && !survivalOpen && !mapOpen && !urlOpen && !gameHubOpen) {
         document.body.style.overflow = "";
     }
 }
@@ -4814,10 +5903,17 @@ if (openGeminiBtn) {
     openGeminiBtn.addEventListener("click", openGeminiModal);
 }
 
-if (openBirdFromMenuBtn) {
-    openBirdFromMenuBtn.addEventListener("click", () => {
+if (openMapBtn) {
+    openMapBtn.addEventListener("click", () => {
         closeMenuModal();
-        openGameModal();
+        openMapModal();
+    });
+}
+
+if (openUrlBtn) {
+    openUrlBtn.addEventListener("click", () => {
+        closeMenuModal();
+        openUrlModal();
     });
 }
 
@@ -4851,6 +5947,21 @@ document.addEventListener("keydown", (event) => {
 
     if (geminiModal?.classList.contains("active")) {
         closeGeminiModal();
+        return;
+    }
+
+    if (survivalGameModal?.classList.contains("active")) {
+        closeSurvivalGame();
+        return;
+    }
+
+    if (mapModal?.classList.contains("active")) {
+        closeMapModal();
+        return;
+    }
+
+    if (urlModal?.classList.contains("active")) {
+        closeUrlModal();
         return;
     }
 
@@ -6030,3 +7141,10 @@ classSelect?.addEventListener("change", () => { if (currentUser) saveProfileToSe
 
 // 인증된 상태에서는 서버 저장 데이터를 최우선으로 사용합니다.
 initAuth();
+
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && gameHubModal?.classList.contains("active")) {
+        closeGameHub();
+    }
+});
