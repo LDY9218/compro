@@ -4530,24 +4530,27 @@ const survivalState = {
     wave: 1,
     level: 1,
     xp: 0,
-    xpNeed: 10,
+    xpNeed: 14,
     score: 0,
-    nextBossAt: 55,
+    nextBossAt: 60,
     bossNumber: 0,
+    bossActive: false,
+    bossFenceRadius: 0,
+    bossCenterX: 0,
+    bossCenterY: 0,
+    bossTransition: 0,
     player: null,
     enemies: [],
     bullets: [],
     gems: [],
     particles: [],
-    upgrades: {
-        damage: 1, fireRate: 1, moveSpeed: 1, maxHp: 1, magnet: 1, projectile: 1,
-        crit: 0, bulletSpeed: 1, pierce: 0, area: 1, armor: 0, regen: 0,
-        frost: 0, orbital: 0, lightning: 0, bomb: 0, drone: 0, lifesteal: 0, xpBoost: 1, range: 1,
-    },
+    upgrades: {},
+    upgradeLevels: {},
     lightningTimer: 0,
     bombTimer: 0,
     orbitalAngle: 0,
     regenTimer: 0,
+    specialTimer: 0,
     joystick: { x: 0, y: 0, active: false, pointerId: null },
     keys: new Set(),
     raf: null,
@@ -4556,28 +4559,70 @@ const survivalState = {
     height: 0,
 };
 
+// 50개의 성장 선택지. 중복 선택 시 해당 스킬의 레벨이 올라가며 수치가 더 강해집니다.
 const SURVIVAL_UPGRADES = [
-    { key: "damage", icon: "✦", title: "화력 강화", desc: "모든 무기 피해 +18%" },
-    { key: "fireRate", icon: "⚡", title: "연사 강화", desc: "공격 속도 +20%" },
-    { key: "moveSpeed", icon: "➜", title: "기동력", desc: "이동 속도 +12%" },
-    { key: "maxHp", icon: "♥", title: "체력 강화", desc: "최대 체력 +18%, 즉시 회복" },
-    { key: "magnet", icon: "◉", title: "자석", desc: "경험치 흡수 범위 +28%" },
-    { key: "projectile", icon: "✹", title: "다중 탄환", desc: "기본 탄환 +1, 최대 8발" },
-    { key: "crit", icon: "◆", title: "치명타", desc: "치명타 확률 +7%" },
-    { key: "bulletSpeed", icon: "➤", title: "탄속 강화", desc: "탄환 속도 +18%" },
-    { key: "pierce", icon: "↠", title: "관통탄", desc: "탄환 관통 횟수 +1" },
-    { key: "area", icon: "◎", title: "범위 강화", desc: "폭발과 투사체 크기 +14%" },
-    { key: "armor", icon: "⬟", title: "방어 장갑", desc: "받는 피해 4% 감소" },
-    { key: "regen", icon: "✚", title: "재생", desc: "초당 체력 0.5% 회복" },
-    { key: "frost", icon: "❄", title: "빙결 탄환", desc: "적 이동속도를 추가로 감소" },
-    { key: "orbital", icon: "✺", title: "회전 검", desc: "플레이어 주변 회전 칼날 +1" },
-    { key: "lightning", icon: "ϟ", title: "번개", desc: "주기적으로 주변 적에게 연쇄 번개" },
-    { key: "bomb", icon: "✹", title: "폭격", desc: "주기적으로 주변을 폭발시킴" },
-    { key: "drone", icon: "◈", title: "전투 드론", desc: "자동 보조 탄환을 추가" },
-    { key: "lifesteal", icon: "♡", title: "흡혈", desc: "적 처치 시 체력 회복 확률 증가" },
-    { key: "xpBoost", icon: "★", title: "성장 촉진", desc: "획득 경험치 +15%" },
-    { key: "range", icon: "⌖", title: "사거리", desc: "자동 조준 사거리 +22%" },
+    { key: "damage", icon: "✦", title: "화력 강화", desc: "모든 무기 피해가 증가합니다." },
+    { key: "fireRate", icon: "⚡", title: "연사 강화", desc: "자동 공격 간격이 줄어듭니다." },
+    { key: "moveSpeed", icon: "➜", title: "기동력", desc: "이동 속도가 증가합니다." },
+    { key: "maxHp", icon: "♥", title: "체력 강화", desc: "최대 체력이 크게 증가하고 회복합니다." },
+    { key: "magnet", icon: "◉", title: "자석", desc: "경험치를 끌어당기는 범위가 증가합니다." },
+    { key: "projectile", icon: "✹", title: "다중 탄환", desc: "기본 무기가 발사하는 탄환 수가 증가합니다." },
+    { key: "crit", icon: "◆", title: "치명타", desc: "치명타 확률이 증가합니다." },
+    { key: "bulletSpeed", icon: "➤", title: "탄속 강화", desc: "탄환이 더 빠르게 날아갑니다." },
+    { key: "pierce", icon: "↠", title: "관통탄", desc: "탄환이 더 많은 적을 관통합니다." },
+    { key: "area", icon: "◎", title: "범위 강화", desc: "투사체와 광역 기술의 범위가 커집니다." },
+    { key: "armor", icon: "⬟", title: "방어 장갑", desc: "받는 피해가 감소합니다." },
+    { key: "regen", icon: "✚", title: "재생", desc: "시간이 지나면 체력을 회복합니다." },
+    { key: "frost", icon: "❄", title: "빙결 탄환", desc: "적의 이동 속도를 낮춥니다." },
+    { key: "orbital", icon: "✺", title: "회전 검", desc: "주변을 도는 칼날이 추가됩니다." },
+    { key: "lightning", icon: "ϟ", title: "번개", desc: "주변 적에게 번개가 떨어집니다." },
+    { key: "bomb", icon: "✹", title: "주변 폭발", desc: "주변 적에게 광역 폭발 피해를 줍니다." },
+    { key: "drone", icon: "◈", title: "전투 드론", desc: "보조 자동 공격이 추가됩니다." },
+    { key: "lifesteal", icon: "♡", title: "흡혈", desc: "적 처치 시 체력을 회복할 확률이 증가합니다." },
+    { key: "xpBoost", icon: "★", title: "성장 촉진", desc: "획득 경험치가 증가합니다." },
+    { key: "range", icon: "⌖", title: "사거리", desc: "자동 조준 사거리가 증가합니다." },
+    { key: "bulletSize", icon: "●", title: "탄환 대형화", desc: "탄환 크기와 명중 판정이 증가합니다." },
+    { key: "damageBoss", icon: "♛", title: "보스 사냥꾼", desc: "보스에게 주는 피해가 증가합니다." },
+    { key: "eliteDamage", icon: "☠", title: "정예 사냥꾼", desc: "강한 적에게 주는 피해가 증가합니다." },
+    { key: "knockback", icon: "↯", title: "충격탄", desc: "공격이 적을 더 강하게 밀어냅니다." },
+    { key: "dash", icon: "➤", title: "순간 가속", desc: "이동 중 잠깐씩 이동 속도가 추가로 상승합니다." },
+    { key: "shield", icon: "◇", title: "보호막", desc: "일정 주기로 피해를 막는 보호막을 얻습니다." },
+    { key: "thorns", icon: "♢", title: "가시 갑옷", desc: "접촉한 적에게 반사 피해를 줍니다." },
+    { key: "pickupXp", icon: "✦", title: "경험치 증폭", desc: "가까운 경험치가 더 빨리 날아옵니다." },
+    { key: "goldXp", icon: "●", title: "황금 경험치", desc: "보스가 더 큰 경험치 덩어리를 떨어뜨립니다." },
+    { key: "weaponCooldown", icon: "◌", title: "스킬 쿨다운", desc: "특수 기술의 재사용 간격이 감소합니다." },
+    { key: "lightningChain", icon: "ϟ", title: "연쇄 번개", desc: "번개가 더 많은 적을 연결합니다." },
+    { key: "bombRadius", icon: "✹", title: "폭발 범위", desc: "주변 폭발의 반경이 크게 증가합니다." },
+    { key: "bombDamage", icon: "✷", title: "폭발 화력", desc: "주변 폭발의 피해가 증가합니다." },
+    { key: "bladeDamage", icon: "✧", title: "회전 검 화력", desc: "회전 검의 피해가 증가합니다." },
+    { key: "bladeSpeed", icon: "⟳", title: "회전 속도", desc: "회전 검이 더 빠르게 돕니다." },
+    { key: "droneDamage", icon: "◈", title: "드론 화력", desc: "전투 드론의 피해가 증가합니다." },
+    { key: "droneCount", icon: "◇", title: "드론 증원", desc: "전투 드론이 추가됩니다." },
+    { key: "critDamage", icon: "◆", title: "치명타 피해", desc: "치명타의 위력이 증가합니다." },
+    { key: "healthPickup", icon: "❤", title: "회복 효과", desc: "회복 효과의 양이 증가합니다." },
+    { key: "enemySlow", icon: "❄", title: "감속장", desc: "주변 적의 이동 속도가 지속적으로 감소합니다." },
+    { key: "enemySpawn", icon: "☄", title: "학살 보너스", desc: "처치할수록 추가 적을 더 빠르게 정리합니다." },
+    { key: "projectileOrbit", icon: "⊙", title: "탄환 궤도", desc: "탄환이 더 안정적으로 적을 향합니다." },
+    { key: "doubleXp", icon: "2×", title: "경험치 행운", desc: "적이 높은 등급의 경험치를 떨어뜨릴 확률이 증가합니다." },
+    { key: "bossXp", icon: "★", title: "보스 보상", desc: "보스 처치 시 황금 경험치가 더 커집니다." },
+    { key: "bossAttack", icon: "♜", title: "보스 대응", desc: "보스에게 받는 피해가 감소합니다." },
+    { key: "speedDamage", icon: "⚡", title: "질주 화력", desc: "빠르게 이동할 때 공격력이 증가합니다." },
+    { key: "survival", icon: "♜", title: "생존 본능", desc: "체력이 낮을수록 방어력이 올라갑니다." },
+    { key: "lastStand", icon: "!", title: "불굴", desc: "위험한 순간 잠시 피해를 덜 받습니다." },
+    { key: "areaPulse", icon: "◎", title: "충격파", desc: "주기적으로 플레이어 주변에 약한 광역 충격파를 발생시킵니다." },
+    { key: "weaponEvolution", icon: "✪", title: "무기 진화", desc: "전체 무기 계열의 기본 성능을 추가로 강화합니다." },
 ];
+
+const SURVIVAL_DEFAULT_UPGRADES = {
+    damage: 1, fireRate: 1, moveSpeed: 1, maxHp: 1, magnet: 1, projectile: 1,
+    crit: 0, bulletSpeed: 1, pierce: 0, area: 1, armor: 0, regen: 0, frost: 0,
+    orbital: 0, lightning: 0, bomb: 0, drone: 0, lifesteal: 0, xpBoost: 1, range: 1,
+    bulletSize: 1, damageBoss: 1, eliteDamage: 1, knockback: 0, dash: 0, shield: 0, thorns: 0,
+    pickupXp: 1, goldXp: 1, weaponCooldown: 1, lightningChain: 0, bombRadius: 1, bombDamage: 1,
+    bladeDamage: 1, bladeSpeed: 1, droneDamage: 1, droneCount: 0, critDamage: 1, healthPickup: 1,
+    enemySlow: 0, enemySpawn: 0, projectileOrbit: 0, doubleXp: 0, bossXp: 1, bossAttack: 0,
+    speedDamage: 1, survival: 0, lastStand: 0, areaPulse: 0, weaponEvolution: 1,
+};
 
 function survivalResize() {
     if (!survivalGameStage || !survivalCanvas) return;
@@ -4621,10 +4666,15 @@ function survivalReset() {
     survivalState.wave = 1;
     survivalState.level = 1;
     survivalState.xp = 0;
-    survivalState.xpNeed = 10;
+    survivalState.xpNeed = 14;
     survivalState.score = 0;
-    survivalState.nextBossAt = 55;
+    survivalState.nextBossAt = 60;
     survivalState.bossNumber = 0;
+    survivalState.bossActive = false;
+    survivalState.bossFenceRadius = 0;
+    survivalState.bossCenterX = 0;
+    survivalState.bossCenterY = 0;
+    survivalState.bossTransition = 0;
     survivalState.lightningTimer = 0;
     survivalState.bombTimer = 0;
     survivalState.orbitalAngle = 0;
@@ -4633,11 +4683,8 @@ function survivalReset() {
     survivalState.bullets = [];
     survivalState.gems = [];
     survivalState.particles = [];
-    survivalState.upgrades = {
-        damage: 1, fireRate: 1, moveSpeed: 1, maxHp: 1, magnet: 1, projectile: 1,
-        crit: 0, bulletSpeed: 1, pierce: 0, area: 1, armor: 0, regen: 0,
-        frost: 0, orbital: 0, lightning: 0, bomb: 0, drone: 0, lifesteal: 0, xpBoost: 1, range: 1,
-    };
+    survivalState.upgrades = { ...SURVIVAL_DEFAULT_UPGRADES };
+    survivalState.upgradeLevels = Object.fromEntries(SURVIVAL_UPGRADES.map((item) => [item.key, 0]));
     survivalState.player = {
         x: 0,
         y: 0,
@@ -4659,9 +4706,12 @@ function survivalReset() {
 
 function survivalEnemyType() {
     const r = Math.random();
-    if (survivalState.elapsed > 180 && r < 0.12) return "runner";
-    if (survivalState.elapsed > 100 && r < 0.22) return "tank";
-    if (survivalState.elapsed > 35 && r < 0.32) return "fast";
+    const t = survivalState.elapsed;
+    if (t > 240 && r < 0.08) return "brute";
+    if (t > 180 && r < 0.16) return "runner";
+    if (t > 110 && r < 0.26) return "tank";
+    if (t > 45 && r < 0.38) return "fast";
+    if (t > 75 && r < 0.50) return "shooter";
     return "basic";
 }
 
@@ -4670,53 +4720,91 @@ function survivalSpawnEnemy(forceType = null) {
     if (!p) return;
     const angle = survivalRandom(0, Math.PI * 2);
     const distance = Math.max(survivalState.width, survivalState.height) * 0.62 + 80;
-    const scale = 1 + survivalState.elapsed / 360;
+    const cycle = Math.floor(survivalState.elapsed / 60);
+    const scale = 1 + cycle * 0.17 + survivalState.elapsed * 0.0018;
     const type = forceType || survivalEnemyType();
     const base = {
         basic: { r: 13, hp: 24, speed: 38, damage: 8, xp: 2, color: "#65e6a8" },
-        fast: { r: 10, hp: 17, speed: 66, damage: 6, xp: 3, color: "#f4d35e" },
-        tank: { r: 20, hp: 100, speed: 23, damage: 16, xp: 7, color: "#f28b8b" },
-        runner: { r: 11, hp: 34, speed: 90, damage: 10, xp: 5, color: "#b38cff" },
+        fast: { r: 10, hp: 18, speed: 70, damage: 6, xp: 3, color: "#f4d35e" },
+        tank: { r: 21, hp: 120, speed: 24, damage: 16, xp: 8, color: "#f28b8b" },
+        runner: { r: 11, hp: 38, speed: 94, damage: 10, xp: 6, color: "#b38cff" },
+        shooter: { r: 15, hp: 52, speed: 30, damage: 11, xp: 10, color: "#ff9b71" },
+        brute: { r: 27, hp: 260, speed: 20, damage: 23, xp: 18, color: "#d96cff" },
     }[type];
-    const hpScale = 1 + survivalState.elapsed * 0.0038;
+    const hpScale = 1 + survivalState.elapsed * 0.0024;
+    const xpRoll = base.xp * (0.82 + Math.random() * 0.55);
     survivalState.enemies.push({
         x: p.x + Math.cos(angle) * distance,
         y: p.y + Math.sin(angle) * distance,
         ...base,
         hp: base.hp * hpScale * scale,
         maxHp: base.hp * hpScale * scale,
-        speed: base.speed * (1 + survivalState.elapsed * 0.0015),
-        damage: base.damage * (1 + survivalState.elapsed * 0.001),
+        speed: base.speed * (1 + survivalState.elapsed * 0.0009),
+        damage: base.damage * (1 + survivalState.elapsed * 0.00065),
+        xp: Math.max(1, Math.round(xpRoll)),
         type,
         hitFlash: 0,
         boss: false,
+        shootTimer: survivalRandom(0, 1.5),
     });
 }
 
-function survivalSpawnBoss(finalBoss = false) {
+function survivalStartBossWave() {
     const p = survivalState.player;
-    if (!p) return;
+    if (!p || survivalState.bossActive) return;
+
+    survivalState.bossActive = true;
+    survivalState.bossTransition = 2.2;
+    survivalState.bossFenceRadius = Math.max(170, Math.min(survivalState.width, survivalState.height) * 0.42);
+    survivalState.bossCenterX = p.x;
+    survivalState.bossCenterY = p.y;
+
+    // 보스가 등장하면 현재 화면의 일반 몬스터를 전부 정리하고
+    // 지금까지 떨어지지 않았던 경험치를 즉시 바닥에 생성한다.
+    const normalEnemies = survivalState.enemies.filter((enemy) => !enemy.boss);
+    for (const enemy of normalEnemies) {
+        survivalDropGem(enemy);
+        survivalAddParticle(enemy.x, enemy.y, enemy.color, 3);
+    }
+    survivalState.enemies = survivalState.enemies.filter((enemy) => enemy.boss);
+
     survivalState.bossNumber += 1;
+    const cycle = survivalState.bossNumber;
     const angle = survivalRandom(0, Math.PI * 2);
-    const distance = Math.max(survivalState.width, survivalState.height) * 0.7;
-    const multiplier = 1 + survivalState.bossNumber * 0.3;
-    const hp = (finalBoss ? 6200 : 1800) * multiplier * (1 + survivalState.elapsed * 0.002);
+    const distance = Math.max(survivalState.width, survivalState.height) * 0.58;
+    const hp = 2400 * (1 + cycle * 0.38) * (1 + survivalState.elapsed * 0.0015);
+    const finalLook = cycle % 5 === 0;
     survivalState.enemies.push({
         x: p.x + Math.cos(angle) * distance,
         y: p.y + Math.sin(angle) * distance,
-        r: finalBoss ? 42 : 34,
+        r: finalLook ? 46 : 36,
         hp,
         maxHp: hp,
-        speed: finalBoss ? 26 : 31,
-        damage: finalBoss ? 28 : 20,
-        xp: finalBoss ? 80 : 35,
-        type: finalBoss ? "finalBoss" : "boss",
-        color: finalBoss ? "#ff4d7d" : "#ff7b54",
+        speed: finalLook ? 27 : 31,
+        damage: (finalLook ? 31 : 23) * (1 + cycle * 0.06),
+        xp: 100 + cycle * 30,
+        type: finalLook ? "bossKing" : "boss",
+        color: finalLook ? "#ffd447" : "#ff6d61",
         hitFlash: 0,
         boss: true,
-        finalBoss,
+        finalBoss: finalLook,
         shootTimer: 0,
     });
+}
+
+function survivalFinishBossWave() {
+    survivalState.bossActive = false;
+    survivalState.bossFenceRadius = 0;
+    survivalState.bossCenterX = 0;
+    survivalState.bossCenterY = 0;
+    survivalState.bossTransition = 0;
+    survivalState.nextBossAt = Math.max(survivalState.nextBossAt, survivalState.elapsed + 60);
+    survivalState.spawnTimer = 0;
+    survivalAddParticle(survivalState.player.x, survivalState.player.y, "#ffd447", 45);
+}
+
+function survivalSpawnBoss() {
+    survivalStartBossWave();
 }
 
 function survivalSpawnBurst() {
@@ -4759,8 +4847,8 @@ function survivalShoot(target) {
             y: p.y + Math.sin(a) * 21,
             vx: Math.cos(a) * 430 * u.bulletSpeed,
             vy: Math.sin(a) * 430 * u.bulletSpeed,
-            radius: 5 * Math.sqrt(u.area),
-            damage: 18 * u.damage * (critical ? 2.2 : 1),
+            radius: 5 * Math.sqrt(u.area * u.bulletSize),
+            damage: 18 * u.damage * u.weaponEvolution * (critical ? 2.2 * u.critDamage : 1),
             life: 1.9 * u.range,
             pierceLeft: u.pierce,
             critical,
@@ -4804,12 +4892,18 @@ function survivalAddParticle(x, y, color, count = 5) {
 }
 
 function survivalDropGem(enemy) {
+    const isBoss = !!enemy.boss;
+    const base = Math.max(1, enemy.xp || 1);
+    const value = isBoss
+        ? Math.round(base * 2.2 * survivalState.upgrades.bossXp * (1 + survivalState.upgrades.goldXp * 0.12))
+        : Math.max(1, Math.round(base * survivalState.upgrades.xpBoost * (1 + survivalState.upgrades.doubleXp * 0.04)));
     survivalState.gems.push({
         x: enemy.x,
         y: enemy.y,
-        value: enemy.xp * survivalState.upgrades.xpBoost,
-        radius: enemy.boss ? 9 : 5,
-        color: enemy.boss ? "#ffe36e" : "#66d9ff",
+        value,
+        radius: isBoss ? 19 + Math.min(10, survivalState.upgrades.goldXp) : (base >= 12 ? 8 : 5),
+        color: isBoss ? "#ffd83d" : (base >= 12 ? "#b9f36b" : "#66d9ff"),
+        bossGem: isBoss,
     });
 }
 
@@ -4819,8 +4913,11 @@ function survivalKillEnemy(index) {
     survivalState.kills += 1;
     survivalState.score += e.boss ? 250 : 10;
     survivalDropGem(e);
-    survivalAddParticle(e.x, e.y, e.color, e.boss ? 18 : 6);
+    survivalAddParticle(e.x, e.y, e.color, e.boss ? 26 : 6);
     survivalState.enemies.splice(index, 1);
+    if (e.boss) {
+        survivalFinishBossWave();
+    }
     if (survivalState.upgrades.lifesteal > 0 && Math.random() < Math.min(0.75, survivalState.upgrades.lifesteal * 0.08)) {
         survivalState.player.hp = Math.min(survivalState.player.maxHp, survivalState.player.hp + survivalState.player.maxHp * 0.035);
     }
@@ -4842,24 +4939,48 @@ function survivalCollectXp(value) {
         survivalState.xp -= survivalState.xpNeed;
         survivalState.level += 1;
         survivalState.xpNeed = Math.floor(survivalState.xpNeed * 1.28 + 5);
-        survivalOpenLevelUp();
+        survivalOpenLevelUp("LEVEL UP");
         break;
     }
 }
 
-function survivalOpenLevelUp() {
+function survivalCollectBossXp(gem) {
+    if (!gem || !gem.bossGem) return;
+    survivalState.score += Math.round(gem.value * 2);
+    survivalAddParticle(gem.x, gem.y, "#ffd83d", 30);
+    survivalOpenLevelUp("BOSS REWARD");
+}
+
+function survivalOpenLevelUp(reason = "LEVEL UP") {
     if (!survivalState.running || survivalState.won) return;
     survivalState.pausedForLevel = true;
     survivalLevelUp?.classList.remove("hidden");
-    const shuffled = [...SURVIVAL_UPGRADES].sort(() => Math.random() - 0.5).slice(0, 3);
+    const levelUpEyebrow = survivalLevelUp?.querySelector(".survival-eyebrow");
+    const levelUpTitle = survivalLevelUp?.querySelector("h3");
+    if (levelUpEyebrow) levelUpEyebrow.textContent = reason;
+    if (levelUpTitle) levelUpTitle.textContent = reason === "BOSS REWARD" ? "황금 경험치! 랜덤 3개 중 하나를 강화하세요" : "랜덤 3개 중 하나를 선택하세요";
+
+    const weighted = [...SURVIVAL_UPGRADES].sort((a, b) => {
+        const al = survivalState.upgradeLevels[a.key] || 0;
+        const bl = survivalState.upgradeLevels[b.key] || 0;
+        // 이미 투자한 기술이 다시 등장할 가능성을 조금 높여
+        // 같은 빌드를 계속 진화시키는 로그라이크 선택감을 만든다.
+        return (Math.random() + al * 0.18) - (Math.random() + bl * 0.18);
+    });
+    const shuffled = weighted.slice(0, 3);
     if (survivalUpgradeChoices) {
-        survivalUpgradeChoices.innerHTML = shuffled.map((u) => `
-            <button class="survival-upgrade-btn" type="button" data-upgrade="${u.key}">
-                <span class="upgrade-icon">${u.icon}</span>
-                <strong>${u.title}</strong>
-                <small>${u.desc}</small>
-            </button>
-        `).join("");
+        survivalUpgradeChoices.innerHTML = shuffled.map((u) => {
+            const level = survivalState.upgradeLevels[u.key] || 0;
+            const nextLevel = level + 1;
+            const repeatText = level > 0 ? `현재 Lv.${level} → Lv.${nextLevel} · ${u.desc} 더 강해집니다.` : `Lv.1 · ${u.desc}`;
+            return `
+                <button class="survival-upgrade-btn" type="button" data-upgrade="${u.key}">
+                    <span class="upgrade-icon">${u.icon}</span>
+                    <strong>${u.title}</strong>
+                    <small>${repeatText}</small>
+                </button>
+            `;
+        }).join("");
         survivalUpgradeChoices.querySelectorAll("[data-upgrade]").forEach((btn) => {
             btn.addEventListener("click", () => survivalChooseUpgrade(btn.dataset.upgrade), { once: true });
         });
@@ -4869,27 +4990,59 @@ function survivalOpenLevelUp() {
 function survivalChooseUpgrade(key) {
     if (!key) return;
     const u = survivalState.upgrades;
+    const level = (survivalState.upgradeLevels[key] || 0) + 1;
+    survivalState.upgradeLevels[key] = level;
     switch (key) {
-        case "damage": u.damage *= 1.18; break;
-        case "fireRate": u.fireRate *= 1.20; break;
-        case "moveSpeed": u.moveSpeed *= 1.12; break;
-        case "maxHp": survivalState.player.maxHp *= 1.18; survivalState.player.hp = survivalState.player.maxHp; u.maxHp *= 1.18; break;
-        case "magnet": u.magnet *= 1.28; break;
-        case "projectile": u.projectile = Math.min(8, u.projectile + 1); break;
-        case "crit": u.crit = Math.min(0.65, u.crit + 0.07); break;
-        case "bulletSpeed": u.bulletSpeed *= 1.18; break;
+        case "damage": u.damage *= 1.16; break;
+        case "fireRate": u.fireRate *= 1.17; break;
+        case "moveSpeed": u.moveSpeed *= 1.10; break;
+        case "maxHp": survivalState.player.maxHp *= 1.16; survivalState.player.hp = survivalState.player.maxHp; break;
+        case "magnet": u.magnet *= 1.25; break;
+        case "projectile": u.projectile = Math.min(12, u.projectile + 1); break;
+        case "crit": u.crit = Math.min(0.75, u.crit + 0.055); break;
+        case "bulletSpeed": u.bulletSpeed *= 1.16; break;
         case "pierce": u.pierce += 1; break;
-        case "area": u.area *= 1.14; break;
+        case "area": u.area *= 1.12; break;
         case "armor": u.armor += 1; break;
         case "regen": u.regen += 1; break;
         case "frost": u.frost += 1; break;
-        case "orbital": u.orbital += 1; break;
+        case "orbital": u.orbital = Math.min(10, u.orbital + 1); break;
         case "lightning": u.lightning += 1; break;
         case "bomb": u.bomb += 1; break;
-        case "drone": u.drone += 1; break;
+        case "drone": u.drone = Math.min(6, u.drone + 1); break;
         case "lifesteal": u.lifesteal += 1; break;
-        case "xpBoost": u.xpBoost *= 1.15; break;
-        case "range": u.range *= 1.22; break;
+        case "xpBoost": u.xpBoost *= 1.13; break;
+        case "range": u.range *= 1.18; break;
+        case "bulletSize": u.bulletSize *= 1.12; break;
+        case "damageBoss": u.damageBoss *= 1.12; break;
+        case "eliteDamage": u.eliteDamage *= 1.10; break;
+        case "knockback": u.knockback += 1; break;
+        case "dash": u.dash += 1; break;
+        case "shield": u.shield += 1; break;
+        case "thorns": u.thorns += 1; break;
+        case "pickupXp": u.pickupXp *= 1.22; break;
+        case "goldXp": u.goldXp += 1; break;
+        case "weaponCooldown": u.weaponCooldown *= 1.12; break;
+        case "lightningChain": u.lightningChain += 1; break;
+        case "bombRadius": u.bombRadius *= 1.14; break;
+        case "bombDamage": u.bombDamage *= 1.15; break;
+        case "bladeDamage": u.bladeDamage *= 1.16; break;
+        case "bladeSpeed": u.bladeSpeed *= 1.12; break;
+        case "droneDamage": u.droneDamage *= 1.16; break;
+        case "droneCount": u.droneCount += 1; u.drone = Math.min(6, u.drone + 1); break;
+        case "critDamage": u.critDamage *= 1.16; break;
+        case "healthPickup": u.healthPickup *= 1.14; break;
+        case "enemySlow": u.enemySlow += 1; break;
+        case "enemySpawn": u.enemySpawn += 1; break;
+        case "projectileOrbit": u.projectileOrbit += 1; break;
+        case "doubleXp": u.doubleXp += 1; break;
+        case "bossXp": u.bossXp *= 1.18; break;
+        case "bossAttack": u.bossAttack += 1; break;
+        case "speedDamage": u.speedDamage *= 1.10; break;
+        case "survival": u.survival += 1; break;
+        case "lastStand": u.lastStand += 1; break;
+        case "areaPulse": u.areaPulse += 1; break;
+        case "weaponEvolution": u.weaponEvolution *= 1.10; break;
         default: return;
     }
     survivalState.pausedForLevel = false;
@@ -4898,9 +5051,8 @@ function survivalChooseUpgrade(key) {
 }
 
 function survivalUpdateHud() {
-    const remaining = Math.max(0, 300 - survivalState.elapsed);
-    const minutes = Math.floor(remaining / 60);
-    const seconds = Math.floor(remaining % 60);
+    const minutes = Math.floor(survivalState.elapsed / 60);
+    const seconds = Math.floor(survivalState.elapsed % 60);
     if (survivalTimeEl) survivalTimeEl.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     if (survivalWaveEl) survivalWaveEl.textContent = String(survivalState.wave);
     if (survivalKillsEl) survivalKillsEl.textContent = String(survivalState.kills);
@@ -4935,12 +5087,14 @@ function survivalMoveVector() {
 
 function survivalUpdate(dt) {
     const p = survivalState.player;
+    const u = survivalState.upgrades;
     if (!p || !survivalState.running || survivalState.pausedForLevel || survivalState.won) return;
 
     survivalState.elapsed += dt;
+    survivalState.bossTransition = Math.max(0, survivalState.bossTransition - dt);
     p.invuln = Math.max(0, p.invuln - dt);
-    survivalState.wave = Math.min(10, 1 + Math.floor(survivalState.elapsed / 30));
-    survivalState.orbitalAngle += dt * 1.8;
+    survivalState.wave = 1 + Math.floor(survivalState.elapsed / 30);
+    survivalState.orbitalAngle += dt * (1.8 * u.bladeSpeed);
     survivalState.lightningTimer += dt;
     survivalState.bombTimer += dt;
     survivalState.regenTimer += dt;
@@ -4954,19 +5108,27 @@ function survivalUpdate(dt) {
     p.x += move.x * speed * move.magnitude * dt;
     p.y += move.y * speed * move.magnitude * dt;
 
+    if (survivalState.bossActive) {
+        const dxFence = p.x - survivalState.bossCenterX;
+        const dyFence = p.y - survivalState.bossCenterY;
+        const distFromCenter = Math.hypot(dxFence, dyFence);
+        const fence = Math.max(140, survivalState.bossFenceRadius - p.radius - 6);
+        if (distFromCenter > fence) {
+            p.x = survivalState.bossCenterX + (dxFence / (distFromCenter || 1)) * fence;
+            p.y = survivalState.bossCenterY + (dyFence / (distFromCenter || 1)) * fence;
+        }
+    }
+
     survivalState.spawnTimer += dt;
     const spawnEvery = Math.max(0.18, 0.9 - survivalState.elapsed * 0.0019);
-    if (survivalState.elapsed < 295 && survivalState.spawnTimer >= spawnEvery) {
+    if (!survivalState.bossActive && survivalState.spawnTimer >= spawnEvery) {
         survivalState.spawnTimer = 0;
-        const amount = survivalState.elapsed > 210 ? 2 : 1;
+        const amount = Math.min(7, 1 + Math.floor(survivalState.elapsed / 150));
         for (let i = 0; i < amount; i += 1) survivalSpawnEnemy();
     }
 
-    if (survivalState.elapsed >= survivalState.nextBossAt && survivalState.bossNumber < 5) {
-        const finalBoss = survivalState.nextBossAt >= 280;
-        survivalSpawnBurst();
-        survivalSpawnBoss(finalBoss);
-        survivalState.nextBossAt += finalBoss ? 999 : 60;
+    if (!survivalState.bossActive && survivalState.elapsed >= survivalState.nextBossAt) {
+        survivalSpawnBoss();
     }
 
     const target = survivalNearestEnemy();
@@ -5036,7 +5198,11 @@ function survivalUpdate(dt) {
             const e = survivalState.enemies[ei];
             const d = Math.hypot(b.x - e.x, b.y - e.y);
             if (d < e.r + b.radius) {
-                e.hp -= b.damage;
+                let hitDamage = b.damage;
+                if (e.boss) hitDamage *= u.damageBoss;
+                else if (e.type === "tank" || e.type === "brute" || e.type === "shooter") hitDamage *= u.eliteDamage;
+                if (u.speedDamage > 1) hitDamage *= 1 + Math.min(0.35, Math.hypot(survivalMoveVector().x, survivalMoveVector().y) * (u.speedDamage - 1) * 0.08);
+                e.hp -= hitDamage;
                 e.hitFlash = 0.08;
                 survivalAddParticle(b.x, b.y, b.critical ? "#ffe36e" : e.color, b.critical ? 5 : 2);
                 hit = true;
@@ -5051,7 +5217,7 @@ function survivalUpdate(dt) {
         if (hit) survivalState.bullets.splice(bi, 1);
     }
 
-    const magnetRadius = 70 * survivalState.upgrades.magnet;
+    const magnetRadius = 70 * survivalState.upgrades.magnet * survivalState.upgrades.pickupXp;
     for (let gi = survivalState.gems.length - 1; gi >= 0; gi -= 1) {
         const g = survivalState.gems[gi];
         const d = Math.hypot(g.x - p.x, g.y - p.y);
@@ -5061,8 +5227,12 @@ function survivalUpdate(dt) {
             g.y += ((p.y - g.y) / (d || 1)) * pull * 55 * dt;
         }
         if (d < p.radius + g.radius + 5) {
-            survivalCollectXp(g.value);
-            survivalAddParticle(g.x, g.y, g.color, 3);
+            if (g.bossGem) {
+                survivalCollectBossXp(g);
+            } else {
+                survivalCollectXp(g.value);
+            }
+            survivalAddParticle(g.x, g.y, g.color, g.bossGem ? 22 : 3);
             survivalState.gems.splice(gi, 1);
         }
     }
@@ -5077,7 +5247,7 @@ function survivalUpdate(dt) {
             const oy = p.y + Math.sin(a) * orbitRadius;
             for (const e of survivalState.enemies) {
                 if (Math.hypot(e.x - ox, e.y - oy) < e.r + 14) {
-                    e.hp -= 34 * survivalState.upgrades.damage * dt * 2.2;
+                    e.hp -= 34 * survivalState.upgrades.damage * survivalState.upgrades.bladeDamage * dt * 2.2;
                     e.hitFlash = 0.05;
                 }
             }
@@ -5087,7 +5257,7 @@ function survivalUpdate(dt) {
     // Lightning chain
     if (survivalState.upgrades.lightning > 0 && survivalState.lightningTimer >= Math.max(1.0, 3.0 - survivalState.upgrades.lightning * 0.18)) {
         survivalState.lightningTimer = 0;
-        const targets = [...survivalState.enemies].sort((a,b) => survivalDist(p,a) - survivalDist(p,b)).slice(0, Math.min(8, 2 + survivalState.upgrades.lightning));
+        const targets = [...survivalState.enemies].sort((a,b) => survivalDist(p,a) - survivalDist(p,b)).slice(0, Math.min(14, 2 + survivalState.upgrades.lightning + survivalState.upgrades.lightningChain * 2));
         for (const e of targets) {
             e.hp -= 85 * survivalState.upgrades.damage;
             e.hitFlash = 0.14;
@@ -5099,10 +5269,10 @@ function survivalUpdate(dt) {
     // Bomb pulse
     if (survivalState.upgrades.bomb > 0 && survivalState.bombTimer >= Math.max(2.8, 8 - survivalState.upgrades.bomb * 0.35)) {
         survivalState.bombTimer = 0;
-        const radius = 150 * Math.sqrt(survivalState.upgrades.area) + survivalState.upgrades.bomb * 10;
+        const radius = 150 * Math.sqrt(survivalState.upgrades.area * survivalState.upgrades.bombRadius) + survivalState.upgrades.bomb * 10;
         for (const e of survivalState.enemies) {
             const d = survivalDist(p,e);
-            if (d < radius) e.hp -= 150 * survivalState.upgrades.damage * (1 - d / radius * 0.55);
+            if (d < radius) e.hp -= 150 * survivalState.upgrades.damage * survivalState.upgrades.bombDamage * (1 - d / radius * 0.55);
         }
         survivalAddParticle(p.x, p.y, "#ffb45d", 35);
     }
@@ -5121,7 +5291,6 @@ function survivalUpdate(dt) {
     }
     survivalState.particles = survivalState.particles.filter((part) => part.life > 0);
 
-    if (survivalState.elapsed >= 300) survivalEnd(true);
     survivalUpdateHud();
 }
 
@@ -5228,6 +5397,25 @@ function survivalDraw() {
         }
     }
 
+    // Boss arena fence: boss 등장부터 처치할 때까지 플레이어가 밖으로 나갈 수 없다.
+    if (survivalState.bossActive && survivalState.bossFenceRadius > 0) {
+        const radius = survivalState.bossFenceRadius;
+        const fenceScreen = survivalWorldToScreen(survivalState.bossCenterX, survivalState.bossCenterY);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(fenceScreen.x, fenceScreen.y, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = survivalState.bossTransition > 0 ? "rgba(255,214,71,.45)" : "rgba(255,91,115,.92)";
+        ctx.lineWidth = 5;
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.setLineDash([14, 10]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "rgba(255,70,90,.045)";
+        ctx.fill();
+        ctx.restore();
+    }
+
     // Player
     const cx = survivalState.width / 2;
     const cy = survivalState.height / 2;
@@ -5286,7 +5474,7 @@ function survivalEnd(won) {
     survivalEndScreen?.classList.remove("hidden");
     if (survivalEndIcon) survivalEndIcon.textContent = won ? "★" : "☠";
     if (survivalEndEyebrow) survivalEndEyebrow.textContent = won ? "RUN COMPLETE" : "RUN OVER";
-    if (survivalEndTitle) survivalEndTitle.textContent = won ? "5분 생존 성공" : "쓰러졌습니다";
+    if (survivalEndTitle) survivalEndTitle.textContent = won ? "생존 성공" : "쓰러졌습니다";
     if (survivalEndStats) survivalEndStats.textContent = `처치 ${survivalState.kills} · 레벨 ${survivalState.level} · 점수 ${survivalState.score}`;
     survivalGameStage?.classList.remove("playing");
 }
