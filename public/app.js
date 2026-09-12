@@ -1962,8 +1962,11 @@ function wormConnect(){
     });
     wormSocket.on('worm:died', ({mass=0,killer})=>{
         wormRunning=false; wormBoosting=false;
+        wormJoinSent=false;
+        clearTimeout(wormJoinWatchdog);
         wormDeathText.textContent=killer?`${killer}에게 길이 막혔습니다. 질량 ${Math.floor(mass)}.`:`질량 ${Math.floor(mass)}로 종료되었습니다.`;
         wormDeathPanel.hidden=false;
+        wormGameModal?.classList.add('worm-live');
         wormBurst(wormCamera.x,wormCamera.y,'#ff5e7d',28);
     });
     wormSocket.on('connect_error', ()=>{
@@ -2108,9 +2111,17 @@ if(wormGameModal){
     wormStartBtn?.addEventListener("click",wormStart);
     wormStartBtn?.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();wormStart();}});
     window.addEventListener("keydown",e=>{
-        if(e.key==="Enter" && wormGameModal.classList.contains("active") && !wormGameModal.classList.contains("worm-live") && wormCenterMessage && !wormCenterMessage.hidden){
-            e.preventDefault();
-            wormStart();
+        if(e.key==="Enter" && wormGameModal.classList.contains("active")){
+            if(wormDeathPanel && !wormDeathPanel.hidden){
+                e.preventDefault();
+                wormDeathPanel.hidden=true;
+                wormStart();
+                return;
+            }
+            if(!wormGameModal.classList.contains("worm-live") && wormCenterMessage && !wormCenterMessage.hidden){
+                e.preventDefault();
+                wormStart();
+            }
         }
     });
     wormRestartBtn?.addEventListener("click",()=>{wormDeathPanel.hidden=true;wormStart();});
@@ -5658,7 +5669,11 @@ function survivalOpenLevelUp(reason = "LEVEL UP") {
         // 같은 빌드를 계속 진화시키는 로그라이크 선택감을 만든다.
         return (Math.random() + al * 0.18) - (Math.random() + bl * 0.18);
     });
-    const choiceCount = survivalState.upgrades.choicePlus > 0 ? Math.min(4, weighted.length) : Math.min(3, weighted.length);
+    // 남은 기술이 1~2개뿐이면 정확히 그 개수만 표시한다.
+    // 3개 이상 남아 있을 때만 기존 선택지 확장 효과를 적용한다.
+    const choiceCount = weighted.length <= 2
+        ? weighted.length
+        : (survivalState.upgrades.choicePlus > 0 ? Math.min(4, weighted.length) : 3);
     const shuffled = weighted.slice(0, choiceCount);
     if (survivalUpgradeChoices) {
         survivalUpgradeChoices.innerHTML = shuffled.map((u) => {
@@ -5725,7 +5740,58 @@ function survivalMoveVector() {
     return { x: x / len, y: y / len, magnitude: Math.min(1, Math.hypot(x, y)) };
 }
 
-async function survivalDeveloperCheat(){const code=window.prompt("개발자 코드","");if(code===null)return;try{const r=await fetch("/api/developer/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code})});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.message||"개발자 코드가 올바르지 않습니다.");const p=survivalState.player || (survivalState.player={x:0,y:0,radius:17,hp:100,maxHp:100,invuln:0,facing:0});survivalState.developerCheat=true;for(const item of SURVIVAL_UPGRADES){for(let n=0;n<SURVIVAL_MAX_SKILL_LEVEL;n++)survivalApplyUpgrade(item.key);}if(p){p.maxHp=9999;p.hp=p.maxHp;p.radius=22;}survivalState.upgrades.damage=18;survivalState.upgrades.fireRate=18;survivalState.upgrades.projectile=16;survivalState.upgrades.drone=8;survivalState.upgrades.homing=8;survivalState.upgrades.knockback=24;survivalState.upgrades.repulse=24;survivalState.upgrades.goldXp=8;survivalState.upgrades.bossXp=8;survivalState.upgrades.bossSlow=24;survivalState.upgrades.bossBreaker=8;survivalState.xp=survivalState.xpNeed;survivalState.pausedForLevel=false;survivalLevelUp?.classList.add("hidden");survivalUpdateHud();survivalAddParticle(p?.x||0,p?.y||0,"#ffd83d",120);alert("개발자 모드 활성화: 모든 기술 MAX");}catch(e){alert(e.message||"개발자 인증 실패");}}
+async function survivalDeveloperCheat(){
+    const code=window.prompt("개발자 코드","");
+    if(code===null)return;
+    try{
+        const r=await fetch("/api/developer/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code})});
+        const d=await r.json();
+        if(!r.ok||!d.ok)throw new Error(d.message||"개발자 코드가 올바르지 않습니다.");
+        const p=survivalState.player || (survivalState.player={x:0,y:0,radius:17,hp:100,maxHp:100,invuln:0,facing:0});
+        survivalState.player=p;
+        survivalState.developerCheat=true;
+
+        // 모든 기술을 실제 최대 레벨(8)까지 올린다.
+        // 이미 MAX인 기술은 중복 적용하지 않고, 누락된 기술도 강제로 8레벨까지 보정한다.
+        for(const item of SURVIVAL_UPGRADES){
+            let level=survivalState.upgradeLevels[item.key]||0;
+            while(level<SURVIVAL_MAX_SKILL_LEVEL){
+                if(!survivalApplyUpgrade(item.key))break;
+                level=survivalState.upgradeLevels[item.key]||0;
+            }
+            survivalState.upgradeLevels[item.key]=SURVIVAL_MAX_SKILL_LEVEL;
+        }
+
+        // 핵심 수치는 확실하게 MAX 상태로 보정한다.
+        p.maxHp=Math.max(9999,Number(p.maxHp)||100);
+        p.hp=p.maxHp;
+        p.radius=22;
+        survivalState.upgrades.damage=Math.max(18,survivalState.upgrades.damage||1);
+        survivalState.upgrades.fireRate=Math.max(18,survivalState.upgrades.fireRate||1);
+        survivalState.upgrades.moveSpeed=Math.max(2.8,survivalState.upgrades.moveSpeed||1);
+        survivalState.upgrades.maxHp=8;
+        survivalState.upgrades.projectile=Math.max(16,survivalState.upgrades.projectile||1);
+        survivalState.upgrades.drone=Math.max(8,survivalState.upgrades.drone||0);
+        survivalState.upgrades.homing=Math.max(8,survivalState.upgrades.homing||0);
+        survivalState.upgrades.knockback=Math.max(24,survivalState.upgrades.knockback||0);
+        survivalState.upgrades.repulse=Math.max(24,survivalState.upgrades.repulse||0);
+        survivalState.upgrades.goldXp=Math.max(8,survivalState.upgrades.goldXp||1);
+        survivalState.upgrades.bossXp=Math.max(8,survivalState.upgrades.bossXp||1);
+        survivalState.upgrades.bossSlow=Math.max(24,survivalState.upgrades.bossSlow||0);
+        survivalState.upgrades.bossBreaker=Math.max(8,survivalState.upgrades.bossBreaker||0);
+        survivalState.shieldCharges=12;
+        survivalState.emergencyHealReady=true;
+        survivalState.overdriveTimer=999999;
+
+        // 모든 기술이 MAX이므로 XP는 꽉 찬 상태로 유지하되, 레벨업/선택창은 절대 열리지 않는다.
+        survivalState.xp=survivalState.xpNeed;
+        survivalState.pausedForLevel=false;
+        survivalLevelUp?.classList.add("hidden");
+        survivalUpdateHud();
+        survivalAddParticle(p.x||0,p.y||0,"#ffd83d",120);
+        alert("개발자 모드 활성화: 모든 기술 MAX");
+    }catch(e){alert(e.message||"개발자 인증 실패");}
+}
 function survivalPause(){if(!survivalState.running||survivalState.won)return;survivalState.pauseMenuOpen=true;survivalState.pausedForLevel=true;survivalPauseOverlay?.classList.remove("hidden");}
 function survivalResume(){survivalState.pauseMenuOpen=false;survivalState.pausedForLevel=false;survivalPauseOverlay?.classList.add("hidden");survivalState.last=performance.now();}
 function survivalQuitRun(){survivalState.pauseMenuOpen=false;survivalPauseOverlay?.classList.add("hidden");survivalEnd(false);}
