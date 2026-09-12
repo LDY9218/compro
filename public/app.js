@@ -1833,6 +1833,7 @@ function wormResizeCanvas(){
 function wormOpen(){
     if (!wormGameModal) return;
     wormGameModal.classList.add('active');
+    wormGameModal.classList.remove('worm-live');
     wormGameModal.setAttribute('aria-hidden','false');
     wormCenterMessage.hidden = false;
     wormDeathPanel.hidden = true;
@@ -1842,6 +1843,7 @@ function wormOpen(){
     wormResizeCanvas();
     lockPageScroll();
     wormDrawIntro();
+    wormPendingJoinName = (wormNickname?.value || 'Player').trim().slice(0,14) || 'Player';
 }
 
 function wormClose(){
@@ -1855,7 +1857,7 @@ function wormClose(){
         wormSocket.disconnect();
         wormSocket = null;
     }
-    wormGameModal.classList.remove('active');
+    wormGameModal.classList.remove('active','worm-live');
     wormGameModal.setAttribute('aria-hidden','true');
     unlockPageScroll();
 }
@@ -1913,8 +1915,8 @@ function wormJoinWhenConnected(){
     clearTimeout(wormJoinWatchdog);
     wormJoinWatchdog=setTimeout(()=>{
         if(!wormRunning || wormLastServerState===0){
-            wormStartLocalPractice();
-            if(wormPingEl) wormPingEl.textContent='PRACTICE · SERVER WAITING';
+            wormJoinSent=false;
+            if(wormPingEl) wormPingEl.textContent='SERVER WAITING';
         }
     },1800);
 }
@@ -1922,7 +1924,7 @@ function wormJoinWhenConnected(){
 function wormConnect(){
     if (wormSocket) return wormSocket;
     if (typeof window.io !== 'function') {
-        wormStartLocalPractice();
+        if(wormPingEl) wormPingEl.textContent='SERVER ERROR';
         return null;
     }
     wormSocket = window.io(window.location.origin, {
@@ -1943,6 +1945,7 @@ function wormConnect(){
         wormRunning=true;
         wormCenterMessage.hidden=true;
         wormDeathPanel.hidden=true;
+        wormGameModal?.classList.add('worm-live');
         wormState=wormState||{};
         wormState.me=id;
         wormJoinSent=false;
@@ -1954,6 +1957,7 @@ function wormConnect(){
         wormState=state;
         wormRunning=true;
         wormCenterMessage.hidden=true;
+        wormGameModal?.classList.add('worm-live');
         if(wormPingEl && wormPingEl.textContent.includes('WAITING')) wormPingEl.textContent='LIVE';
     });
     wormSocket.on('worm:died', ({mass=0,killer})=>{
@@ -1975,8 +1979,13 @@ function wormConnect(){
     });
     wormSocket.on('worm:error', ({message})=>{
         wormJoinSent=false;
-        if(wormPingEl) wormPingEl.textContent='PRACTICE';
-        wormStartLocalPractice();
+        wormRunning=false;
+        wormLocalMode=false;
+        wormGameModal?.classList.remove('worm-live');
+        wormCenterMessage.hidden=false;
+        if(wormPingEl) wormPingEl.textContent='SERVER ERROR';
+        const panel=wormCenterMessage?.querySelector('.worm-start-panel p');
+        if(panel && message) panel.innerHTML=wormEscapeHtml(message);
     });
     wormSocket.on('worm:ping', ({ms})=>{
         if(!wormLocalMode && wormPingEl) wormPingEl.textContent=`${Math.round(ms)}ms`;
@@ -1990,11 +1999,11 @@ function wormStart(){
     wormJoinSent=false;
     wormLastServerState=0;
     wormDeathPanel.hidden=true;
-    wormStartLocalPractice();
+    wormLocalMode=false;
+    wormRunning=false;
     if(wormPingEl) wormPingEl.textContent='CONNECTING';
     const socket=wormConnect();
-    if(!socket){ return; }
-    if(socket.connected) wormJoinWhenConnected();
+    if(socket?.connected) wormJoinWhenConnected();
 }
 
 function wormSendInput(){
@@ -2097,6 +2106,13 @@ function wormEscapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;",
 if(wormGameModal){
     window.addEventListener("resize",wormResizeCanvas);
     wormStartBtn?.addEventListener("click",wormStart);
+    wormStartBtn?.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();wormStart();}});
+    window.addEventListener("keydown",e=>{
+        if(e.key==="Enter" && wormGameModal.classList.contains("active") && !wormGameModal.classList.contains("worm-live") && wormCenterMessage && !wormCenterMessage.hidden){
+            e.preventDefault();
+            wormStart();
+        }
+    });
     wormRestartBtn?.addEventListener("click",()=>{wormDeathPanel.hidden=true;wormStart();});
     closeWormGameBtn?.addEventListener("click",wormClose);
     wormGameBackdrop?.addEventListener("click",wormClose);
@@ -5417,7 +5433,7 @@ function survivalApplyUpgrade(key) {
         case "damage": u.damage *= 1.16 * maxBoost; break;
         case "fireRate": u.fireRate *= 1.17 * maxBoost; break;
         case "moveSpeed": u.moveSpeed *= 1.10 * maxBoost; break;
-        case "maxHp": survivalState.player.maxHp *= 1.16 * maxBoost; survivalState.player.hp = survivalState.player.maxHp; break;
+        case "maxHp": { const player = survivalState.player || (survivalState.player = {x:0,y:0,radius:17,hp:100,maxHp:100,invuln:0,facing:0}); player.maxHp = Number(player.maxHp) || 100; player.maxHp *= 1.16 * maxBoost; player.hp = player.maxHp; break; }
         case "magnet": u.magnet *= 1.25 * maxBoost; break;
         case "projectile": u.projectile = Math.min(16, u.projectile + (maxed ? 3 : 1)); break;
         case "crit": u.crit = Math.min(0.92, u.crit + (maxed ? 0.12 : 0.055)); break;
@@ -5678,6 +5694,8 @@ function survivalUpdateHud() {
     if (survivalTimeEl) survivalTimeEl.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     if (survivalWaveEl) survivalWaveEl.textContent = String(survivalState.wave);
     if (survivalKillsEl) survivalKillsEl.textContent = String(survivalState.kills);
+    const survivalScoreEl = document.getElementById("survivalScore");
+    if (survivalScoreEl) survivalScoreEl.textContent = String(Math.floor(survivalState.score));
     if (survivalHpBar && survivalState.player) survivalHpBar.style.width = `${survivalClamp(survivalState.player.hp / survivalState.player.maxHp, 0, 1) * 100}%`;
     if (survivalXpBar) survivalXpBar.style.width = `${survivalClamp(survivalState.xp / survivalState.xpNeed, 0, 1) * 100}%`;
     const boss = survivalState.enemies.find((enemy) => enemy.boss);
@@ -5707,8 +5725,8 @@ function survivalMoveVector() {
     return { x: x / len, y: y / len, magnitude: Math.min(1, Math.hypot(x, y)) };
 }
 
-async function survivalDeveloperCheat(){const code=window.prompt("개발자 코드","");if(code===null)return;try{const r=await fetch("/api/developer/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code})});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.message||"개발자 코드가 올바르지 않습니다.");const p=survivalState.player;survivalState.developerCheat=true;for(const item of SURVIVAL_UPGRADES){for(let n=0;n<SURVIVAL_MAX_SKILL_LEVEL;n++)survivalApplyUpgrade(item.key);}if(p){p.maxHp=9999;p.hp=p.maxHp;p.radius=22;}survivalState.upgrades.damage=18;survivalState.upgrades.fireRate=18;survivalState.upgrades.projectile=16;survivalState.upgrades.drone=8;survivalState.upgrades.homing=8;survivalState.upgrades.knockback=24;survivalState.upgrades.repulse=24;survivalState.upgrades.goldXp=8;survivalState.upgrades.bossXp=8;survivalState.upgrades.bossSlow=24;survivalState.upgrades.bossBreaker=8;survivalState.xp=survivalState.xpNeed;survivalState.pausedForLevel=false;survivalLevelUp?.classList.add("hidden");survivalUpdateHud();survivalAddParticle(p?.x||0,p?.y||0,"#ffd83d",120);alert("개발자 모드 활성화: 모든 기술 MAX");}catch(e){alert(e.message||"개발자 인증 실패");}}
-function survivalPause(){if(!survivalState.running||survivalState.won||survivalState.pausedForLevel)return;survivalState.pauseMenuOpen=true;survivalState.pausedForLevel=true;survivalPauseOverlay?.classList.remove("hidden");}
+async function survivalDeveloperCheat(){const code=window.prompt("개발자 코드","");if(code===null)return;try{const r=await fetch("/api/developer/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code})});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.message||"개발자 코드가 올바르지 않습니다.");const p=survivalState.player || (survivalState.player={x:0,y:0,radius:17,hp:100,maxHp:100,invuln:0,facing:0});survivalState.developerCheat=true;for(const item of SURVIVAL_UPGRADES){for(let n=0;n<SURVIVAL_MAX_SKILL_LEVEL;n++)survivalApplyUpgrade(item.key);}if(p){p.maxHp=9999;p.hp=p.maxHp;p.radius=22;}survivalState.upgrades.damage=18;survivalState.upgrades.fireRate=18;survivalState.upgrades.projectile=16;survivalState.upgrades.drone=8;survivalState.upgrades.homing=8;survivalState.upgrades.knockback=24;survivalState.upgrades.repulse=24;survivalState.upgrades.goldXp=8;survivalState.upgrades.bossXp=8;survivalState.upgrades.bossSlow=24;survivalState.upgrades.bossBreaker=8;survivalState.xp=survivalState.xpNeed;survivalState.pausedForLevel=false;survivalLevelUp?.classList.add("hidden");survivalUpdateHud();survivalAddParticle(p?.x||0,p?.y||0,"#ffd83d",120);alert("개발자 모드 활성화: 모든 기술 MAX");}catch(e){alert(e.message||"개발자 인증 실패");}}
+function survivalPause(){if(!survivalState.running||survivalState.won)return;survivalState.pauseMenuOpen=true;survivalState.pausedForLevel=true;survivalPauseOverlay?.classList.remove("hidden");}
 function survivalResume(){survivalState.pauseMenuOpen=false;survivalState.pausedForLevel=false;survivalPauseOverlay?.classList.add("hidden");survivalState.last=performance.now();}
 function survivalQuitRun(){survivalState.pauseMenuOpen=false;survivalPauseOverlay?.classList.add("hidden");survivalEnd(false);}
 
