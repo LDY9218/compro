@@ -1820,6 +1820,7 @@ let wormParticles = [];
 let wormCamera = {x:2600,y:2600,zoom:1};
 let wormLocalMode = false;
 let wormLocalLast = performance.now();
+let wormBestMass = Number(localStorage.getItem('comtime_worm_best_mass') || 0);
 
 function wormResizeCanvas(){
     if (!wormGameCanvas) return;
@@ -1889,7 +1890,7 @@ function wormStartLocalPractice(){
     wormDeathPanel.hidden=true;
     if(wormPingEl) wormPingEl.textContent='PRACTICE';
     const meId='local-player';
-    const me={id:meId,nickname:(wormPendingJoinName||'Player'),x:2600,y:2600,mass:18,length:12,radius:15,color:'#58f5a6',dirX:wormAim.x,dirY:wormAim.y,isBot:false,segments:[]};
+    const me={id:meId,nickname:(wormPendingJoinName||'Player'),x:2600,y:2600,mass:18,length:12,radius:15,color:'#58f5a6',dirX:wormAim.x,dirY:wormAim.y,isBot:false,segments:[],trail:[]};
     wormState={world:5200,me:meId,food:[],players:[me],local:true};
     for(let i=0;i<9;i++){
         const a=i/9*Math.PI*2;
@@ -1989,7 +1990,7 @@ function wormStart(){
     wormJoinSent=false;
     wormLastServerState=0;
     wormDeathPanel.hidden=true;
-    wormCenterMessage.hidden=false;
+    wormStartLocalPractice();
     if(wormPingEl) wormPingEl.textContent='CONNECTING';
     const socket=wormConnect();
     if(!socket){ return; }
@@ -2042,8 +2043,8 @@ function wormUpdateLocal(now){
             if(p.y<100||p.y>wormState.world-100)p.dirY*=-1;
         }
         p.radius=Math.min(30,11+Math.sqrt(p.mass)*.72);p.length=Math.floor(8+p.mass*.75);
-        p.segments=[]; const segCount=Math.min(75,Math.max(18,Math.floor(p.length*1.4)));
-        for(let i=0;i<segCount;i++){const d=i*7.2;p.segments.push({x:p.x-p.dirX*d,y:p.y-p.dirY*d});}
+        if(!p.trail)p.trail=[];p.trail.unshift({x:p.x,y:p.y});const keep=Math.min(240,Math.max(90,Math.floor(45+p.mass*1.7)));if(p.trail.length>keep)p.trail.length=keep;
+        p.segments=[];const segCount=Math.min(95,Math.max(20,Math.floor(p.length*1.45)));let carry=0,prev=p.trail[0];p.segments.push({x:prev.x,y:prev.y});for(let i=1;i<p.trail.length&&p.segments.length<segCount;i++){const q=p.trail[i],dd=Math.hypot(q.x-prev.x,q.y-prev.y);carry+=dd;if(carry>=7.2){p.segments.push({x:q.x,y:q.y});carry=0;}prev=q;}
     }
     const me=players.find(p=>p.id===wormState.me);
     if(me){for(let i=wormState.food.length-1;i>=0;i--){const f=wormState.food[i];if((me.x-f.x)**2+(me.y-f.y)**2<(me.radius+f.r+7)**2){me.mass+=f.value;wormBurst(f.x,f.y,f.color,4);wormState.food.splice(i,1);}}}
@@ -2078,14 +2079,16 @@ function wormRender(now){
         for(let i=seg.length-1;i>=0;i-=Math.max(2,Math.floor(seg.length/18))){const q=seg[i],k=1-i/seg.length;ctx.globalAlpha=.18+.24*k;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(q.x,q.y,p.radius*(.12+.1*k),0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
         const head=seg[0];ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(head.x,head.y,p.radius*1.08,0,Math.PI*2);ctx.fill();
         ctx.fillStyle='#fff';const px=-p.dirY*p.radius*.36,py=p.dirX*p.radius*.36;ctx.beginPath();ctx.arc(head.x+px,head.y+py,p.radius*.25,0,Math.PI*2);ctx.arc(head.x-px,head.y-py,p.radius*.25,0,Math.PI*2);ctx.fill();ctx.fillStyle='#07100c';ctx.beginPath();ctx.arc(head.x+px+p.dirX*p.radius*.07,head.y+py+p.dirY*p.radius*.07,p.radius*.105,0,Math.PI*2);ctx.arc(head.x-px+p.dirX*p.radius*.07,head.y-py+p.dirY*p.radius*.07,p.radius*.105,0,Math.PI*2);ctx.fill();
+        const crownRank=sorted.indexOf(p);if(crownRank<3){ctx.font=`900 ${Math.max(18,p.radius*1.35)}px system-ui,sans-serif`;ctx.textAlign='center';ctx.fillStyle=['#ffd447','#dce5ef','#b9784e'][crownRank];ctx.shadowBlur=18;ctx.shadowColor=ctx.fillStyle;ctx.fillText('♛',head.x,head.y-p.radius*1.9);ctx.shadowBlur=0;}
         if(p.id===state.me){ctx.font=`800 ${Math.max(11,p.radius*1.05)}px system-ui,sans-serif`;ctx.textAlign='center';ctx.fillStyle='rgba(240,255,248,.96)';ctx.shadowBlur=10;ctx.shadowColor='#000';ctx.fillText(p.nickname,head.x,head.y-p.radius*2.15);ctx.shadowBlur=0;}
     }
     for(const q of wormParticles){ctx.globalAlpha=Math.max(0,q.life/q.max);ctx.fillStyle=q.color;ctx.beginPath();ctx.arc(q.x,q.y,q.size,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;ctx.restore();
     // HUD
     if(wormMassEl)wormMassEl.textContent=Math.floor(me?.mass||0);
+    if(me&&me.mass>wormBestMass){wormBestMass=me.mass;localStorage.setItem('comtime_worm_best_mass',String(Math.floor(wormBestMass)));}
     if(wormLengthEl)wormLengthEl.textContent=Math.floor(me?.length||0);
     if(wormOnlineCountEl){const humans=(state.players||[]).filter(p=>!p.isBot).length;wormOnlineCountEl.textContent=`${humans} ONLINE · ${state.players.length} IN ARENA`;}
-    if(wormLeaderboardEl){const top=sorted.slice(0,8);wormLeaderboardEl.innerHTML='<div class="worm-leader-title">TOP PLAYERS</div>'+top.map((p,i)=>`<div class="worm-row"><span class="rank">${i+1}</span><span class="dot" style="background:${p.color}"></span><span class="name">${wormEscapeHtml(p.nickname)}</span><span class="mass">${Math.floor(p.mass)}</span></div>`).join('');}
+    if(wormLeaderboardEl){const top=sorted.slice(0,8);wormLeaderboardEl.innerHTML='<div class="worm-leader-title">TOP PLAYERS · BEST '+Math.floor(wormBestMass)+'</div>'+top.map((p,i)=>`<div class="worm-row rank-${i+1}"><span class="rank">${i<3?'♛':i+1}</span><span class="dot" style="background:${p.color}"></span><span class="name">${wormEscapeHtml(p.nickname)}</span><span class="mass">${Math.floor(p.mass)}</span></div>`).join('');}
     requestAnimationFrame(wormRender);
 }
 
@@ -4850,6 +4853,11 @@ const survivalBossHp = document.getElementById("survivalBossHp");
 const survivalBossHpBar = document.getElementById("survivalBossHpBar");
 const survivalJoystick = document.getElementById("survivalJoystick");
 const survivalJoystickKnob = document.getElementById("survivalJoystickKnob");
+const survivalPauseBtn=document.getElementById("survivalPauseBtn");
+const survivalPauseOverlay=document.getElementById("survivalPauseOverlay");
+const survivalResumeBtn=document.getElementById("survivalResumeBtn");
+const survivalQuitBtn=document.getElementById("survivalQuitBtn");
+const survivalDeveloperBtn=document.getElementById("survivalDeveloperBtn");
 
 const survivalCtx = survivalCanvas?.getContext("2d");
 
@@ -4892,6 +4900,12 @@ const survivalState = {
     regenTimer: 0,
     specialTimer: 0,
     repulseTimer: 0,
+    pauseMenuOpen: false,
+    bestScore: Number(localStorage.getItem("comtime_survival_best_score") || 0),
+    bestTime: Number(localStorage.getItem("comtime_survival_best_time") || 0),
+    developerCheat: false,
+    bossDashTimer: 0, bossDashTime: 0, bossDashVx: 0, bossDashVy: 0,
+    fireBottleTimer: 0, laserTimer: 0, meteorTimer: 0, iceNovaTimer: 0, poisonTimer: 0, vortexTimer: 0, pulseTimer: 0, fanShotTimer: 0, stormTimer: 0, quakeTimer: 0, healingRainTimer: 0, vacuumTimer: 0, droneMissileTimer: 0, bladeWaveTimer: 0, railgunTimer: 0,
     emergencyHealReady: true,
     shieldCharges: 0,
     overdriveTimer: 0,
@@ -4957,7 +4971,55 @@ const SURVIVAL_UPGRADES = [
     { key: "dodge", icon: "◇", title: "회피 훈련", desc: "적의 공격을 일정 확률로 완전히 회피합니다." },
     { key: "repulse", icon: "◉", title: "퇴격 장치", desc: "주기적으로 주변 적을 밀어내 공간을 만들어 줍니다." },
     { key: "overdrive", icon: "✪", title: "오버드라이브", desc: "레벨업 직후 공격 속도와 화력이 폭발적으로 상승합니다." },
-    { key: "momentum", icon: "↗", title: "질주 화력", desc: "빠르게 이동할수록 다음 탄환의 피해가 증가합니다." },
+    { key: "momentum", icon: "↗", title: "질주 화력", desc: "빠르게 이동할수록 다음 탄환의 피해가 증가합니다." },    { key: "fireBottle", icon: "♨", title: "화염병 투척", desc: "적 밀집 지역에 화염병을 던져 지속 화염 지대를 만듭니다." },
+    { key: "boomerang", icon: "↩", title: "귀환 칼날", desc: "관통 칼날이 적을 지나간 뒤 플레이어에게 되돌아옵니다." },
+    { key: "ricochet", icon: "⤢", title: "반사 탄환", desc: "탄환이 적중한 뒤 가까운 다른 적으로 한 번 더 튕겨갑니다." },
+    { key: "railgun", icon: "▰", title: "레일건", desc: "긴 충전 뒤 전장을 가르는 초장거리 관통 사격을 발사합니다." },
+    { key: "laser", icon: "╱", title: "추적 레이저", desc: "가장 가까운 적을 짧은 레이저로 자동 추적합니다." },
+    { key: "meteor", icon: "☄", title: "유성 강하", desc: "위험한 적 주변에 유성이 떨어져 넓은 폭발을 일으킵니다." },
+    { key: "iceNova", icon: "✣", title: "빙결 폭풍", desc: "주변 전체에 빙결 파동을 일으켜 적을 크게 둔화합니다." },
+    { key: "poisonCloud", icon: "☁", title: "독성 구름", desc: "플레이어 주변에 독구름이 생겨 적을 지속적으로 약화합니다." },
+    { key: "bleed", icon: "🩸", title: "출혈 표식", desc: "탄환에 맞은 적에게 출혈이 남아 지속 피해를 줍니다." },
+    { key: "burn", icon: "♨", title: "작열 표식", desc: "탄환에 맞은 적이 일정 시간 불타며 추가 피해를 받습니다." },
+    { key: "shrapnel", icon: "✹", title: "파편 폭발", desc: "탄환 적중 순간 작은 파편이 사방으로 튀어 나갑니다." },
+    { key: "vortex", icon: "◌", title: "소용돌이", desc: "주기적으로 주변 적을 끌어당긴 뒤 중심에서 폭발합니다." },
+    { key: "gravityWell", icon: "⊙", title: "중력 우물", desc: "전장에 중력장이 생겨 적의 이동을 방해합니다." },
+    { key: "timeWarp", icon: "◷", title: "시간 왜곡", desc: "적과 보스의 행동 주기를 느리게 만드는 시간장을 만듭니다." },
+    { key: "haste", icon: "≫", title: "가속 회로", desc: "짧은 주기로 플레이어에게 순간적인 초가속을 부여합니다." },
+    { key: "overheat", icon: "▲", title: "과열 엔진", desc: "연속 공격할수록 화력이 누적되어 상승합니다." },
+    { key: "bloodPact", icon: "♱", title: "피의 계약", desc: "최대 체력 일부를 대가로 공격력이 크게 상승합니다." },
+    { key: "salvage", icon: "⌂", title: "전리품 회수", desc: "강한 적을 처치하면 추가 경험치 조각이 생성됩니다." },
+    { key: "choicePlus", icon: "4", title: "확장 선택", desc: "레벨업 선택지를 3개에서 4개로 확장합니다." },
+    { key: "lucky", icon: "♣", title: "행운의 눈", desc: "레벨업 때 더 높은 레벨의 기술이 선택될 확률을 높입니다." },
+    { key: "revive", icon: "✚", title: "불사 부활", desc: "치명상을 한 번 버티고 체력을 크게 회복합니다." },
+    { key: "clone", icon: "◇", title: "전투 분신", desc: "플레이어를 따라다니며 적을 유인하는 분신이 생성됩니다." },
+    { key: "turret", icon: "⌂", title: "자동 포탑", desc: "플레이어 주변에 자동 공격 포탑이 설치됩니다." },
+    { key: "sentry", icon: "▣", title: "감시 포대", desc: "전장을 감시하며 가까운 적을 자동 공격합니다." },
+    { key: "droneOrbit", icon: "◈", title: "궤도 드론", desc: "보조 드론이 플레이어 주변을 회전하며 적을 베어냅니다." },
+    { key: "droneShield", icon: "⬢", title: "드론 방패", desc: "드론이 적의 탄환과 접촉 피해 일부를 대신 막습니다." },
+    { key: "droneMissile", icon: "⌁", title: "드론 미사일", desc: "보조 드론이 강한 유도 미사일을 별도로 발사합니다." },
+    { key: "bladeWave", icon: "⌁", title: "검기 방출", desc: "회전 검이 일정 주기마다 바깥으로 검기를 발사합니다." },
+    { key: "pulse", icon: "◎", title: "공명 파동", desc: "플레이어 중심에서 주기적인 공격 파동이 퍼집니다." },
+    { key: "chainShot", icon: "⛓", title: "연쇄 사격", desc: "첫 명중 대상에서 다음 적으로 공격이 연결됩니다." },
+    { key: "splitShot", icon: "Y", title: "분열 탄환", desc: "탄환이 소멸할 때 작은 탄환으로 갈라집니다." },
+    { key: "fanShot", icon: "⌁", title: "부채꼴 사격", desc: "넓은 부채꼴 탄막을 펼쳐 근거리 적을 쓸어냅니다." },
+    { key: "sniper", icon: "⊕", title: "저격 조준", desc: "먼 적일수록 더 강한 피해를 주는 장거리 사격입니다." },
+    { key: "scatterBomb", icon: "✺", title: "집속 폭탄", desc: "폭탄이 작은 폭탄 여러 개로 한 번 더 분열됩니다." },
+    { key: "minefield", icon: "⌘", title: "지뢰밭", desc: "이동 경로에 잠시 남는 지뢰를 설치합니다." },
+    { key: "flameTrail", icon: "═", title: "화염 흔적", desc: "빠르게 이동한 경로에 불길이 남습니다." },
+    { key: "acidPool", icon: "◉", title: "산성 웅덩이", desc: "적 처치 지점에 산성 웅덩이가 남아 후속 적을 녹입니다." },
+    { key: "storm", icon: "⚡", title: "폭풍권", desc: "전장 곳곳에 무작위 번개가 떨어지는 폭풍을 만듭니다." },
+    { key: "quake", icon: "〽", title: "지진파", desc: "주기적으로 전장 전체에 진동 피해를 줍니다." },
+    { key: "shockwave", icon: "◉", title: "충격파", desc: "플레이어 중심에서 강한 원형 충격파를 발산합니다." },
+    { key: "prism", icon: "◇", title: "프리즘 광선", desc: "명중한 탄환이 여러 방향의 약한 광선으로 분산됩니다." },
+    { key: "voidRift", icon: "◈", title: "공허 균열", desc: "균열이 적을 끌어당기며 지속 피해를 줍니다." },
+    { key: "soulHarvest", icon: "☾", title: "영혼 수확", desc: "강한 적을 처치할수록 일시적으로 공격력이 누적됩니다." },
+    { key: "executioner", icon: "⚔", title: "처형인", desc: "보스가 아닌 적의 체력이 극도로 낮아지면 즉시 처형합니다." },
+    { key: "giantSlayer", icon: "♜", title: "거대 사냥꾼", desc: "덩치가 큰 적일수록 추가 피해를 줍니다." },
+    { key: "bossBreaker", icon: "♛", title: "왕의 파괴자", desc: "보스의 돌진과 특수 공격에 강한 대응 피해를 줍니다." },
+    { key: "adrenaline", icon: "!", title: "아드레날린", desc: "체력이 낮을수록 공격 속도와 이동 속도가 상승합니다." },
+    { key: "secondWind", icon: "↻", title: "두 번째 바람", desc: "보스를 쓰러뜨릴 때마다 체력을 즉시 회복합니다." },
+    { key: "phaseShift", icon: "◇", title: "위상 이동", desc: "짧은 주기로 적과 투사체를 통과할 수 있습니다." },
 ];
 
 const SURVIVAL_MAX_SKILL_LEVEL = 8;
@@ -4971,6 +5033,7 @@ const SURVIVAL_DEFAULT_UPGRADES = {
     bladeDamage: 1, bladeSpeed: 1, droneDamage: 1, droneCount: 0, critDamage: 1, healthPickup: 1,
     enemySlow: 0, execute: 0, homing: 0, healthOrb: 0, bossXp: 1, bossSlow: 0,
     focus: 0, emergencyHeal: 0, dodge: 0, repulse: 0, overdrive: 0, momentum: 1,
+    fireBottle: 0, boomerang: 0, ricochet: 0, railgun: 0, laser: 0, meteor: 0, iceNova: 0, poisonCloud: 0, bleed: 0, burn: 0, shrapnel: 0, vortex: 0, gravityWell: 0, timeWarp: 0, haste: 0, overheat: 0, bloodPact: 0, salvage: 0, choicePlus: 0, lucky: 0, revive: 0, clone: 0, turret: 0, sentry: 0, droneOrbit: 0, droneShield: 0, droneMissile: 0, bladeWave: 0, pulse: 0, chainShot: 0, splitShot: 0, fanShot: 0, sniper: 0, scatterBomb: 0, minefield: 0, flameTrail: 0, acidPool: 0, storm: 0, quake: 0, shockwave: 0, prism: 0, voidRift: 0, soulHarvest: 0, executioner: 0, giantSlayer: 0, bossBreaker: 0, adrenaline: 0, secondWind: 0, phaseShift: 0,
 };
 
 function survivalResize() {
@@ -5029,6 +5092,8 @@ function survivalReset() {
     survivalState.orbitalAngle = 0;
     survivalState.regenTimer = 0;
     survivalState.repulseTimer = 0;
+    survivalState.pauseMenuOpen = false; survivalState.bossDashTimer=0; survivalState.bossDashTime=0; survivalState.bossDashVx=0; survivalState.bossDashVy=0;
+    survivalState.fireBottleTimer=0; survivalState.laserTimer=0; survivalState.meteorTimer=0; survivalState.iceNovaTimer=0; survivalState.poisonTimer=0; survivalState.vortexTimer=0; survivalState.pulseTimer=0; survivalState.fanShotTimer=0; survivalState.stormTimer=0; survivalState.quakeTimer=0; survivalState.healingRainTimer=0; survivalState.vacuumTimer=0; survivalState.droneMissileTimer=0; survivalState.bladeWaveTimer=0; survivalState.railgunTimer=0;
     survivalState.emergencyHealReady = true;
     survivalState.shieldCharges = 0;
     survivalState.overdriveTimer = 0;
@@ -5139,14 +5204,16 @@ function survivalStartBossWave() {
         hp,
         maxHp: hp,
         speed: finalLook ? 27 : 31,
-        damage: (finalLook ? 31 : 23) * (1 + cycle * 0.06),
-        xp: 100 + cycle * 30,
+        damage: (finalLook ? 31 : 23) * (1 + cycle * 0.06) * (1 + Math.max(0, cycle - 2) * 0.035),
+        xp: 180 + cycle * 55,
         type: finalLook ? "bossKing" : "boss",
         color: finalLook ? "#ffd447" : "#ff6d61",
         hitFlash: 0,
         boss: true,
         finalBoss: finalLook,
         shootTimer: 0,
+        dashTimer: Math.max(1.2, 4.4 - cycle * 0.16), dashTime: 0, dashVx: 0, dashVy: 0,
+        bossNumber: cycle,
         id: `boss_${Date.now()}_${Math.random().toString(36).slice(2)}`,
     });
 }
@@ -5231,7 +5298,7 @@ function survivalShoot(target) {
                 damage: 11 * u.damage * u.droneDamage,
                 life: 1.5 * u.range,
                 pierceLeft: Math.max(0, Math.floor(u.pierce / 2)),
-                drone: true,
+                drone: true, homing: u.homing > 0 ? u.homing * 1.35 : 0,
             });
         }
     }
@@ -5258,7 +5325,7 @@ function survivalDropGem(enemy) {
     const isBoss = !!enemy.boss;
     const base = Math.max(1, enemy.xp || 1);
     const value = isBoss
-        ? Math.round(base * 2.2 * survivalState.upgrades.bossXp * (1 + survivalState.upgrades.goldXp * 0.12))
+        ? Math.round(base * 3.6 * survivalState.upgrades.bossXp * survivalState.upgrades.goldXp)
         : Math.max(1, Math.round(base * survivalState.upgrades.xpBoost));
     survivalState.gems.push({
         x: enemy.x,
@@ -5322,14 +5389,15 @@ function survivalTakeDamage(amount) {
 }
 
 function survivalCollectXp(value) {
-    survivalState.xp += value;
-    while (survivalState.xp >= survivalState.xpNeed) {
+    if (survivalEligibleUpgrades().length === 0) { survivalState.xp = survivalState.xpNeed; survivalUpdateHud(); return; }
+    survivalState.xp += Math.max(0, value);
+    let safety = 0;
+    while (survivalState.xp >= survivalState.xpNeed && safety++ < 12) {
         survivalState.xp -= survivalState.xpNeed;
         survivalState.level += 1;
-        survivalState.xpNeed = Math.floor(survivalState.xpNeed * 1.16 + 4 + survivalState.level * 0.25);
-        const opened = survivalOpenLevelUp("LEVEL UP");
-        if (opened) break;
-
+        survivalState.xpNeed = Math.min(3200, Math.floor(survivalState.xpNeed * 1.14 + 6 + Math.min(18, survivalState.level * 0.12)));
+        if (survivalEligibleUpgrades().length === 0) { survivalState.xp = survivalState.xpNeed; survivalState.pausedForLevel=false; survivalLevelUp?.classList.add("hidden"); break; }
+        if (survivalOpenLevelUp("LEVEL UP")) break;
     }
 }
 
@@ -5396,6 +5464,55 @@ function survivalApplyUpgrade(key) {
         case "repulse": u.repulse += maxed ? 3 : 1; break;
         case "overdrive": u.overdrive += maxed ? 3 : 1; survivalState.overdriveTimer = 10 + u.overdrive * 1.2; break;
         case "momentum": u.speedDamage *= 1.15 * maxBoost; break;
+        case "fireBottle": u.fireBottle += 1; break;
+        case "boomerang": u.boomerang += 1; break;
+        case "ricochet": u.ricochet += 1; break;
+        case "railgun": u.railgun += 1; break;
+        case "laser": u.laser += 1; break;
+        case "meteor": u.meteor += 1; break;
+        case "iceNova": u.iceNova += 1; break;
+        case "poisonCloud": u.poisonCloud += 1; break;
+        case "bleed": u.bleed += 1; break;
+        case "burn": u.burn += 1; break;
+        case "shrapnel": u.shrapnel += 1; break;
+        case "vortex": u.vortex += 1; break;
+        case "gravityWell": u.gravityWell += 1; break;
+        case "timeWarp": u.timeWarp += 1; break;
+        case "haste": u.haste += 1; break;
+        case "overheat": u.overheat += 1; break;
+        case "bloodPact": u.bloodPact += 1; break;
+        case "salvage": u.salvage += 1; break;
+        case "choicePlus": u.choicePlus += 1; break;
+        case "lucky": u.lucky += 1; break;
+        case "revive": u.revive += 1; break;
+        case "clone": u.clone += 1; break;
+        case "turret": u.turret += 1; break;
+        case "sentry": u.sentry += 1; break;
+        case "droneOrbit": u.droneOrbit += 1; break;
+        case "droneShield": u.droneShield += 1; break;
+        case "droneMissile": u.droneMissile += 1; break;
+        case "bladeWave": u.bladeWave += 1; break;
+        case "pulse": u.pulse += 1; break;
+        case "chainShot": u.chainShot += 1; break;
+        case "splitShot": u.splitShot += 1; break;
+        case "fanShot": u.fanShot += 1; break;
+        case "sniper": u.sniper += 1; break;
+        case "scatterBomb": u.scatterBomb += 1; break;
+        case "minefield": u.minefield += 1; break;
+        case "flameTrail": u.flameTrail += 1; break;
+        case "acidPool": u.acidPool += 1; break;
+        case "storm": u.storm += 1; break;
+        case "quake": u.quake += 1; break;
+        case "shockwave": u.shockwave += 1; break;
+        case "prism": u.prism += 1; break;
+        case "voidRift": u.voidRift += 1; break;
+        case "soulHarvest": u.soulHarvest += 1; break;
+        case "executioner": u.executioner += 1; break;
+        case "giantSlayer": u.giantSlayer += 1; break;
+        case "bossBreaker": u.bossBreaker += 1; break;
+        case "adrenaline": u.adrenaline += 1; break;
+        case "secondWind": u.secondWind += 1; break;
+        case "phaseShift": u.phaseShift += 1; break;
         default: return false;
     }
     return true;
@@ -5403,8 +5520,17 @@ function survivalApplyUpgrade(key) {
 
 function survivalCollectBossXp(gem) {
     if (!gem || !gem.bossGem) return;
-    survivalState.score += Math.round(gem.value * 2);
-    survivalAddParticle(gem.x, gem.y, "#ffd83d", 30);
+    survivalState.score += Math.round(gem.value * 3 * (1 + survivalState.upgrades.greed * 0.08));
+    // 황금 경험치는 실제 경험치에도 크게 반영하되, 보스 보상 UI와 일반 레벨업 UI가 겹치지 않도록 즉시 레벨만 계산합니다.
+    survivalState.xp += gem.value;
+    let bossLevelSafety = 0;
+    while (survivalState.xp >= survivalState.xpNeed && survivalEligibleUpgrades().length > 0 && bossLevelSafety++ < 12) {
+        survivalState.xp -= survivalState.xpNeed;
+        survivalState.level += 1;
+        survivalState.xpNeed = Math.min(3200, Math.floor(survivalState.xpNeed * 1.14 + 6 + Math.min(18, survivalState.level * 0.12)));
+    }
+    if (survivalEligibleUpgrades().length === 0) survivalState.xp = survivalState.xpNeed;
+    survivalAddParticle(gem.x, gem.y, "#ffd83d", 48);
     const eligible = survivalEligibleUpgrades();
     const picked = [];
     while (eligible.length && picked.length < 3) {
@@ -5490,7 +5616,8 @@ function survivalUpgradePreview(key, level) {
         overdrive: `Lv.${level} → Lv.${n} · 강화 후 오버드라이브 지속/화력 증가`,
         momentum: `Lv.${level} → Lv.${n} · 이동 중 다음 탄환 피해 +${Math.round((level + 1) * 8)}%`,
     };
-    return text[key] || `Lv.${level} → Lv.${n} · 이 능력이 더 강해집니다.`;
+    if (!text[key]) { const skill=SURVIVAL_UPGRADES.find(item=>item.key===key); return `Lv.${level} → Lv.${n} · ${skill?.desc || "고유 효과 강화"}`; }
+    return text[key];
 }
 
 function survivalOpenLevelUp(reason = "LEVEL UP") {
@@ -5515,7 +5642,8 @@ function survivalOpenLevelUp(reason = "LEVEL UP") {
         // 같은 빌드를 계속 진화시키는 로그라이크 선택감을 만든다.
         return (Math.random() + al * 0.18) - (Math.random() + bl * 0.18);
     });
-    const shuffled = weighted.slice(0, Math.min(3, weighted.length));
+    const choiceCount = survivalState.upgrades.choicePlus > 0 ? Math.min(4, weighted.length) : Math.min(3, weighted.length);
+    const shuffled = weighted.slice(0, choiceCount);
     if (survivalUpgradeChoices) {
         survivalUpgradeChoices.innerHTML = shuffled.map((u) => {
             const level = survivalState.upgradeLevels[u.key] || 0;
@@ -5579,12 +5707,17 @@ function survivalMoveVector() {
     return { x: x / len, y: y / len, magnitude: Math.min(1, Math.hypot(x, y)) };
 }
 
+async function survivalDeveloperCheat(){const code=window.prompt("개발자 코드","");if(code===null)return;try{const r=await fetch("/api/developer/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code})});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.message||"개발자 코드가 올바르지 않습니다.");const p=survivalState.player;survivalState.developerCheat=true;for(const item of SURVIVAL_UPGRADES){for(let n=0;n<SURVIVAL_MAX_SKILL_LEVEL;n++)survivalApplyUpgrade(item.key);}if(p){p.maxHp=9999;p.hp=p.maxHp;p.radius=22;}survivalState.upgrades.damage=18;survivalState.upgrades.fireRate=18;survivalState.upgrades.projectile=16;survivalState.upgrades.drone=8;survivalState.upgrades.homing=8;survivalState.upgrades.knockback=24;survivalState.upgrades.repulse=24;survivalState.upgrades.goldXp=8;survivalState.upgrades.bossXp=8;survivalState.upgrades.bossSlow=24;survivalState.upgrades.bossBreaker=8;survivalState.xp=survivalState.xpNeed;survivalState.pausedForLevel=false;survivalLevelUp?.classList.add("hidden");survivalUpdateHud();survivalAddParticle(p?.x||0,p?.y||0,"#ffd83d",120);alert("개발자 모드 활성화: 모든 기술 MAX");}catch(e){alert(e.message||"개발자 인증 실패");}}
+function survivalPause(){if(!survivalState.running||survivalState.won||survivalState.pausedForLevel)return;survivalState.pauseMenuOpen=true;survivalState.pausedForLevel=true;survivalPauseOverlay?.classList.remove("hidden");}
+function survivalResume(){survivalState.pauseMenuOpen=false;survivalState.pausedForLevel=false;survivalPauseOverlay?.classList.add("hidden");survivalState.last=performance.now();}
+function survivalQuitRun(){survivalState.pauseMenuOpen=false;survivalPauseOverlay?.classList.add("hidden");survivalEnd(false);}
+
 function survivalUpdate(dt) {
     const p = survivalState.player;
     const u = survivalState.upgrades;
     if (!p || !survivalState.running || survivalState.pausedForLevel || survivalState.won) return;
 
-    survivalState.elapsed += dt;
+    if (!survivalState.bossActive) survivalState.elapsed += dt;
     survivalState.bossTransition = Math.max(0, survivalState.bossTransition - dt);
     p.invuln = Math.max(0, p.invuln - dt);
     survivalState.wave = 1 + Math.floor(survivalState.elapsed / survivalState.waveDuration);
@@ -5600,7 +5733,8 @@ function survivalUpdate(dt) {
     }
 
     const move = survivalMoveVector();
-    const speed = 170 * survivalState.upgrades.moveSpeed * (move.magnitude > 0.82 ? 1 + survivalState.upgrades.dash * 0.035 : 1);
+    const lowHpRatio = p.hp / Math.max(1,p.maxHp);
+    const speed = 170 * survivalState.upgrades.moveSpeed * (1 + survivalState.upgrades.haste * 0.035) * (move.magnitude > 0.82 ? 1 + survivalState.upgrades.dash * 0.035 : 1) * (lowHpRatio < 0.4 ? 1 + survivalState.upgrades.adrenaline * 0.04 : 1);
     p.x += move.x * speed * move.magnitude * dt;
     p.y += move.y * speed * move.magnitude * dt;
 
@@ -5671,31 +5805,18 @@ function survivalUpdate(dt) {
         const dx = p.x - e.x;
         const dy = p.y - e.y;
         const d = Math.hypot(dx, dy) || 1;
-        e.hitFlash = Math.max(0, e.hitFlash - dt);
+        e.hitFlash = Math.max(0, e.hitFlash - dt); if(e.bleed>0){e.bleed-=dt;e.hp-=18*u.damage*u.bleed*dt;} if(e.burn>0){e.burn-=dt;e.hp-=26*u.damage*u.burn*dt;}
         const frostSlow = 1 / (1 + survivalState.upgrades.frost * 0.11);
+        const timeSlow = 1 / (1 + survivalState.upgrades.timeWarp * 0.06);
         const bossSlow = e.boss ? (1 / (1 + survivalState.upgrades.bossSlow * 0.08)) : 1;
-        e.x += (dx / d) * e.speed * frostSlow * bossSlow * dt;
-        e.y += (dy / d) * e.speed * frostSlow * bossSlow * dt;
         if (e.boss) {
-            e.shootTimer += dt;
-            if (e.shootTimer > 2.2 && d < 650) {
-                e.shootTimer = 0;
-                // Boss shockwave: several short-lived projectiles.
-                for (let n = 0; n < 8; n += 1) {
-                    const a = (Math.PI * 2 * n) / 8;
-                    survivalState.bullets.push({
-                        x: e.x,
-                        y: e.y,
-                        vx: Math.cos(a) * 170,
-                        vy: Math.sin(a) * 170,
-                        radius: 8,
-                        damage: 12,
-                        life: 2.5,
-                        enemyBullet: true,
-                    });
-                }
-            }
-        }
+            e.shootTimer += dt; e.dashTimer=(e.dashTimer||0)-dt;
+            if (e.bossNumber>=2 && e.dashTime<=0 && e.dashTimer<=0) { e.dashTime=Math.max(.34,.75-e.bossNumber*.018); e.dashTimer=Math.max(1.8,4.2-e.bossNumber*.12); const a=Math.atan2(p.y-e.y,p.x-e.x); e.dashVx=Math.cos(a)*(330+e.bossNumber*16); e.dashVy=Math.sin(a)*(330+e.bossNumber*16); survivalAddParticle(e.x,e.y,e.finalBoss?'#ffd447':'#ff647b',34); }
+            if(e.dashTime>0){e.dashTime-=dt;e.x+=e.dashVx*dt;e.y+=e.dashVy*dt;} else {e.x+=(dx/d)*e.speed*frostSlow*bossSlow*timeSlow*dt;e.y+=(dy/d)*e.speed*frostSlow*bossSlow*timeSlow*dt;}
+            const minX=survivalState.bossCenterX-survivalState.bossFenceHalfW+e.r+6,maxX=survivalState.bossCenterX+survivalState.bossFenceHalfW-e.r-6,minY=survivalState.bossCenterY-survivalState.bossFenceHalfH+e.r+6,maxY=survivalState.bossCenterY+survivalState.bossFenceHalfH-e.r-6;
+            e.x=survivalClamp(e.x,minX,maxX);e.y=survivalClamp(e.y,minY,maxY);
+            if(e.shootTimer>Math.max(.75,2.2-e.bossNumber*.05)&&d<800){e.shootTimer=0;const count=8+Math.min(8,Math.floor(e.bossNumber/2));for(let n=0;n<count;n++){const a=Math.PI*2*n/count;survivalState.bullets.push({x:e.x,y:e.y,vx:Math.cos(a)*(170+e.bossNumber*4),vy:Math.sin(a)*(170+e.bossNumber*4),radius:8+Math.min(5,e.bossNumber*.15),damage:(12+e.bossNumber*2.4)*(e.finalBoss?1.35:1),life:2.5,enemyBullet:true});}}
+        } else { e.x+=(dx/d)*e.speed*frostSlow*timeSlow*dt; e.y+=(dy/d)*e.speed*frostSlow*timeSlow*dt; }
         if (d < p.radius + e.r) {
             const contactDamage = e.damage * dt * 2.2;
             survivalTakeDamage(contactDamage);
@@ -5704,6 +5825,10 @@ function survivalUpdate(dt) {
             if (u.thorns > 0) e.hp -= 16 * u.damage * u.thorns * dt * 2.2;
         }
     }
+
+    // 몬스터끼리 겹쳐 한 덩어리처럼 보이지 않도록 인접 셀 기반 분리 물리를 적용합니다.
+    const buckets=new Map(),cellSize=64; for(const e of survivalState.enemies){const cx=Math.floor(e.x/cellSize),cy=Math.floor(e.y/cellSize),key=`${cx}:${cy}`;if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(e);}
+    for(const e of survivalState.enemies){const cx=Math.floor(e.x/cellSize),cy=Math.floor(e.y/cellSize);for(let ox=-1;ox<=1;ox++)for(let oy=-1;oy<=1;oy++){for(const q of buckets.get(`${cx+ox}:${cy+oy}`)||[]){if(q===e||q.boss||e.boss)continue;const dx=e.x-q.x,dy=e.y-q.y,d=Math.hypot(dx,dy)||.001,minD=e.r+q.r+2;if(d<minD){const push=(minD-d)*.5;e.x+=dx/d*push;e.y+=dy/d*push;q.x-=dx/d*push;q.y-=dy/d*push;}}}}
 
     for (let bi = survivalState.bullets.length - 1; bi >= 0; bi -= 1) {
         const b = survivalState.bullets[bi];
@@ -5737,12 +5862,12 @@ function survivalUpdate(dt) {
                     const moveVector = survivalMoveVector();
                     hitDamage *= 1 + Math.min(1.8, moveVector.magnitude * (u.speedDamage - 1) * 0.12);
                 }
+                if(u.sniper>0)hitDamage*=1+Math.min(2.4,d/260*u.sniper*.08); if(u.precision>0&&d<e.r*.45+b.radius)hitDamage*=1+u.precision*.09; if(e.boss&&e.dashTime>0&&u.bossBreaker>0){e.dashTime=0;e.dashTimer=Math.max(e.dashTimer,1.2);hitDamage*=1+u.bossBreaker*.12;}
                 e.hp -= hitDamage;
+                if(u.bleed>0)e.bleed=Math.max(e.bleed||0,1.4+u.bleed*.2); if(u.burn>0)e.burn=Math.max(e.burn||0,1.8+u.burn*.2);
                 if (u.knockback > 0) {
-                    const push = Math.min(42, 8 + u.knockback * 4);
-                    const pd = Math.hypot(e.x - p.x, e.y - p.y) || 1;
-                    e.x += ((e.x - p.x) / pd) * push;
-                    e.y += ((e.y - p.y) / pd) * push;
+                    const push=Math.min(92,8+u.knockback*4),pd=Math.hypot(e.x-p.x,e.y-p.y)||1; e.x+=((e.x-p.x)/pd)*push;e.y+=((e.y-p.y)/pd)*push;
+                    if(e.boss&&survivalState.bossActive){e.x=survivalClamp(e.x,survivalState.bossCenterX-survivalState.bossFenceHalfW+e.r+6,survivalState.bossCenterX+survivalState.bossFenceHalfW-e.r-6);e.y=survivalClamp(e.y,survivalState.bossCenterY-survivalState.bossFenceHalfH+e.r+6,survivalState.bossCenterY+survivalState.bossFenceHalfH-e.r-6);}
                 }
                 e.hitFlash = 0.08;
                 survivalAddParticle(b.x, b.y, b.critical ? "#ffe36e" : e.color, b.critical ? 5 : 2);
@@ -5822,6 +5947,8 @@ function survivalUpdate(dt) {
 
     if (u.repulse > 0 && survivalState.repulseTimer >= Math.max(1.8, 5.2 - u.repulse * 0.16)) {
         survivalState.repulseTimer = 0;
+    survivalState.pauseMenuOpen = false; survivalState.bossDashTimer=0; survivalState.bossDashTime=0; survivalState.bossDashVx=0; survivalState.bossDashVy=0;
+    survivalState.fireBottleTimer=0; survivalState.laserTimer=0; survivalState.meteorTimer=0; survivalState.iceNovaTimer=0; survivalState.poisonTimer=0; survivalState.vortexTimer=0; survivalState.pulseTimer=0; survivalState.fanShotTimer=0; survivalState.stormTimer=0; survivalState.quakeTimer=0; survivalState.healingRainTimer=0; survivalState.vacuumTimer=0; survivalState.droneMissileTimer=0; survivalState.bladeWaveTimer=0; survivalState.railgunTimer=0;
         const radius = 120 + u.repulse * 16;
         for (const e of survivalState.enemies) {
             const dx = e.x - p.x;
@@ -5829,13 +5956,30 @@ function survivalUpdate(dt) {
             const d = Math.hypot(dx, dy) || 1;
             if (d < radius) {
                 const push = (1 - d / radius) * (90 + u.repulse * 14);
-                e.x += (dx / d) * push;
-                e.y += (dy / d) * push;
+                e.x += (dx / d) * push; e.y += (dy / d) * push;
+                if(e.boss&&survivalState.bossActive){e.x=survivalClamp(e.x,survivalState.bossCenterX-survivalState.bossFenceHalfW+e.r+6,survivalState.bossCenterX+survivalState.bossFenceHalfW-e.r-6);e.y=survivalClamp(e.y,survivalState.bossCenterY-survivalState.bossFenceHalfH+e.r+6,survivalState.bossCenterY+survivalState.bossFenceHalfH-e.r-6);}
             }
         }
         survivalAddParticle(p.x, p.y, "#a7edff", 24);
     }
 
+    survivalState.fireBottleTimer+=dt;survivalState.laserTimer+=dt;survivalState.meteorTimer+=dt;survivalState.iceNovaTimer+=dt;survivalState.poisonTimer+=dt;survivalState.vortexTimer+=dt;survivalState.pulseTimer+=dt;survivalState.fanShotTimer+=dt;survivalState.stormTimer+=dt;survivalState.quakeTimer+=dt;survivalState.healingRainTimer+=dt;survivalState.vacuumTimer+=dt;survivalState.droneMissileTimer+=dt;survivalState.bladeWaveTimer+=dt;survivalState.railgunTimer+=dt;
+    if(u.fireBottle&&survivalState.fireBottleTimer>Math.max(2.5,5.2-u.fireBottle*.18)){survivalState.fireBottleTimer=0;const t=survivalNearestEnemy();if(t){const r=95+u.fireBottle*10;for(const e of survivalState.enemies){const d=survivalDist(t,e);if(d<r)e.hp-=75*u.damage*(1-d/r*.5);}survivalAddParticle(t.x,t.y,'#ff7a3d',45);}}
+    if(u.laser&&survivalState.laserTimer>Math.max(.55,1.9-u.laser*.1)){survivalState.laserTimer=0;const t=survivalNearestEnemy();if(t){t.hp-=170*u.damage*(1+u.laser*.08);t.hitFlash=.12;survivalAddParticle(t.x,t.y,'#c6f6ff',18);}}
+    if(u.meteor&&survivalState.meteorTimer>Math.max(1.2,4.8-u.meteor*.16)){survivalState.meteorTimer=0;const t=survivalNearestEnemy();if(t){const r=110+u.meteor*8;for(const e of survivalState.enemies){const d=survivalDist(t,e);if(d<r)e.hp-=260*u.damage*(1-d/r*.6);}survivalAddParticle(t.x,t.y,'#ffb24a',65);}}
+    if(u.iceNova&&survivalState.iceNovaTimer>Math.max(2.2,7-u.iceNova*.3)){survivalState.iceNovaTimer=0;const r=180+u.iceNova*14;for(const e of survivalState.enemies)if(survivalDist(p,e)<r)e.speed*=Math.max(.4,1-.12*u.iceNova);survivalAddParticle(p.x,p.y,'#9de9ff',55);}
+    if(u.poisonCloud&&survivalState.poisonTimer>.5){survivalState.poisonTimer=0;const r=105+u.poisonCloud*9;for(const e of survivalState.enemies)if(survivalDist(p,e)<r)e.hp-=22*u.damage*u.poisonCloud*.2;}
+    if(u.vortex&&survivalState.vortexTimer>Math.max(2,5.5-u.vortex*.2)){survivalState.vortexTimer=0;const r=240+u.vortex*15;for(const e of survivalState.enemies){const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy)||1;if(d<r){e.x+=dx/d*(1-d/r)*90;e.y+=dy/d*(1-d/r)*90;}}survivalAddParticle(p.x,p.y,'#b88cff',45);}
+    if(u.pulse&&survivalState.pulseTimer>Math.max(.9,3.2-u.pulse*.12)){survivalState.pulseTimer=0;const r=135+u.pulse*12;for(const e of survivalState.enemies)if(survivalDist(p,e)<r)e.hp-=110*u.damage;survivalAddParticle(p.x,p.y,'#65e6ff',35);}
+    if(u.fanShot&&survivalState.fanShotTimer>Math.max(.7,2.5-u.fanShot*.1)){survivalState.fanShotTimer=0;const t=survivalNearestEnemy();if(t){const a=Math.atan2(t.y-p.y,t.x-p.x);for(let n=-2;n<=2;n++){const aa=a+n*.18;survivalState.bullets.push({x:p.x,y:p.y,vx:Math.cos(aa)*500,vy:Math.sin(aa)*500,radius:5,damage:24*u.damage,life:1.5,pierceLeft:1,homing:u.homing*.7});}}}
+    if(u.storm&&survivalState.stormTimer>Math.max(.5,2.8-u.storm*.12)){survivalState.stormTimer=0;for(let n=0;n<Math.min(4+u.storm,12);n++){const t=survivalState.enemies[Math.floor(Math.random()*survivalState.enemies.length)];if(!t)break;t.hp-=90*u.damage;survivalAddParticle(t.x,t.y,'#bfeaff',16);}}
+    if(u.quake&&survivalState.quakeTimer>Math.max(2.2,6.5-u.quake*.2)){survivalState.quakeTimer=0;for(const e of survivalState.enemies)e.hp-=95*u.damage;survivalAddParticle(p.x,p.y,'#d6a06b',60);}
+    if(u.shockwave&&survivalState.quakeTimer>Math.max(1.5,4.5-u.shockwave*.15)){survivalState.quakeTimer=0;const r=150+u.shockwave*14;for(const e of survivalState.enemies){const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy)||1;if(d<r){e.hp-=70*u.damage;e.x+=dx/d*80;e.y+=dy/d*80;}}}
+    if(u.vacuum&&survivalState.vacuumTimer>Math.max(1.5,4-u.vacuum*.2)){survivalState.vacuumTimer=0;for(const g of survivalState.gems){g.x+=(p.x-g.x)*.35;g.y+=(p.y-g.y)*.35;}}
+    if(u.healingRain&&survivalState.healingRainTimer>Math.max(3,9-u.healingRain*.3)){survivalState.healingRainTimer=0;for(let i=0;i<Math.min(3+u.healingRain,12);i++)survivalState.gems.push({x:p.x+survivalRandom(-180,180),y:p.y+survivalRandom(-180,180),value:0,radius:7,color:'#ff7ea4',bossGem:false,healthGem:true});}
+    if(u.droneMissile&&survivalState.droneMissileTimer>Math.max(1,3.8-u.droneMissile*.15)){survivalState.droneMissileTimer=0;const t=survivalNearestEnemy();if(t)survivalState.bullets.push({x:p.x,y:p.y,vx:0,vy:-20,radius:8,damage:95*u.damage*(1+u.droneMissile*.1),life:3,pierceLeft:2,drone:true,homing:Math.max(4,u.homing*1.8),missile:true});}
+    if(u.bladeWave&&survivalState.bladeWaveTimer>Math.max(.8,3.2-u.bladeWave*.14)){survivalState.bladeWaveTimer=0;for(let n=0;n<8;n++){const a=n*Math.PI/4;survivalState.bullets.push({x:p.x,y:p.y,vx:Math.cos(a)*380,vy:Math.sin(a)*380,radius:6,damage:55*u.damage,life:1.2,pierceLeft:2});}}
+    if(u.railgun&&survivalState.railgunTimer>Math.max(1.8,6.5-u.railgun*.25)){survivalState.railgunTimer=0;const t=survivalNearestEnemy();if(t){const a=Math.atan2(t.y-p.y,t.x-p.x);for(const e of survivalState.enemies){const relx=e.x-p.x,rely=e.y-p.y,perp=Math.abs(relx*Math.sin(a)-rely*Math.cos(a));if(perp<22)e.hp-=320*u.damage*(1+u.railgun*.1);}survivalAddParticle(t.x,t.y,'#ffffff',80);}}
     // Remove enemies defeated by special weapons.
     for (let ei = survivalState.enemies.length - 1; ei >= 0; ei -= 1) {
         if (survivalState.enemies[ei].hp <= 0) survivalKillEnemy(ei);
@@ -6034,6 +6178,8 @@ function survivalStart() {
 function survivalEnd(won) {
     if (!survivalState.running) return;
     survivalState.running = false;
+    if(survivalState.score>survivalState.bestScore){survivalState.bestScore=survivalState.score;localStorage.setItem("comtime_survival_best_score",String(survivalState.bestScore));}
+    if(survivalState.elapsed>survivalState.bestTime){survivalState.bestTime=survivalState.elapsed;localStorage.setItem("comtime_survival_best_time",String(survivalState.bestTime));}
     survivalState.won = won;
     if (survivalState.raf) cancelAnimationFrame(survivalState.raf);
     survivalState.raf = null;
@@ -6042,7 +6188,7 @@ function survivalEnd(won) {
     if (survivalEndIcon) survivalEndIcon.textContent = won ? "★" : "☠";
     if (survivalEndEyebrow) survivalEndEyebrow.textContent = won ? "RUN COMPLETE" : "RUN OVER";
     if (survivalEndTitle) survivalEndTitle.textContent = won ? "생존 성공" : "쓰러졌습니다";
-    if (survivalEndStats) survivalEndStats.textContent = `처치 ${survivalState.kills} · 레벨 ${survivalState.level} · 점수 ${survivalState.score}`;
+    if (survivalEndStats) survivalEndStats.textContent = `처치 ${survivalState.kills} · 레벨 ${survivalState.level} · 점수 ${survivalState.score} · 최고점수 ${survivalState.bestScore}`;
     survivalGameStage?.classList.remove("playing");
 }
 
@@ -6087,6 +6233,7 @@ function survivalResetJoystick() {
 
 if (survivalStartBtn) survivalStartBtn.addEventListener("click", survivalStart);
 if (survivalRestartBtn) survivalRestartBtn.addEventListener("click", survivalStart);
+if(survivalPauseBtn)survivalPauseBtn.addEventListener("click",survivalPause);if(survivalResumeBtn)survivalResumeBtn.addEventListener("click",survivalResume);if(survivalQuitBtn)survivalQuitBtn.addEventListener("click",survivalQuitRun);if(survivalDeveloperBtn)survivalDeveloperBtn.addEventListener("click",survivalDeveloperCheat);
 if (closeSurvivalBtn) closeSurvivalBtn.addEventListener("click", closeSurvivalGame);
 if (survivalBackdrop) survivalBackdrop.addEventListener("click", closeSurvivalGame);
 window.addEventListener("resize", survivalResize);
