@@ -4931,6 +4931,7 @@ const survivalState = {
     bestScore: Number(localStorage.getItem("comtime_survival_best_score") || 0),
     bestTime: Number(localStorage.getItem("comtime_survival_best_time") || 0),
     developerCheat: false,
+    developerAuthorized: false,
     bossDashTimer: 0, bossDashTime: 0, bossDashVx: 0, bossDashVy: 0,
     fireBottleTimer: 0, laserTimer: 0, meteorTimer: 0, iceNovaTimer: 0, poisonTimer: 0, vortexTimer: 0, pulseTimer: 0, fanShotTimer: 0, stormTimer: 0, quakeTimer: 0, healingRainTimer: 0, vacuumTimer: 0, droneMissileTimer: 0, bladeWaveTimer: 0, railgunTimer: 0,
     emergencyHealReady: true,
@@ -5417,7 +5418,7 @@ function survivalTakeDamage(amount) {
 
 function survivalCollectXp(value) {
     // 모든 기술이 MAX이면 경험치를 받아도 레벨업/선택창을 절대 다시 열지 않는다.
-    if (survivalEligibleUpgrades().length === 0) {
+    if (survivalAllSkillsMaxed()) {
         survivalState.xp = survivalState.xpNeed;
         survivalState.pausedForLevel = false;
         survivalLevelUp?.classList.add("hidden");
@@ -5430,13 +5431,17 @@ function survivalCollectXp(value) {
         survivalState.xp -= survivalState.xpNeed;
         survivalState.level += 1;
         survivalState.xpNeed = Math.min(3200, Math.floor(survivalState.xpNeed * 1.14 + 6 + Math.min(18, survivalState.level * 0.12)));
-        if (survivalEligibleUpgrades().length === 0) { survivalState.xp = survivalState.xpNeed; survivalState.pausedForLevel=false; survivalLevelUp?.classList.add("hidden"); break; }
+        if (survivalAllSkillsMaxed()) { survivalState.xp = survivalState.xpNeed; survivalState.pausedForLevel=false; survivalLevelUp?.classList.add("hidden"); break; }
         if (survivalOpenLevelUp("LEVEL UP")) break;
     }
 }
 
 function survivalEligibleUpgrades() {
     return SURVIVAL_UPGRADES.filter((item) => (survivalState.upgradeLevels[item.key] || 0) < SURVIVAL_MAX_SKILL_LEVEL);
+}
+
+function survivalAllSkillsMaxed() {
+    return SURVIVAL_UPGRADES.every((item) => (survivalState.upgradeLevels[item.key] || 0) >= SURVIVAL_MAX_SKILL_LEVEL);
 }
 
 // 개발자 MAX는 단순히 UI의 Lv.8 표시만 바꾸는 것이 아니라,
@@ -5802,8 +5807,9 @@ async function survivalDeveloperCheat(){
         const d=await r.json();
         if(!r.ok||!d.ok)throw new Error(d.message||"개발자 코드가 올바르지 않습니다.");
 
-        // 기존 방식처럼 Lv.8까지 반복해서 누적하는 대신,
-        // 모든 기술과 실제 전투 수치를 한 번에 MAX 상태로 확정한다.
+        // 인증은 다음 게임 시작에도 유지한다.
+        // 따라서 인증 후 "게임 시작"을 눌러도 survivalReset() 때문에 MAX가 풀리지 않는다.
+        survivalState.developerAuthorized = true;
         survivalForceMaxBuild();
 
         // MAX 상태에서는 XP가 꽉 차 있어도 어떤 선택창도 열리지 않는다.
@@ -6269,9 +6275,17 @@ function survivalLoop(now) {
 }
 
 function survivalStart() {
+    const keepDeveloperMode = survivalState.developerAuthorized === true;
     survivalReset();
+    survivalState.developerAuthorized = keepDeveloperMode;
     survivalState.keys.clear();
     survivalState.running = true;
+    if (keepDeveloperMode) {
+        survivalForceMaxBuild();
+        survivalState.xp = survivalState.xpNeed;
+        survivalState.pausedForLevel = false;
+        survivalLevelUp?.classList.add("hidden");
+    }
     survivalStartScreen?.classList.add("hidden");
     survivalEndScreen?.classList.add("hidden");
     survivalLevelUp?.classList.add("hidden");
@@ -6341,6 +6355,8 @@ function survivalResetJoystick() {
 if (survivalStartBtn) survivalStartBtn.addEventListener("click", survivalStart);
 if (survivalRestartBtn) survivalRestartBtn.addEventListener("click", survivalStart);
 if(survivalPauseBtn)survivalPauseBtn.addEventListener("click",survivalPause);if(survivalResumeBtn)survivalResumeBtn.addEventListener("click",survivalResume);if(survivalQuitBtn)survivalQuitBtn.addEventListener("click",survivalQuitRun);if(survivalDeveloperBtn)survivalDeveloperBtn.addEventListener("click",survivalDeveloperCheat);
+const survivalPauseDeveloperBtn=document.getElementById("survivalPauseDeveloperBtn");
+if(survivalPauseDeveloperBtn)survivalPauseDeveloperBtn.addEventListener("click",survivalDeveloperCheat);
 if (closeSurvivalBtn) closeSurvivalBtn.addEventListener("click", closeSurvivalGame);
 if (survivalBackdrop) survivalBackdrop.addEventListener("click", closeSurvivalGame);
 window.addEventListener("resize", survivalResize);
