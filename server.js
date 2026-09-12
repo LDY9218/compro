@@ -1416,7 +1416,7 @@ startCarGameLoop();
 const WORM_WORLD = 5200;
 const WORM_TICK_MS = 50;
 const WORM_MAX_PLAYERS = 24;
-const WORM_BOT_COUNT = 6;
+const WORM_BOT_COUNT = 0;
 const WORM_FOOD_TARGET = 360;
 const WORM_ROOM = "public";
 const wormPlayers = new Map();
