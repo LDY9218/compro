@@ -1857,15 +1857,35 @@ function wormDrawIntro(){
     for(let y=0;y<h;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
 }
 
+let wormPendingJoinName = null;
+let wormJoinSent = false;
+
+function wormJoinWhenConnected(){
+    if (!wormSocket?.connected || !wormPendingJoinName || wormJoinSent) return;
+    wormJoinSent = true;
+    wormSocket.emit("worm:join", {nickname: wormPendingJoinName});
+    if (wormPingEl) wormPingEl.textContent = "JOINING";
+}
+
 function wormConnect(){
-    if (wormSocket?.connected) return wormSocket;
-    if (typeof window.io !== "function") { alert("실시간 게임 연결 모듈을 불러오지 못했습니다."); return null; }
-    wormSocket = window.io({
+    if (wormSocket) return wormSocket;
+    if (typeof window.io !== "function") {
+        // Socket.IO 로더가 실패해도 게임 입장은 막지 않는다.
+        // 로컬 연습 모드로 즉시 시작하여 버튼이 무반응이 되지 않게 한다.
+        wormStartLocalPractice();
+        return null;
+    }
+    wormSocket = window.io(window.location.origin, {
+        transports: ["websocket", "polling"],
         reconnection: true,
         reconnectionAttempts: Infinity,
-        reconnectionDelay: 500,
-        reconnectionDelayMax: 3000,
+        reconnectionDelay: 300,
+        reconnectionDelayMax: 2500,
         timeout: 8000
+    });
+    wormSocket.on("connect", ()=>{
+        if (wormPingEl) wormPingEl.textContent="CONNECTED";
+        wormJoinWhenConnected();
     });
     wormSocket.on("worm:joined", ({id})=>{
         wormRunning=true;
@@ -1873,6 +1893,8 @@ function wormConnect(){
         wormDeathPanel.hidden=true;
         wormState = wormState || {};
         wormState.me=id;
+        wormJoinSent=false;
+        if (wormPingEl) wormPingEl.textContent="LIVE";
     });
     wormSocket.on("worm:state", state=>{ wormState=state; });
     wormSocket.on("worm:died", ({mass=0, killer})=>{
@@ -1880,17 +1902,53 @@ function wormConnect(){
         wormDeathText.textContent = killer ? `${killer}에게 길을 막혔습니다. 질량 ${Math.floor(mass)}.` : `질량 ${Math.floor(mass)}로 종료되었습니다.`;
         wormDeathPanel.hidden=false;
     });
-    wormSocket.on("connect_error", ()=>{ if(wormPingEl) wormPingEl.textContent="RECONNECTING"; });
-    wormSocket.on("reconnect", ()=>{ if(wormPingEl) wormPingEl.textContent="CONNECTED"; });
-    wormSocket.on("worm:error", ({message})=>alert(message || "게임 연결 오류"));
+    wormSocket.on("connect_error", ()=>{
+        if(wormPingEl) wormPingEl.textContent="RECONNECTING";
+    });
+    wormSocket.on("disconnect", ()=>{
+        if(wormRunning && wormPingEl) wormPingEl.textContent="RECONNECTING";
+    });
+    wormSocket.on("reconnect", ()=>{
+        wormJoinSent=false;
+        if(wormPingEl) wormPingEl.textContent="CONNECTED";
+        wormJoinWhenConnected();
+    });
+    wormSocket.on("worm:error", ({message})=>{
+        wormJoinSent=false;
+        if(wormPingEl) wormPingEl.textContent="READY";
+        if (wormCenterMessage) wormCenterMessage.hidden=false;
+        alert(message || "게임 연결 오류");
+    });
     wormSocket.on("worm:ping", ({ms})=>{ if(wormPingEl) wormPingEl.textContent=`${Math.round(ms)}ms`; });
     return wormSocket;
 }
 
 function wormStart(){
-    const socket=wormConnect(); if(!socket) return;
     const name=(wormNickname?.value||"Player").trim().slice(0,14)||"Player";
-    socket.emit("worm:join", {nickname:name});
+    wormPendingJoinName = name;
+    wormJoinSent = false;
+    wormDeathPanel.hidden = true;
+    wormCenterMessage.hidden = false;
+    const socket=wormConnect();
+    if (!socket) return;
+    if (socket.connected) wormJoinWhenConnected();
+    else if (wormPingEl) wormPingEl.textContent="CONNECTING";
+}
+
+// Socket.IO가 차단되거나 서버가 일시적으로 내려간 경우에도 버튼으로 즉시 플레이할 수 있는 로컬 연습 모드.
+function wormStartLocalPractice(){
+    wormRunning=true;
+    wormCenterMessage.hidden=true;
+    wormDeathPanel.hidden=true;
+    if(wormPingEl) wormPingEl.textContent="LOCAL";
+    const meId="local-player";
+    wormState={world:5200,me:meId,food:[],players:[]};
+    const me={id:meId,nickname:(wormPendingJoinName||"Player"),x:2600,y:2600,mass:10,length:8,radius:15,color:"#55f59b",dirX:wormAim.x,dirY:wormAim.y,isBot:false,segments:[]};
+    wormState.players=[me];
+    for(let i=0;i<6;i++){
+        wormState.players.push({id:`local-bot-${i}`,nickname:`BOT ${i+1}`,x:700+i*650,y:900+(i%3)*900,mass:12+i*3,length:8+i,radius:15,color:["#59b7ff","#ff6e8d","#ffc857","#b98cff","#48e0d1","#ff8b4d"][i],dirX:1,dirY:0,isBot:true,segments:[]});
+    }
+    if (wormPingEl) wormPingEl.textContent="LOCAL PRACTICE";
 }
 
 function wormSendInput(){
