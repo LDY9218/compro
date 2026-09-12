@@ -61,6 +61,7 @@ const closeGameHubBtn = document.getElementById("closeGameHubBtn");
 const hubSurvivalGame = document.getElementById("hubSurvivalGame");
 const hubBirdGame = document.getElementById("hubBirdGame");
 const hubCarGame = document.getElementById("hubCarGame");
+const hubDoomGame = document.getElementById("hubDoomGame");
 
 const birdGameModal = document.getElementById("birdGameModal");
 const gameBackdrop = document.getElementById("gameBackdrop");
@@ -4417,6 +4418,10 @@ hubCarGame?.addEventListener("click", () => {
     openCarGameModal();
 });
 
+hubDoomGame?.addEventListener("click", () => {
+    window.open("https://doom.bethesda.net/en-US/doom_doomii", "_blank", "noopener,noreferrer");
+});
+
 
 // ==================================================
 // 배경 클릭
@@ -4533,6 +4538,11 @@ const survivalState = {
     xpNeed: 14,
     score: 0,
     nextBossAt: 120,
+    waveDuration: 24,
+    bossIntervalWaves: 5,
+    bossFenceHalfW: 0,
+    bossFenceHalfH: 0,
+    bossRewardSkills: [],
     bossNumber: 0,
     bossActive: false,
     bossFenceRadius: 0,
@@ -4616,8 +4626,11 @@ const SURVIVAL_UPGRADES = [
     { key: "emergencyHeal", icon: "✚", title: "응급 처치", desc: "체력이 위험 수준으로 내려가면 즉시 큰 회복이 한 번 발동합니다." },
     { key: "dodge", icon: "◇", title: "회피 훈련", desc: "적의 공격을 일정 확률로 완전히 회피합니다." },
     { key: "repulse", icon: "◉", title: "퇴격 장치", desc: "주기적으로 주변 적을 밀어내 공간을 만들어 줍니다." },
-    { key: "overdrive", icon: "✪", title: "오버드라이브", desc: "레벨이 쌓일수록 레벨업 직후 잠시 공격 속도가 크게 상승합니다." },
+    { key: "overdrive", icon: "✪", title: "오버드라이브", desc: "레벨업 직후 공격 속도와 화력이 폭발적으로 상승합니다." },
+    { key: "momentum", icon: "↗", title: "질주 화력", desc: "빠르게 이동할수록 다음 탄환의 피해가 증가합니다." },
 ];
+
+const SURVIVAL_MAX_SKILL_LEVEL = 8;
 
 const SURVIVAL_DEFAULT_UPGRADES = {
     damage: 1, fireRate: 1, moveSpeed: 1, maxHp: 1, magnet: 1, projectile: 1,
@@ -4627,7 +4640,7 @@ const SURVIVAL_DEFAULT_UPGRADES = {
     pickupXp: 1, goldXp: 1, weaponCooldown: 1, lightningChain: 0, bombRadius: 1, bombDamage: 1,
     bladeDamage: 1, bladeSpeed: 1, droneDamage: 1, droneCount: 0, critDamage: 1, healthPickup: 1,
     enemySlow: 0, execute: 0, homing: 0, healthOrb: 0, bossXp: 1, bossSlow: 0,
-    focus: 0, emergencyHeal: 0, dodge: 0, repulse: 0, overdrive: 0,
+    focus: 0, emergencyHeal: 0, dodge: 0, repulse: 0, overdrive: 0, momentum: 1,
 };
 
 function survivalResize() {
@@ -4732,8 +4745,8 @@ function survivalSpawnEnemy(forceType = null) {
     if (!p) return;
     const angle = survivalRandom(0, Math.PI * 2);
     const distance = Math.max(survivalState.width, survivalState.height) * 0.62 + 80;
-    const cycle = Math.floor(survivalState.elapsed / 60);
-    const scale = 1 + cycle * 0.17 + survivalState.elapsed * 0.0018;
+    const cycle = Math.max(0, survivalState.wave - 1);
+    const scale = 1 + cycle * 0.14 + Math.floor(cycle / 5) * 0.12;
     const type = forceType || survivalEnemyType();
     const base = {
         basic: { r: 13, hp: 24, speed: 38, damage: 8, xp: 2, color: "#65e6a8" },
@@ -4743,7 +4756,7 @@ function survivalSpawnEnemy(forceType = null) {
         shooter: { r: 15, hp: 52, speed: 30, damage: 11, xp: 10, color: "#ff9b71" },
         brute: { r: 27, hp: 260, speed: 20, damage: 23, xp: 18, color: "#d96cff" },
     }[type];
-    const hpScale = 1 + survivalState.elapsed * 0.0024;
+    const hpScale = 1 + survivalState.wave * 0.045 + Math.floor(survivalState.wave / 5) * 0.08;
     const xpRoll = base.xp * (0.82 + Math.random() * 0.55);
     survivalState.enemies.push({
         x: p.x + Math.cos(angle) * distance,
@@ -4752,7 +4765,7 @@ function survivalSpawnEnemy(forceType = null) {
         hp: base.hp * hpScale * scale,
         maxHp: base.hp * hpScale * scale,
         speed: base.speed * (1 + survivalState.elapsed * 0.0009),
-        damage: base.damage * (1 + survivalState.elapsed * 0.00065),
+        damage: base.damage * (1 + survivalState.wave * 0.022 + Math.floor(survivalState.wave / 5) * 0.045),
         xp: Math.max(1, Math.round(xpRoll)),
         type,
         hitFlash: 0,
@@ -4768,7 +4781,9 @@ function survivalStartBossWave() {
 
     survivalState.bossActive = true;
     survivalState.bossTransition = 2.8;
-    survivalState.bossFenceRadius = Math.max(240, Math.min(520, Math.min(survivalState.width, survivalState.height) * 0.62));
+    survivalState.bossFenceHalfW = Math.max(260, Math.min(760, survivalState.width * 0.56));
+    survivalState.bossFenceHalfH = Math.max(240, Math.min(620, survivalState.height * 0.48));
+    survivalState.bossFenceRadius = Math.hypot(survivalState.bossFenceHalfW, survivalState.bossFenceHalfH);
     survivalState.bossCenterX = p.x;
     survivalState.bossCenterY = p.y;
 
@@ -4784,7 +4799,7 @@ function survivalStartBossWave() {
     survivalState.bossNumber += 1;
     const cycle = survivalState.bossNumber;
     const angle = survivalRandom(0, Math.PI * 2);
-    const distance = Math.max(120, survivalState.bossFenceRadius * 0.72);
+    const distance = Math.max(120, Math.min(survivalState.bossFenceHalfW, survivalState.bossFenceHalfH) * 0.72);
     const hp = 2400 * (1 + cycle * 0.38) * (1 + survivalState.elapsed * 0.0015);
     const finalLook = cycle % 5 === 0;
     survivalState.enemies.push({
@@ -4809,10 +4824,13 @@ function survivalStartBossWave() {
 function survivalFinishBossWave() {
     survivalState.bossActive = false;
     survivalState.bossFenceRadius = 0;
+    survivalState.bossFenceHalfW = 0;
+    survivalState.bossFenceHalfH = 0;
     survivalState.bossCenterX = 0;
     survivalState.bossCenterY = 0;
     survivalState.bossTransition = 0;
-    survivalState.nextBossAt = Math.max(survivalState.nextBossAt, survivalState.elapsed + 120);
+    survivalState.nextBossAt = Math.ceil((survivalState.elapsed + 0.01) / (survivalState.waveDuration * survivalState.bossIntervalWaves)) * (survivalState.waveDuration * survivalState.bossIntervalWaves);
+    if (survivalState.nextBossAt <= survivalState.elapsed) survivalState.nextBossAt += survivalState.waveDuration * survivalState.bossIntervalWaves;
     survivalState.spawnTimer = 0;
     survivalAddParticle(survivalState.player.x, survivalState.player.y, "#ffd447", 45);
 }
@@ -4978,17 +4996,113 @@ function survivalCollectXp(value) {
     while (survivalState.xp >= survivalState.xpNeed) {
         survivalState.xp -= survivalState.xpNeed;
         survivalState.level += 1;
-        survivalState.xpNeed = Math.floor(survivalState.xpNeed * 1.28 + 5);
-        survivalOpenLevelUp("LEVEL UP");
-        break;
+        survivalState.xpNeed = Math.floor(survivalState.xpNeed * 1.16 + 4 + survivalState.level * 0.25);
+        const opened = survivalOpenLevelUp("LEVEL UP");
+        if (opened) break;
+
     }
+}
+
+function survivalEligibleUpgrades() {
+    return SURVIVAL_UPGRADES.filter((item) => (survivalState.upgradeLevels[item.key] || 0) < SURVIVAL_MAX_SKILL_LEVEL);
+}
+
+function survivalApplyUpgrade(key) {
+    const currentLevel = survivalState.upgradeLevels[key] || 0;
+    if (currentLevel >= SURVIVAL_MAX_SKILL_LEVEL) return false;
+    const u = survivalState.upgrades;
+    const level = currentLevel + 1;
+    survivalState.upgradeLevels[key] = level;
+    const maxed = level === SURVIVAL_MAX_SKILL_LEVEL;
+    const maxBoost = maxed ? 1.75 : 1;
+    switch (key) {
+        case "damage": u.damage *= 1.16 * maxBoost; break;
+        case "fireRate": u.fireRate *= 1.17 * maxBoost; break;
+        case "moveSpeed": u.moveSpeed *= 1.10 * maxBoost; break;
+        case "maxHp": survivalState.player.maxHp *= 1.16 * maxBoost; survivalState.player.hp = survivalState.player.maxHp; break;
+        case "magnet": u.magnet *= 1.25 * maxBoost; break;
+        case "projectile": u.projectile = Math.min(16, u.projectile + (maxed ? 3 : 1)); break;
+        case "crit": u.crit = Math.min(0.92, u.crit + (maxed ? 0.12 : 0.055)); break;
+        case "bulletSpeed": u.bulletSpeed *= 1.16 * maxBoost; break;
+        case "pierce": u.pierce += maxed ? 3 : 1; break;
+        case "area": u.area *= 1.12 * maxBoost; break;
+        case "armor": u.armor += maxed ? 3 : 1; break;
+        case "regen": u.regen += maxed ? 3 : 1; break;
+        case "frost": u.frost += maxed ? 3 : 1; break;
+        case "orbital": u.orbital = Math.min(12, u.orbital + (maxed ? 3 : 1)); break;
+        case "lightning": u.lightning += maxed ? 3 : 1; break;
+        case "bomb": u.bomb += maxed ? 3 : 1; break;
+        case "drone": u.drone = Math.min(8, u.drone + (maxed ? 2 : 1)); break;
+        case "lifesteal": u.lifesteal += maxed ? 3 : 1; break;
+        case "xpBoost": u.xpBoost *= 1.13 * maxBoost; break;
+        case "range": u.range *= 1.18 * maxBoost; break;
+        case "bulletSize": u.bulletSize *= 1.12 * maxBoost; break;
+        case "damageBoss": u.damageBoss *= 1.12 * maxBoost; break;
+        case "eliteDamage": u.eliteDamage *= 1.10 * maxBoost; break;
+        case "knockback": u.knockback += maxed ? 3 : 1; break;
+        case "dash": u.dash += maxed ? 3 : 1; break;
+        case "shield": u.shield += maxed ? 3 : 1; survivalState.shieldCharges = Math.min(12, survivalState.shieldCharges + (maxed ? 4 : 1)); break;
+        case "thorns": u.thorns += maxed ? 3 : 1; break;
+        case "pickupXp": u.pickupXp *= 1.22 * maxBoost; break;
+        case "weaponCooldown": u.weaponCooldown *= 1.12 * maxBoost; break;
+        case "lightningChain": u.lightningChain += maxed ? 3 : 1; break;
+        case "bombRadius": u.bombRadius *= 1.14 * maxBoost; break;
+        case "bombDamage": u.bombDamage *= 1.15 * maxBoost; break;
+        case "bladeDamage": u.bladeDamage *= 1.16 * maxBoost; break;
+        case "bladeSpeed": u.bladeSpeed *= 1.20 * maxBoost; break;
+        case "droneDamage": u.droneDamage *= 1.16 * maxBoost; break;
+        case "droneCount": u.droneCount += maxed ? 2 : 1; u.drone = Math.min(8, u.drone + (maxed ? 2 : 1)); break;
+        case "critDamage": u.critDamage *= 1.16 * maxBoost; break;
+        case "healthPickup": u.healthPickup *= 1.14 * maxBoost; break;
+        case "enemySlow": u.enemySlow += maxed ? 3 : 1; break;
+        case "execute": u.execute += maxed ? 3 : 1; break;
+        case "homing": u.homing += maxed ? 3 : 1; break;
+        case "healthOrb": u.healthOrb += maxed ? 3 : 1; break;
+        case "bossXp": u.bossXp *= 1.18 * maxBoost; break;
+        case "bossSlow": u.bossSlow += maxed ? 3 : 1; break;
+        case "focus": u.focus += maxed ? 3 : 1; break;
+        case "emergencyHeal": u.emergencyHeal += maxed ? 3 : 1; survivalState.emergencyHealReady = true; break;
+        case "dodge": u.dodge += maxed ? 3 : 1; break;
+        case "repulse": u.repulse += maxed ? 3 : 1; break;
+        case "overdrive": u.overdrive += maxed ? 3 : 1; survivalState.overdriveTimer = 10 + u.overdrive * 1.2; break;
+        case "momentum": u.speedDamage *= 1.15 * maxBoost; break;
+        default: return false;
+    }
+    return true;
 }
 
 function survivalCollectBossXp(gem) {
     if (!gem || !gem.bossGem) return;
     survivalState.score += Math.round(gem.value * 2);
     survivalAddParticle(gem.x, gem.y, "#ffd83d", 30);
-    survivalOpenLevelUp("BOSS REWARD");
+    const eligible = survivalEligibleUpgrades();
+    const picked = [];
+    while (eligible.length && picked.length < 3) {
+        const index = Math.floor(Math.random() * eligible.length);
+        const [skill] = eligible.splice(index, 1);
+        picked.push(skill);
+        survivalApplyUpgrade(skill.key);
+    }
+    survivalState.bossRewardSkills = picked;
+    if (survivalLevelUp && survivalUpgradeChoices) {
+        survivalState.pausedForLevel = true;
+        survivalLevelUp.classList.remove("hidden");
+        const eyebrow = survivalLevelUp.querySelector(".survival-eyebrow");
+        const title = survivalLevelUp.querySelector("h3");
+        if (eyebrow) eyebrow.textContent = "BOSS REWARD";
+        if (title) title.textContent = picked.length ? "황금 경험치 보상 — 3개 기술이 동시에 강화되었습니다" : "모든 기술이 최대 레벨입니다";
+        survivalUpgradeChoices.innerHTML = picked.map((u) => {
+            const lv = survivalState.upgradeLevels[u.key] || 0;
+            return `<div class="survival-upgrade-btn boss-reward-card"><span class="upgrade-icon">${u.icon}</span><strong>${u.title}</strong><small>Lv.${lv} · ${lv >= SURVIVAL_MAX_SKILL_LEVEL ? "MAX — 최종 강화" : "강화 완료"}</small></div>`;
+        }).join("");
+        if (!picked.length) {
+            survivalUpgradeChoices.innerHTML = `<div class="survival-upgrade-btn boss-reward-card"><strong>MAX BUILD</strong><small>모든 기술이 최대 레벨에 도달했습니다.</small></div>`;
+        }
+        setTimeout(() => {
+            survivalState.pausedForLevel = false;
+            survivalLevelUp.classList.add("hidden");
+        }, 1400);
+    }
 }
 
 function survivalUpgradePreview(key, level) {
@@ -5044,6 +5158,7 @@ function survivalUpgradePreview(key, level) {
         dodge: `Lv.${level} → Lv.${n} · 회피 확률 +3.5%`,
         repulse: `Lv.${level} → Lv.${n} · 퇴격 장치 범위/힘 증가`,
         overdrive: `Lv.${level} → Lv.${n} · 강화 후 오버드라이브 지속/화력 증가`,
+        momentum: `Lv.${level} → Lv.${n} · 이동 중 다음 탄환 피해 +${Math.round((level + 1) * 8)}%`,
     };
     return text[key] || `Lv.${level} → Lv.${n} · 이 능력이 더 강해집니다.`;
 }
@@ -5057,14 +5172,20 @@ function survivalOpenLevelUp(reason = "LEVEL UP") {
     if (levelUpEyebrow) levelUpEyebrow.textContent = reason;
     if (levelUpTitle) levelUpTitle.textContent = reason === "BOSS REWARD" ? "황금 경험치! 랜덤 3개 중 하나를 강화하세요" : "랜덤 3개 중 하나를 선택하세요";
 
-    const weighted = [...SURVIVAL_UPGRADES].sort((a, b) => {
+    const available = SURVIVAL_UPGRADES.filter((item) => (survivalState.upgradeLevels[item.key] || 0) < SURVIVAL_MAX_SKILL_LEVEL);
+    if (!available.length) {
+        survivalState.pausedForLevel = false;
+        survivalLevelUp?.classList.add("hidden");
+        return false;
+    }
+    const weighted = [...available].sort((a, b) => {
         const al = survivalState.upgradeLevels[a.key] || 0;
         const bl = survivalState.upgradeLevels[b.key] || 0;
         // 이미 투자한 기술이 다시 등장할 가능성을 조금 높여
         // 같은 빌드를 계속 진화시키는 로그라이크 선택감을 만든다.
         return (Math.random() + al * 0.18) - (Math.random() + bl * 0.18);
     });
-    const shuffled = weighted.slice(0, 3);
+    const shuffled = weighted.slice(0, Math.min(3, weighted.length));
     if (survivalUpgradeChoices) {
         survivalUpgradeChoices.innerHTML = shuffled.map((u) => {
             const level = survivalState.upgradeLevels[u.key] || 0;
@@ -5082,66 +5203,12 @@ function survivalOpenLevelUp(reason = "LEVEL UP") {
             btn.addEventListener("click", () => survivalChooseUpgrade(btn.dataset.upgrade), { once: true });
         });
     }
+    return true;
 }
 
 function survivalChooseUpgrade(key) {
     if (!key) return;
-    const u = survivalState.upgrades;
-    const level = (survivalState.upgradeLevels[key] || 0) + 1;
-    survivalState.upgradeLevels[key] = level;
-    switch (key) {
-        case "damage": u.damage *= 1.16; break;
-        case "fireRate": u.fireRate *= 1.17; break;
-        case "moveSpeed": u.moveSpeed *= 1.10; break;
-        case "maxHp": survivalState.player.maxHp *= 1.16; survivalState.player.hp = survivalState.player.maxHp; break;
-        case "magnet": u.magnet *= 1.25; break;
-        case "projectile": u.projectile = Math.min(12, u.projectile + 1); break;
-        case "crit": u.crit = Math.min(0.75, u.crit + 0.055); break;
-        case "bulletSpeed": u.bulletSpeed *= 1.16; break;
-        case "pierce": u.pierce += 1; break;
-        case "area": u.area *= 1.12; break;
-        case "armor": u.armor += 1; break;
-        case "regen": u.regen += 1; break;
-        case "frost": u.frost += 1; break;
-        case "orbital": u.orbital = Math.min(10, u.orbital + 1); break;
-        case "lightning": u.lightning += 1; break;
-        case "bomb": u.bomb += 1; break;
-        case "drone": u.drone = Math.min(6, u.drone + 1); break;
-        case "lifesteal": u.lifesteal += 1; break;
-        case "xpBoost": u.xpBoost *= 1.13; break;
-        case "range": u.range *= 1.18; break;
-        case "bulletSize": u.bulletSize *= 1.12; break;
-        case "damageBoss": u.damageBoss *= 1.12; break;
-        case "eliteDamage": u.eliteDamage *= 1.10; break;
-        case "knockback": u.knockback += 1; break;
-        case "dash": u.dash += 1; break;
-        case "shield": u.shield += 1; survivalState.shieldCharges = Math.min(4, survivalState.shieldCharges + 1); break;
-        case "thorns": u.thorns += 1; break;
-        case "pickupXp": u.pickupXp *= 1.22; break;
-        case "goldXp": u.goldXp += 1; break;
-        case "weaponCooldown": u.weaponCooldown *= 1.12; break;
-        case "lightningChain": u.lightningChain += 1; break;
-        case "bombRadius": u.bombRadius *= 1.14; break;
-        case "bombDamage": u.bombDamage *= 1.15; break;
-        case "bladeDamage": u.bladeDamage *= 1.16; break;
-        case "bladeSpeed": u.bladeSpeed *= 1.12; break;
-        case "droneDamage": u.droneDamage *= 1.16; break;
-        case "droneCount": u.droneCount += 1; u.drone = Math.min(6, u.drone + 1); break;
-        case "critDamage": u.critDamage *= 1.16; break;
-        case "healthPickup": u.healthPickup *= 1.14; break;
-        case "enemySlow": u.enemySlow += 1; break;
-        case "execute": u.execute += 1; break;
-        case "homing": u.homing += 1; break;
-        case "healthOrb": u.healthOrb += 1; break;
-        case "bossXp": u.bossXp *= 1.18; break;
-        case "bossSlow": u.bossSlow += 1; break;
-        case "focus": u.focus += 1; break;
-        case "emergencyHeal": u.emergencyHeal += 1; survivalState.emergencyHealReady = true; break;
-        case "dodge": u.dodge += 1; break;
-        case "repulse": u.repulse += 1; break;
-        case "overdrive": u.overdrive += 1; survivalState.overdriveTimer = 8 + u.overdrive * 0.8; break;
-        default: return;
-    }
+    if (!survivalApplyUpgrade(key)) return;
     survivalState.pausedForLevel = false;
     survivalLevelUp?.classList.add("hidden");
     survivalUpdateHud();
@@ -5190,8 +5257,8 @@ function survivalUpdate(dt) {
     survivalState.elapsed += dt;
     survivalState.bossTransition = Math.max(0, survivalState.bossTransition - dt);
     p.invuln = Math.max(0, p.invuln - dt);
-    survivalState.wave = 1 + Math.floor(survivalState.elapsed / 30);
-    survivalState.orbitalAngle += dt * (1.8 * u.bladeSpeed);
+    survivalState.wave = 1 + Math.floor(survivalState.elapsed / survivalState.waveDuration);
+    survivalState.orbitalAngle += dt * (2.2 * u.bladeSpeed * (1 + Math.max(0, u.bladeSpeed - 1) * 0.35));
     survivalState.lightningTimer += dt;
     survivalState.bombTimer += dt;
     survivalState.regenTimer += dt;
@@ -5208,22 +5275,27 @@ function survivalUpdate(dt) {
     p.y += move.y * speed * move.magnitude * dt;
 
     if (survivalState.bossActive) {
-        const dxFence = p.x - survivalState.bossCenterX;
-        const dyFence = p.y - survivalState.bossCenterY;
-        const distFromCenter = Math.hypot(dxFence, dyFence);
-        const fence = Math.max(140, survivalState.bossFenceRadius - p.radius - 6);
-        if (distFromCenter > fence) {
-            p.x = survivalState.bossCenterX + (dxFence / (distFromCenter || 1)) * fence;
-            p.y = survivalState.bossCenterY + (dyFence / (distFromCenter || 1)) * fence;
-        }
+        const minX = survivalState.bossCenterX - survivalState.bossFenceHalfW + p.radius + 8;
+        const maxX = survivalState.bossCenterX + survivalState.bossFenceHalfW - p.radius - 8;
+        const minY = survivalState.bossCenterY - survivalState.bossFenceHalfH + p.radius + 8;
+        const maxY = survivalState.bossCenterY + survivalState.bossFenceHalfH - p.radius - 8;
+        p.x = survivalClamp(p.x, minX, maxX);
+        p.y = survivalClamp(p.y, minY, maxY);
     }
 
     survivalState.spawnTimer += dt;
-    const spawnEvery = Math.max(0.18, 0.9 - survivalState.elapsed * 0.0019);
-    if (!survivalState.bossActive && survivalState.spawnTimer >= spawnEvery) {
+    const waveInCycle = ((survivalState.wave - 1) % survivalState.bossIntervalWaves) + 1;
+    const intenseWave = waveInCycle === 2;
+    const maxEnemies = 110 + Math.min(70, survivalState.wave * 3);
+    const spawnEvery = intenseWave
+        ? Math.max(0.12, 0.42 - survivalState.wave * 0.004)
+        : Math.max(0.34, 0.72 - survivalState.wave * 0.003);
+    if (!survivalState.bossActive && survivalState.enemies.length < maxEnemies && survivalState.spawnTimer >= spawnEvery) {
         survivalState.spawnTimer = 0;
-        const amount = Math.min(7, 1 + Math.floor(survivalState.elapsed / 150));
-        for (let i = 0; i < amount; i += 1) survivalSpawnEnemy();
+        const amount = intenseWave
+            ? Math.min(9, 3 + Math.floor(survivalState.wave / 4))
+            : Math.min(4, 1 + Math.floor(survivalState.wave / 8));
+        for (let i = 0; i < amount && survivalState.enemies.length < maxEnemies; i += 1) survivalSpawnEnemy();
     }
 
     if (!survivalState.bossActive && survivalState.elapsed >= survivalState.nextBossAt) {
@@ -5293,11 +5365,11 @@ function survivalUpdate(dt) {
             }
         }
         if (d < p.radius + e.r) {
-            if (u.thorns > 0 && !e.boss) e.hp -= 28 * u.damage * u.thorns * dt * 2.2;
-            survivalTakeDamage(e.damage * dt * 2.2);
-            const push = Math.max(0, p.radius + e.r - d);
-            p.x += (dx / d) * push * 0.45;
-            p.y += (dy / d) * push * 0.45;
+            const contactDamage = e.damage * dt * 2.2;
+            survivalTakeDamage(contactDamage);
+            // 몸에 끼어도 적을 튕겨내지 않고, 플레이어가 받는 접촉 피해만큼 적도 함께 피해를 받습니다.
+            e.hp -= contactDamage * (e.boss ? 0.72 : 1);
+            if (u.thorns > 0) e.hp -= 16 * u.damage * u.thorns * dt * 2.2;
         }
     }
 
@@ -5329,7 +5401,10 @@ function survivalUpdate(dt) {
                     }
                     hitDamage *= 1 + Math.min(0.75, survivalState.focusStacks * u.focus * 0.018);
                 }
-                if (u.speedDamage > 1) hitDamage *= 1 + Math.min(0.35, Math.hypot(survivalMoveVector().x, survivalMoveVector().y) * (u.speedDamage - 1) * 0.08);
+                if (u.speedDamage > 1) {
+                    const moveVector = survivalMoveVector();
+                    hitDamage *= 1 + Math.min(1.8, moveVector.magnitude * (u.speedDamage - 1) * 0.12);
+                }
                 e.hp -= hitDamage;
                 if (u.knockback > 0) {
                     const push = Math.min(42, 8 + u.knockback * 4);
@@ -5375,7 +5450,7 @@ function survivalUpdate(dt) {
 
     // Orbital blades
     if (survivalState.upgrades.orbital > 0) {
-        const blades = Math.min(6, survivalState.upgrades.orbital);
+        const blades = Math.min(12, survivalState.upgrades.orbital);
         const orbitRadius = 66 * Math.sqrt(survivalState.upgrades.area);
         for (let b = 0; b < blades; b += 1) {
             const a = survivalState.orbitalAngle + (Math.PI * 2 * b) / blades;
@@ -5537,7 +5612,7 @@ function survivalDraw() {
 
     // Orbital blades
     if (survivalState.upgrades.orbital > 0) {
-        const blades = Math.min(6, survivalState.upgrades.orbital);
+        const blades = Math.min(12, survivalState.upgrades.orbital);
         const orbitRadius = 66 * Math.sqrt(survivalState.upgrades.area);
         for (let b = 0; b < blades; b += 1) {
             const a = survivalState.orbitalAngle + (Math.PI * 2 * b) / blades;
@@ -5549,26 +5624,29 @@ function survivalDraw() {
         }
     }
 
-    // Boss arena fence: boss 등장부터 처치할 때까지 플레이어가 밖으로 나갈 수 없다.
-    if (survivalState.bossActive && survivalState.bossFenceRadius > 0) {
-        const radius = survivalState.bossFenceRadius;
+    // Boss arena fence: 넓은 사각형 가두리. 보스 처치 전에는 밖으로 나갈 수 없습니다.
+    if (survivalState.bossActive && survivalState.bossFenceHalfW > 0) {
         const fenceScreen = survivalWorldToScreen(survivalState.bossCenterX, survivalState.bossCenterY);
+        const left = fenceScreen.x - survivalState.bossFenceHalfW;
+        const top = fenceScreen.y - survivalState.bossFenceHalfH;
+        const width = survivalState.bossFenceHalfW * 2;
+        const height = survivalState.bossFenceHalfH * 2;
         ctx.save();
         ctx.beginPath();
-        ctx.arc(fenceScreen.x, fenceScreen.y, radius, 0, Math.PI * 2);
-        ctx.strokeStyle = survivalState.bossTransition > 0 ? "rgba(255,214,71,.45)" : "rgba(255,91,115,.92)";
-        ctx.lineWidth = 8;
-        ctx.shadowBlur = 28;
+        ctx.rect(left, top, width, height);
+        ctx.strokeStyle = survivalState.bossTransition > 0 ? "rgba(255,214,71,.5)" : "rgba(255,91,115,.94)";
+        ctx.lineWidth = 10;
+        ctx.shadowBlur = 30;
         ctx.shadowColor = ctx.strokeStyle;
-        ctx.setLineDash([14, 10]);
+        ctx.setLineDash([18, 12]);
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.beginPath();
-        ctx.arc(fenceScreen.x, fenceScreen.y, Math.max(0, radius - 10), 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(255,180,90,.28)";
-        ctx.lineWidth = 2;
+        ctx.rect(left + 10, top + 10, Math.max(0, width - 20), Math.max(0, height - 20));
+        ctx.strokeStyle = "rgba(255,180,90,.30)";
+        ctx.lineWidth = 3;
         ctx.stroke();
-        ctx.fillStyle = "rgba(255,70,90,.045)";
+        ctx.fillStyle = "rgba(255,70,90,.035)";
         ctx.fill();
         ctx.restore();
     }
@@ -5718,7 +5796,7 @@ if (survivalJoystick) {
 }
 
 // ==================================================
-// GOOGLE MAPS + CURRENT LOCATION
+// FREE MAP + CURRENT LOCATION (Leaflet + OpenStreetMap)
 // ==================================================
 
 const mapModal = document.getElementById("mapModal");
@@ -5726,69 +5804,30 @@ const mapBackdrop = document.getElementById("mapBackdrop");
 const closeMapBtn = document.getElementById("closeMapBtn");
 const mapCanvas = document.getElementById("mapCanvas");
 const mapStatus = document.getElementById("mapStatus");
-const mapSetupPanel = document.getElementById("mapSetupPanel");
-const mapApiKeyInput = document.getElementById("mapApiKeyInput");
-const saveMapApiKeyBtn = document.getElementById("saveMapApiKeyBtn");
 const mapMyLocationBtn = document.getElementById("mapMyLocationBtn");
 const mapZoomInBtn = document.getElementById("mapZoomInBtn");
 const mapZoomOutBtn = document.getElementById("mapZoomOutBtn");
 
-let comtimeGoogleMap = null;
-let comtimeGoogleMarker = null;
-let googleMapsLoadingPromise = null;
-
-function getGoogleMapsKey() {
-    return String(window.COMTIME_GOOGLE_MAPS_API_KEY || localStorage.getItem("comtime_google_maps_api_key") || "").trim();
-}
-
-function showMapSetup(message = "Google Maps API 키를 설정해주세요.") {
-    if (mapStatus) mapStatus.textContent = message;
-    mapSetupPanel?.classList.remove("hidden");
-    if (mapApiKeyInput && !mapApiKeyInput.value) mapApiKeyInput.value = localStorage.getItem("comtime_google_maps_api_key") || "";
-}
-
-function loadGoogleMaps() {
-    if (window.google?.maps) return Promise.resolve();
-    if (googleMapsLoadingPromise) return googleMapsLoadingPromise;
-    const key = getGoogleMapsKey();
-    if (!key) {
-        showMapSetup();
-        return Promise.reject(new Error("Google Maps API key is missing"));
-    }
-    googleMapsLoadingPromise = new Promise((resolve, reject) => {
-        const callbackName = `comtimeMapsInit_${Date.now()}`;
-        window[callbackName] = () => {
-            delete window[callbackName];
-            resolve();
-        };
-        const script = document.createElement("script");
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&callback=${callbackName}&v=weekly`;
-        script.async = true;
-        script.defer = true;
-        script.onerror = () => {
-            delete window[callbackName];
-            googleMapsLoadingPromise = null;
-            reject(new Error("Google Maps script failed to load"));
-        };
-        document.head.appendChild(script);
-    });
-    return googleMapsLoadingPromise;
-}
+let comtimeLeafletMap = null;
+let comtimeLocationMarker = null;
+let comtimeLocationAccuracy = null;
 
 function initComtimeMap() {
-    if (!mapCanvas || !window.google?.maps) return;
-    mapSetupPanel?.classList.add("hidden");
-    if (mapStatus) mapStatus.textContent = "지도를 준비했습니다. 내 위치 버튼을 누르면 위치 권한을 요청합니다.";
-    if (!comtimeGoogleMap) {
-        comtimeGoogleMap = new google.maps.Map(mapCanvas, {
-            center: { lat: 36.6424, lng: 127.4890 },
-            zoom: 13,
-            mapTypeControl: false,
-            streetViewControl: false,
-            fullscreenControl: true,
-            gestureHandling: "greedy",
-        });
+    if (!mapCanvas || !window.L) return;
+    if (!comtimeLeafletMap) {
+        comtimeLeafletMap = L.map(mapCanvas, {
+            zoomControl: false,
+            attributionControl: true,
+            minZoom: 2,
+            maxZoom: 19,
+        }).setView([36.6424, 127.4890], 13);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
+        }).addTo(comtimeLeafletMap);
     }
+    setTimeout(() => comtimeLeafletMap.invalidateSize(), 80);
+    if (mapStatus) mapStatus.textContent = "무료 지도 준비 완료 · 내 위치를 누르면 위치 권한을 요청합니다.";
 }
 
 function requestCurrentLocation() {
@@ -5798,35 +5837,36 @@ function requestCurrentLocation() {
     }
     if (mapStatus) mapStatus.textContent = "현재 위치 권한을 요청하는 중...";
     navigator.geolocation.getCurrentPosition((position) => {
-        const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
-        if (!comtimeGoogleMap) return;
-        comtimeGoogleMap.setCenter(pos);
-        comtimeGoogleMap.setZoom(17);
-        if (comtimeGoogleMarker) comtimeGoogleMarker.setMap(null);
-        comtimeGoogleMarker = new google.maps.Marker({
-            position: pos,
-            map: comtimeGoogleMap,
-            title: "내 위치",
-            animation: google.maps.Animation.DROP,
-        });
-        if (mapStatus) mapStatus.textContent = "현재 위치를 지도에 표시했습니다.";
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const accuracy = Math.max(1, Number(position.coords.accuracy || 30));
+        initComtimeMap();
+        if (!comtimeLeafletMap) return;
+        comtimeLeafletMap.setView([lat, lng], Math.max(16, comtimeLeafletMap.getZoom()));
+        if (comtimeLocationMarker) comtimeLocationMarker.remove();
+        if (comtimeLocationAccuracy) comtimeLocationAccuracy.remove();
+        comtimeLocationAccuracy = L.circle([lat, lng], { radius: accuracy, color: "#4285f4", weight: 1, fillColor: "#4285f4", fillOpacity: 0.12 }).addTo(comtimeLeafletMap);
+        comtimeLocationMarker = L.circleMarker([lat, lng], { radius: 9, color: "#ffffff", weight: 3, fillColor: "#4285f4", fillOpacity: 1 }).addTo(comtimeLeafletMap);
+        comtimeLocationMarker.bindPopup("<strong>내 위치</strong><br>정확도 약 " + Math.round(accuracy) + "m").openPopup();
+        if (mapStatus) mapStatus.textContent = `현재 위치 표시 완료 · 정확도 약 ${Math.round(accuracy)}m`;
     }, (error) => {
-        const message = error.code === 1 ? "위치 권한이 거부되었습니다. 브라우저 주소창의 위치 권한을 허용해주세요." : "현재 위치를 가져오지 못했습니다.";
+        const message = error.code === 1
+            ? "위치 권한이 거부되었습니다. 브라우저 주소창의 위치 권한을 허용해주세요."
+            : "현재 위치를 가져오지 못했습니다. GPS/위치 서비스를 확인해주세요.";
         if (mapStatus) mapStatus.textContent = message;
-    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 });
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 });
 }
 
-async function openMapModal() {
+function openMapModal() {
     if (!mapModal) return;
     mapModal.classList.add("active");
     mapModal.setAttribute("aria-hidden", "false");
     lockPageScroll();
-    try {
-        await loadGoogleMaps();
-        initComtimeMap();
-    } catch (error) {
-        console.warn("[Google Maps]", error.message);
+    if (!window.L) {
+        if (mapStatus) mapStatus.textContent = "지도 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.";
+        return;
     }
+    initComtimeMap();
 }
 
 function closeMapModal() {
@@ -5835,21 +5875,9 @@ function closeMapModal() {
     unlockPageScroll();
 }
 
-saveMapApiKeyBtn?.addEventListener("click", async () => {
-    const key = String(mapApiKeyInput?.value || "").trim();
-    if (!key) return showMapSetup("API 키를 입력해주세요.");
-    localStorage.setItem("comtime_google_maps_api_key", key);
-    googleMapsLoadingPromise = null;
-    try {
-        await loadGoogleMaps();
-        initComtimeMap();
-    } catch (error) {
-        showMapSetup("API 키가 유효한지, Maps JavaScript API가 활성화되어 있는지 확인해주세요.");
-    }
-});
 mapMyLocationBtn?.addEventListener("click", requestCurrentLocation);
-mapZoomInBtn?.addEventListener("click", () => comtimeGoogleMap?.setZoom(Math.min(21, (comtimeGoogleMap.getZoom() || 13) + 1)));
-mapZoomOutBtn?.addEventListener("click", () => comtimeGoogleMap?.setZoom(Math.max(2, (comtimeGoogleMap.getZoom() || 13) - 1)));
+mapZoomInBtn?.addEventListener("click", () => comtimeLeafletMap?.zoomIn());
+mapZoomOutBtn?.addEventListener("click", () => comtimeLeafletMap?.zoomOut());
 closeMapBtn?.addEventListener("click", closeMapModal);
 mapBackdrop?.addEventListener("click", closeMapModal);
 
