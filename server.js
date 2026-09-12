@@ -1414,7 +1414,7 @@ startCarGameLoop();
 // WORM ARENA — REALTIME MULTIPLAYER
 // =========================================================
 const WORM_WORLD = 5200;
-const WORM_TICK_MS = 50;
+const WORM_TICK_MS = 33;
 const WORM_MAX_PLAYERS = 24;
 const WORM_BOT_COUNT = 0;
 const WORM_FOOD_TARGET = 360;
@@ -1478,10 +1478,12 @@ function wormPlayerSegments(p){
     return out;
 }
 function wormTurnToward(p){
-    const desired=Math.atan2(p.dirY,p.dirX); let d=desired-p.angle;
-    while(d>Math.PI)d-=Math.PI*2; while(d<-Math.PI)d+=Math.PI*2;
-    const maxTurn=0.12; p.angle += Math.max(-maxTurn,Math.min(maxTurn,d));
-    p.dirX=Math.cos(p.angle); p.dirY=Math.sin(p.angle);
+    // 커서 방향을 다음 서버 틱에서 즉시 적용한다.
+    // 자기 몸과의 충돌 검사는 애초에 하지 않으므로 작은 반경으로도 자유롭게 꺾을 수 있다.
+    const desired=Math.atan2(p.dirY,p.dirX);
+    p.angle=desired;
+    p.dirX=Math.cos(desired);
+    p.dirY=Math.sin(desired);
 }
 function wormDropMass(p){
     const drops=Math.min(65,Math.max(8,Math.floor(p.mass/2)));
@@ -1511,7 +1513,7 @@ function wormPublicState(){
 }
 function wormEmitState(){
     const now=Date.now();
-    if(now-wormLastStateAt<50)return; wormLastStateAt=now;
+    if(now-wormLastStateAt<33)return; wormLastStateAt=now;
     for(const p of wormPlayers.values()){
         if(!p.alive)continue;
         const sock=io.sockets.sockets.get(p.id); if(!sock)continue;
