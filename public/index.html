@@ -322,7 +322,7 @@
         <div id="survivalGameStage" class="survival-game-stage">
             <canvas id="survivalCanvas"></canvas>
             <div class="survival-hud">
-                <div class="survival-hud-top">
+                <div class="survival-hud-top"><button id="survivalPauseBtn" class="survival-pause-btn" type="button">Ⅱ</button>
                     <div class="survival-time"><span>TIME</span><strong id="survivalTime">∞ 00:00</strong></div>
                     <div class="survival-wave"><span>WAVE</span><strong id="survivalWave">1</strong></div>
                     <div class="survival-kills"><span>KILLS</span><strong id="survivalKills">0</strong></div>
@@ -340,10 +340,10 @@
                     <span class="survival-eyebrow">ENDLESS RUN</span>
                     <h3>끝없이 강해져라</h3>
                     <p>PC: WASD / 모바일: 조이스틱<br>공격은 자동입니다. 웨이브가 올라갈수록 적의 체력과 접촉 피해가 강해집니다.<br>보스전은 넓은 사각형 가두리에서 진행되며, 보스를 잡으면 랜덤 3개 기술이 모두 한 단계씩 강화됩니다.</p>
-                    <button id="survivalStartBtn" class="survival-primary-btn" type="button">게임 시작</button>
+                    <div class="survival-start-actions"><button id="survivalStartBtn" class="survival-primary-btn" type="button">게임 시작</button><button id="survivalDeveloperBtn" class="survival-secondary-btn" type="button">개발자 코드</button></div>
                 </div>
             </div>
-            <div id="survivalLevelUp" class="survival-overlay hidden">
+            <div id="survivalPauseOverlay" class="survival-overlay hidden"><div class="survival-start-card survival-pause-card"><span class="survival-eyebrow">PAUSED</span><h3>게임 일시정지</h3><p>현재 진행 시간과 웨이브가 멈춥니다.</p><button id="survivalResumeBtn" class="survival-primary-btn" type="button">게임으로 돌아가기</button><button id="survivalQuitBtn" class="survival-secondary-btn" type="button">그만두기</button></div></div><div id="survivalLevelUp" class="survival-overlay hidden">
                 <div class="survival-level-card">
                     <span class="survival-eyebrow">LEVEL UP</span>
                     <h3>랜덤 3개 중 하나를 선택하세요</h3>
