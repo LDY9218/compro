@@ -1814,6 +1814,12 @@ let wormAim = { x: 1, y: 0 };
 let wormJoystickActive = false;
 let wormJoystickPointer = null;
 let wormLastFrame = 0;
+let wormJoinWatchdog = null;
+let wormLastServerState = 0;
+let wormParticles = [];
+let wormCamera = {x:2600,y:2600,zoom:1};
+let wormLocalMode = false;
+let wormLocalLast = performance.now();
 
 function wormResizeCanvas(){
     if (!wormGameCanvas) return;
@@ -1825,10 +1831,13 @@ function wormResizeCanvas(){
 
 function wormOpen(){
     if (!wormGameModal) return;
-    wormGameModal.classList.add("active");
-    wormGameModal.setAttribute("aria-hidden","false");
+    wormGameModal.classList.add('active');
+    wormGameModal.setAttribute('aria-hidden','false');
     wormCenterMessage.hidden = false;
     wormDeathPanel.hidden = true;
+    wormRunning = false;
+    wormLocalMode = false;
+    wormState = null;
     wormResizeCanvas();
     lockPageScroll();
     wormDrawIntro();
@@ -1838,191 +1847,245 @@ function wormClose(){
     if (!wormGameModal) return;
     wormRunning = false;
     wormBoosting = false;
-    if (wormSocket){ wormSocket.emit("worm:leave"); wormSocket.disconnect(); wormSocket = null; }
-    wormGameModal.classList.remove("active");
-    wormGameModal.setAttribute("aria-hidden","true");
+    wormLocalMode = false;
+    clearTimeout(wormJoinWatchdog);
+    if (wormSocket){
+        try { wormSocket.emit('worm:leave'); } catch {}
+        wormSocket.disconnect();
+        wormSocket = null;
+    }
+    wormGameModal.classList.remove('active');
+    wormGameModal.setAttribute('aria-hidden','true');
     unlockPageScroll();
 }
 
 function wormDrawIntro(){
     if (!wormGameCanvas) return;
     wormResizeCanvas();
-    const ctx=wormGameCanvas.getContext("2d");
-    const w=wormGameCanvas.width, h=wormGameCanvas.height;
+    const ctx=wormGameCanvas.getContext('2d');
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const w=wormGameCanvas.width,h=wormGameCanvas.height;
+    ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,w,h);
-    ctx.fillStyle="#07100c"; ctx.fillRect(0,0,w,h);
-    ctx.strokeStyle="rgba(116,255,184,.05)"; ctx.lineWidth=1;
-    const step=Math.max(35,Math.floor(Math.min(w,h)/12));
-    for(let x=0;x<w;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
-    for(let y=0;y<h;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+    const g=ctx.createRadialGradient(w*.5,h*.45,0,w*.5,h*.5,Math.max(w,h)*.75);
+    g.addColorStop(0,'#0d2419'); g.addColorStop(.48,'#07130e'); g.addColorStop(1,'#020604');
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    ctx.save(); ctx.scale(dpr,dpr);
+    const vw=w/dpr,vh=h/dpr;
+    ctx.strokeStyle='rgba(100,255,180,.055)'; ctx.lineWidth=1;
+    const step=72;
+    for(let x=0;x<vw;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,vh);ctx.stroke();}
+    for(let y=0;y<vh;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(vw,y);ctx.stroke();}
+    ctx.restore();
 }
 
 let wormPendingJoinName = null;
 let wormJoinSent = false;
 
+function wormStartLocalPractice(){
+    wormLocalMode=true;
+    wormRunning=true;
+    wormCenterMessage.hidden=true;
+    wormDeathPanel.hidden=true;
+    if(wormPingEl) wormPingEl.textContent='PRACTICE';
+    const meId='local-player';
+    const me={id:meId,nickname:(wormPendingJoinName||'Player'),x:2600,y:2600,mass:18,length:12,radius:15,color:'#58f5a6',dirX:wormAim.x,dirY:wormAim.y,isBot:false,segments:[]};
+    wormState={world:5200,me:meId,food:[],players:[me],local:true};
+    for(let i=0;i<9;i++){
+        const a=i/9*Math.PI*2;
+        wormState.players.push({id:`local-bot-${i}`,nickname:['NOVA','MINT','PIXEL','VOLT','MOSS','LUNA','BYTE','ECHO','RUSH'][i],x:2600+Math.cos(a)*900,y:2600+Math.sin(a)*700,mass:22+i*4,length:14+i,radius:16,color:['#61b6ff','#ff7197','#ffd35a','#a989ff','#42dfca','#ff9a5c','#f26bff','#9ee15a','#6dd5ed'][i],dirX:-Math.sin(a),dirY:Math.cos(a),isBot:true,segments:[]});
+    }
+    for(let i=0;i<420;i++){
+        const a=Math.random()*Math.PI*2, r=200+Math.sqrt(Math.random())*2200;
+        wormState.food.push({id:i,x:2600+Math.cos(a)*r,y:2600+Math.sin(a)*r*.78,r:3+Math.random()*3,value:1+Math.random()<.08?3:1,color:['#65ffb0','#ffdf63','#66c7ff','#ff78bd'][i%4]});
+    }
+    wormCamera={x:2600,y:2600,zoom:1};
+    wormLocalLast=performance.now();
+    if(wormPingEl) wormPingEl.textContent='PRACTICE · 10';
+}
+
 function wormJoinWhenConnected(){
     if (!wormSocket?.connected || !wormPendingJoinName || wormJoinSent) return;
     wormJoinSent = true;
-    wormSocket.emit("worm:join", {nickname: wormPendingJoinName});
-    if (wormPingEl) wormPingEl.textContent = "JOINING";
+    wormSocket.emit('worm:join', {nickname: wormPendingJoinName});
+    if (wormPingEl) wormPingEl.textContent = 'JOINING';
+    clearTimeout(wormJoinWatchdog);
+    wormJoinWatchdog=setTimeout(()=>{
+        if(!wormRunning || wormLastServerState===0){
+            wormStartLocalPractice();
+            if(wormPingEl) wormPingEl.textContent='PRACTICE · SERVER WAITING';
+        }
+    },1800);
 }
 
 function wormConnect(){
     if (wormSocket) return wormSocket;
-    if (typeof window.io !== "function") {
-        // Socket.IO 로더가 실패해도 게임 입장은 막지 않는다.
-        // 로컬 연습 모드로 즉시 시작하여 버튼이 무반응이 되지 않게 한다.
+    if (typeof window.io !== 'function') {
         wormStartLocalPractice();
         return null;
     }
     wormSocket = window.io(window.location.origin, {
-        transports: ["websocket", "polling"],
+        transports: ['websocket','polling'],
         reconnection: true,
         reconnectionAttempts: Infinity,
-        reconnectionDelay: 300,
-        reconnectionDelayMax: 2500,
-        timeout: 8000
+        reconnectionDelay: 250,
+        reconnectionDelayMax: 2200,
+        timeout: 7000
     });
-    wormSocket.on("connect", ()=>{
-        if (wormPingEl) wormPingEl.textContent="CONNECTED";
+    wormSocket.on('connect', ()=>{
+        if (wormPingEl) wormPingEl.textContent='CONNECTED';
         wormJoinWhenConnected();
     });
-    wormSocket.on("worm:joined", ({id})=>{
+    wormSocket.on('worm:joined', ({id})=>{
+        clearTimeout(wormJoinWatchdog);
+        wormLocalMode=false;
         wormRunning=true;
         wormCenterMessage.hidden=true;
         wormDeathPanel.hidden=true;
-        wormState = wormState || {};
+        wormState=wormState||{};
         wormState.me=id;
         wormJoinSent=false;
-        if (wormPingEl) wormPingEl.textContent="LIVE";
+        if(wormPingEl) wormPingEl.textContent='LIVE';
     });
-    wormSocket.on("worm:state", state=>{ wormState=state; });
-    wormSocket.on("worm:died", ({mass=0, killer})=>{
+    wormSocket.on('worm:state', state=>{
+        wormLastServerState=performance.now();
+        wormLocalMode=false;
+        wormState=state;
+        wormRunning=true;
+        wormCenterMessage.hidden=true;
+        if(wormPingEl && wormPingEl.textContent.includes('WAITING')) wormPingEl.textContent='LIVE';
+    });
+    wormSocket.on('worm:died', ({mass=0,killer})=>{
         wormRunning=false; wormBoosting=false;
-        wormDeathText.textContent = killer ? `${killer}에게 길을 막혔습니다. 질량 ${Math.floor(mass)}.` : `질량 ${Math.floor(mass)}로 종료되었습니다.`;
+        wormDeathText.textContent=killer?`${killer}에게 길이 막혔습니다. 질량 ${Math.floor(mass)}.`:`질량 ${Math.floor(mass)}로 종료되었습니다.`;
         wormDeathPanel.hidden=false;
+        wormBurst(wormCamera.x,wormCamera.y,'#ff5e7d',28);
     });
-    wormSocket.on("connect_error", ()=>{
-        if(wormPingEl) wormPingEl.textContent="RECONNECTING";
+    wormSocket.on('connect_error', ()=>{
+        if(wormPingEl) wormPingEl.textContent='RECONNECTING';
     });
-    wormSocket.on("disconnect", ()=>{
-        if(wormRunning && wormPingEl) wormPingEl.textContent="RECONNECTING";
+    wormSocket.on('disconnect', ()=>{
+        if(wormRunning && wormPingEl) wormPingEl.textContent='RECONNECTING';
     });
-    wormSocket.on("reconnect", ()=>{
+    wormSocket.on('reconnect', ()=>{
         wormJoinSent=false;
-        if(wormPingEl) wormPingEl.textContent="CONNECTED";
+        if(wormPingEl) wormPingEl.textContent='CONNECTED';
         wormJoinWhenConnected();
     });
-    wormSocket.on("worm:error", ({message})=>{
+    wormSocket.on('worm:error', ({message})=>{
         wormJoinSent=false;
-        if(wormPingEl) wormPingEl.textContent="READY";
-        if (wormCenterMessage) wormCenterMessage.hidden=false;
-        alert(message || "게임 연결 오류");
+        if(wormPingEl) wormPingEl.textContent='PRACTICE';
+        wormStartLocalPractice();
     });
-    wormSocket.on("worm:ping", ({ms})=>{ if(wormPingEl) wormPingEl.textContent=`${Math.round(ms)}ms`; });
+    wormSocket.on('worm:ping', ({ms})=>{
+        if(!wormLocalMode && wormPingEl) wormPingEl.textContent=`${Math.round(ms)}ms`;
+    });
     return wormSocket;
 }
 
 function wormStart(){
-    const name=(wormNickname?.value||"Player").trim().slice(0,14)||"Player";
-    wormPendingJoinName = name;
-    wormJoinSent = false;
-    wormDeathPanel.hidden = true;
-    wormCenterMessage.hidden = false;
-    const socket=wormConnect();
-    if (!socket) return;
-    if (socket.connected) wormJoinWhenConnected();
-    else if (wormPingEl) wormPingEl.textContent="CONNECTING";
-}
-
-// Socket.IO가 차단되거나 서버가 일시적으로 내려간 경우에도 버튼으로 즉시 플레이할 수 있는 로컬 연습 모드.
-function wormStartLocalPractice(){
-    wormRunning=true;
-    wormCenterMessage.hidden=true;
+    const name=(wormNickname?.value||'Player').trim().slice(0,14)||'Player';
+    wormPendingJoinName=name;
+    wormJoinSent=false;
+    wormLastServerState=0;
     wormDeathPanel.hidden=true;
-    if(wormPingEl) wormPingEl.textContent="LOCAL";
-    const meId="local-player";
-    wormState={world:5200,me:meId,food:[],players:[]};
-    const me={id:meId,nickname:(wormPendingJoinName||"Player"),x:2600,y:2600,mass:10,length:8,radius:15,color:"#55f59b",dirX:wormAim.x,dirY:wormAim.y,isBot:false,segments:[]};
-    wormState.players=[me];
-    for(let i=0;i<6;i++){
-        wormState.players.push({id:`local-bot-${i}`,nickname:`BOT ${i+1}`,x:700+i*650,y:900+(i%3)*900,mass:12+i*3,length:8+i,radius:15,color:["#59b7ff","#ff6e8d","#ffc857","#b98cff","#48e0d1","#ff8b4d"][i],dirX:1,dirY:0,isBot:true,segments:[]});
-    }
-    if (wormPingEl) wormPingEl.textContent="LOCAL PRACTICE";
+    wormCenterMessage.hidden=false;
+    if(wormPingEl) wormPingEl.textContent='CONNECTING';
+    const socket=wormConnect();
+    if(!socket){ return; }
+    if(socket.connected) wormJoinWhenConnected();
 }
 
 function wormSendInput(){
+    if(wormLocalMode){
+        const me=wormState?.players?.find(p=>p.id===wormState.me);
+        if(me){me.dirX=wormAim.x;me.dirY=wormAim.y;}
+        return;
+    }
     if(!wormSocket?.connected || !wormRunning) return;
-    wormSocket.emit("worm:input", {x:wormAim.x,y:wormAim.y,boost:wormBoosting});
+    wormSocket.emit('worm:input',{x:wormAim.x,y:wormAim.y,boost:wormBoosting});
 }
 
 function wormSetAimFromPointer(clientX,clientY){
-    if(!wormGameCanvas) return;
+    if(!wormGameCanvas)return;
     const r=wormGameCanvas.getBoundingClientRect();
-    const x=clientX-r.left-r.width/2, y=clientY-r.top-r.height/2;
+    const x=clientX-r.left-r.width/2,y=clientY-r.top-r.height/2;
     const len=Math.hypot(x,y)||1;
     wormAim={x:x/len,y:y/len};
     wormSendInput();
 }
 
-function wormRender(now){
-    if(!wormGameCanvas) return;
-    const ctx=wormGameCanvas.getContext("2d");
-    const dpr=Math.min(window.devicePixelRatio||1,2);
-    const w=wormGameCanvas.width, h=wormGameCanvas.height;
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.clearRect(0,0,w,h);
-    ctx.fillStyle="#07100c"; ctx.fillRect(0,0,w,h);
-    const state=wormState;
-    if(!state || !state.players){ wormDrawIntro(); requestAnimationFrame(wormRender); return; }
-    const me=state.players.find(p=>p.id===state.me) || state.players[0];
-    const zoom=Math.max(.72,Math.min(1.25,1.08-(me?.mass||10)/1300));
-    const camX=me?.x||state.world/2, camY=me?.y||state.world/2;
-    ctx.save(); ctx.scale(dpr,dpr);
-    const vw=w/dpr,vh=h/dpr;
-    ctx.translate(vw/2,vh/2); ctx.scale(zoom,zoom); ctx.translate(-camX,-camY);
-    // world background
-    ctx.fillStyle="#08130e"; ctx.fillRect(0,0,state.world,state.world);
-    const grid=100; ctx.strokeStyle="rgba(105,255,176,.055)";ctx.lineWidth=1;
-    const sx=Math.max(0,Math.floor((camX-vw/(2*zoom))/grid)*grid), ex=Math.min(state.world,Math.ceil((camX+vw/(2*zoom))/grid)*grid);
-    const sy=Math.max(0,Math.floor((camY-vh/(2*zoom))/grid)*grid), ey=Math.min(state.world,Math.ceil((camY+vh/(2*zoom))/grid)*grid);
-    for(let x=sx;x<=ex;x+=grid){ctx.beginPath();ctx.moveTo(x,sy);ctx.lineTo(x,ey);ctx.stroke();}
-    for(let y=sy;y<=ey;y+=grid){ctx.beginPath();ctx.moveTo(sx,y);ctx.lineTo(ex,y);ctx.stroke();}
-    // boundary
-    ctx.strokeStyle="rgba(88,255,170,.3)";ctx.lineWidth=5;ctx.strokeRect(0,0,state.world,state.world);
-    // food
-    for(const f of state.food||[]){
-        const pulse=1+Math.sin((now+f.id*91)/250)*.12; const rr=f.r*pulse;
-        const g=ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,rr*2.4);g.addColorStop(0,f.color);g.addColorStop(1,"rgba(0,0,0,0)");
-        ctx.fillStyle=g;ctx.beginPath();ctx.arc(f.x,f.y,rr*2.4,0,Math.PI*2);ctx.fill();
-        ctx.fillStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,rr,0,Math.PI*2);ctx.fill();
+function wormBurst(x,y,color,count=18){
+    for(let i=0;i<count;i++){
+        const a=Math.random()*Math.PI*2,s=25+Math.random()*100;
+        wormParticles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.45+Math.random()*.6,max:.9,color,size:2+Math.random()*4});
     }
-    // worms
-    for(const p of state.players){
-        if(!p.segments?.length) continue;
-        ctx.lineCap="round";ctx.lineJoin="round";
-        ctx.beginPath();
-        for(let i=0;i<p.segments.length;i++){const q=p.segments[i]; if(i===0)ctx.moveTo(q.x,q.y);else ctx.lineTo(q.x,q.y);}
-        ctx.lineWidth=p.radius*2.2;ctx.strokeStyle=p.color;ctx.globalAlpha=.2;ctx.stroke();ctx.globalAlpha=1;
-        ctx.lineWidth=p.radius*2;ctx.strokeStyle=p.color;ctx.stroke();
-        for(let i=p.segments.length-1;i>=0;i-=Math.max(1,Math.floor(p.segments.length/14))){
-            const q=p.segments[i];ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(q.x,q.y,p.radius*(.82+.18*(1-i/p.segments.length)),0,Math.PI*2);ctx.fill();
+}
+
+function wormUpdateLocal(now){
+    if(!wormLocalMode||!wormState?.players)return;
+    const dt=Math.min(.035,(now-wormLocalLast)/1000||0); wormLocalLast=now;
+    const players=wormState.players;
+    for(const p of players){
+        if(p.id===wormState.me){
+            const len=Math.hypot(p.dirX,p.dirY)||1;p.dirX/=len;p.dirY/=len;
+            const speed=(p.mass>5&&wormBoosting)?255:175;
+            if(wormBoosting&&p.mass>5)p.mass=Math.max(5,p.mass-dt*1.1);
+            p.x+=p.dirX*speed*dt;p.y+=p.dirY*speed*dt;
+            p.x=Math.max(90,Math.min(wormState.world-90,p.x));p.y=Math.max(90,Math.min(wormState.world-90,p.y));
+        }else{
+            const target=wormState.food[Math.floor(Math.random()*wormState.food.length)];
+            if(target){const dx=target.x-p.x,dy=target.y-p.y,d=Math.hypot(dx,dy)||1;p.dirX=.985*p.dirX+.015*dx/d;p.dirY=.985*p.dirY+.015*dy/d;}
+            const d=Math.hypot(p.dirX,p.dirY)||1;p.dirX/=d;p.dirY/=d;
+            p.x+=p.dirX*125*dt;p.y+=p.dirY*125*dt;
+            if(p.x<100||p.x>wormState.world-100)p.dirX*=-1;
+            if(p.y<100||p.y>wormState.world-100)p.dirY*=-1;
         }
-        const head=p.segments[0];
-        ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(head.x-p.dirY*p.radius*.38,head.y+p.dirX*p.radius*.38,p.radius*.25,0,Math.PI*2);ctx.fill();
-        ctx.beginPath();ctx.arc(head.x+p.dirY*p.radius*.38,head.y-p.dirX*p.radius*.38,p.radius*.25,0,Math.PI*2);ctx.fill();
-        ctx.fillStyle="#07100c";ctx.beginPath();ctx.arc(head.x-p.dirY*p.radius*.38,head.y+p.dirX*p.radius*.38,p.radius*.11,0,Math.PI*2);ctx.fill();
-        ctx.beginPath();ctx.arc(head.x+p.dirY*p.radius*.38,head.y-p.dirX*p.radius*.38,p.radius*.11,0,Math.PI*2);ctx.fill();
-        if(p.id===state.me){ctx.font=`700 ${Math.max(10,p.radius*1.25)}px sans-serif`;ctx.textAlign="center";ctx.fillStyle="#dffff0";ctx.fillText(p.nickname,head.x,head.y-p.radius*2.2);}
+        p.radius=Math.min(30,11+Math.sqrt(p.mass)*.72);p.length=Math.floor(8+p.mass*.75);
+        p.segments=[]; const segCount=Math.min(75,Math.max(18,Math.floor(p.length*1.4)));
+        for(let i=0;i<segCount;i++){const d=i*7.2;p.segments.push({x:p.x-p.dirX*d,y:p.y-p.dirY*d});}
     }
-    ctx.restore();
+    const me=players.find(p=>p.id===wormState.me);
+    if(me){for(let i=wormState.food.length-1;i>=0;i--){const f=wormState.food[i];if((me.x-f.x)**2+(me.y-f.y)**2<(me.radius+f.r+7)**2){me.mass+=f.value;wormBurst(f.x,f.y,f.color,4);wormState.food.splice(i,1);}}}
+    while(wormState.food.length<360) wormState.food.push({id:Math.random(),x:Math.random()*wormState.world,y:Math.random()*wormState.world,r:3+Math.random()*3,value:1,color:['#65ffb0','#ffdf63','#66c7ff','#ff78bd'][Math.floor(Math.random()*4)]});
+}
+
+function wormRender(now){
+    if(!wormGameCanvas)return;
+    const ctx=wormGameCanvas.getContext('2d');
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const w=wormGameCanvas.width,h=wormGameCanvas.height;
+    ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,w,h);
+    if(!wormState?.players){wormDrawIntro();requestAnimationFrame(wormRender);return;}
+    wormUpdateLocal(now);
+    const state=wormState;
+    const me=state.players.find(p=>p.id===state.me)||state.players[0];
+    if(me){wormCamera.x += (me.x-wormCamera.x)*.11;wormCamera.y += (me.y-wormCamera.y)*.11;wormCamera.zoom += (Math.max(.58,Math.min(1.05,1.04-(me.mass||10)/1600))-wormCamera.zoom)*.08;}
+    wormParticles=wormParticles.filter(q=>q.life>0);
+    for(const q of wormParticles){q.x+=q.vx*(1/60);q.y+=q.vy*(1/60);q.vx*=.97;q.vy*=.97;q.life-=1/60;}
+    ctx.save();ctx.scale(dpr,dpr);const vw=w/dpr,vh=h/dpr;ctx.translate(vw/2,vh/2);ctx.scale(wormCamera.zoom,wormCamera.zoom);ctx.translate(-wormCamera.x,-wormCamera.y);
+    const bg=ctx.createRadialGradient(wormCamera.x,wormCamera.y,100,wormCamera.x,wormCamera.y,2600);bg.addColorStop(0,'#10291d');bg.addColorStop(.45,'#08170f');bg.addColorStop(1,'#020705');ctx.fillStyle=bg;ctx.fillRect(0,0,state.world,state.world);
+    const grid=100;const left=Math.max(0,wormCamera.x-vw/(2*wormCamera.zoom)-grid),right=Math.min(state.world,wormCamera.x+vw/(2*wormCamera.zoom)+grid),top=Math.max(0,wormCamera.y-vh/(2*wormCamera.zoom)-grid),bottom=Math.min(state.world,wormCamera.y+vh/(2*wormCamera.zoom)+grid);
+    ctx.lineWidth=1;ctx.strokeStyle='rgba(107,255,177,.055)';for(let x=Math.floor(left/grid)*grid;x<=right;x+=grid){ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();}for(let y=Math.floor(top/grid)*grid;y<=bottom;y+=grid){ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();}
+    ctx.strokeStyle='rgba(82,255,170,.38)';ctx.lineWidth=8;ctx.shadowBlur=28;ctx.shadowColor='rgba(60,255,160,.2)';ctx.strokeRect(0,0,state.world,state.world);ctx.shadowBlur=0;
+    for(const f of state.food||[]){const pulse=1+Math.sin((now+f.id*31)/180)*.16,rr=f.r*pulse;ctx.globalAlpha=.22;ctx.fillStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,rr*4,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;ctx.fillStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,rr,0,Math.PI*2);ctx.fill();}
+    const sorted=[...state.players].sort((a,b)=>(b.mass||0)-(a.mass||0));
+    for(const p of sorted){
+        if(!p.segments?.length)continue;
+        const seg=p.segments;
+        ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();for(let i=0;i<seg.length;i++){const q=seg[i];if(i===0)ctx.moveTo(q.x,q.y);else ctx.lineTo(q.x,q.y);}
+        ctx.lineWidth=p.radius*2.55;ctx.strokeStyle=p.color;ctx.globalAlpha=.12;ctx.shadowBlur=25;ctx.shadowColor=p.color;ctx.stroke();ctx.globalAlpha=1;ctx.lineWidth=p.radius*1.95;ctx.shadowBlur=0;ctx.strokeStyle=p.color;ctx.stroke();
+        for(let i=seg.length-1;i>=0;i-=Math.max(2,Math.floor(seg.length/18))){const q=seg[i],k=1-i/seg.length;ctx.globalAlpha=.18+.24*k;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(q.x,q.y,p.radius*(.12+.1*k),0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+        const head=seg[0];ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(head.x,head.y,p.radius*1.08,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#fff';const px=-p.dirY*p.radius*.36,py=p.dirX*p.radius*.36;ctx.beginPath();ctx.arc(head.x+px,head.y+py,p.radius*.25,0,Math.PI*2);ctx.arc(head.x-px,head.y-py,p.radius*.25,0,Math.PI*2);ctx.fill();ctx.fillStyle='#07100c';ctx.beginPath();ctx.arc(head.x+px+p.dirX*p.radius*.07,head.y+py+p.dirY*p.radius*.07,p.radius*.105,0,Math.PI*2);ctx.arc(head.x-px+p.dirX*p.radius*.07,head.y-py+p.dirY*p.radius*.07,p.radius*.105,0,Math.PI*2);ctx.fill();
+        if(p.id===state.me){ctx.font=`800 ${Math.max(11,p.radius*1.05)}px system-ui,sans-serif`;ctx.textAlign='center';ctx.fillStyle='rgba(240,255,248,.96)';ctx.shadowBlur=10;ctx.shadowColor='#000';ctx.fillText(p.nickname,head.x,head.y-p.radius*2.15);ctx.shadowBlur=0;}
+    }
+    for(const q of wormParticles){ctx.globalAlpha=Math.max(0,q.life/q.max);ctx.fillStyle=q.color;ctx.beginPath();ctx.arc(q.x,q.y,q.size,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;ctx.restore();
+    // HUD
     if(wormMassEl)wormMassEl.textContent=Math.floor(me?.mass||0);
     if(wormLengthEl)wormLengthEl.textContent=Math.floor(me?.length||0);
-    if(wormOnlineCountEl){ const humans=(state.players||[]).filter(p=>!p.isBot).length; wormOnlineCountEl.textContent=`${humans} ONLINE · ${state.players.length} IN ARENA`; }
-    if(wormLeaderboardEl){
-        const top=[...(state.players||[])].sort((a,b)=>b.mass-a.mass).slice(0,8);
-        wormLeaderboardEl.innerHTML='<div class="worm-leader-title">TOP PLAYERS</div>'+top.map((p,i)=>`<div class="worm-row"><span class="rank">${i+1}</span><span class="dot" style="background:${p.color}"></span><span class="name">${wormEscapeHtml(p.nickname)}</span><span class="mass">${Math.floor(p.mass)}</span></div>`).join('');
-    }
+    if(wormOnlineCountEl){const humans=(state.players||[]).filter(p=>!p.isBot).length;wormOnlineCountEl.textContent=`${humans} ONLINE · ${state.players.length} IN ARENA`;}
+    if(wormLeaderboardEl){const top=sorted.slice(0,8);wormLeaderboardEl.innerHTML='<div class="worm-leader-title">TOP PLAYERS</div>'+top.map((p,i)=>`<div class="worm-row"><span class="rank">${i+1}</span><span class="dot" style="background:${p.color}"></span><span class="name">${wormEscapeHtml(p.nickname)}</span><span class="mass">${Math.floor(p.mass)}</span></div>`).join('');}
     requestAnimationFrame(wormRender);
 }
 
