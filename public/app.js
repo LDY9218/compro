@@ -1860,7 +1860,13 @@ function wormDrawIntro(){
 function wormConnect(){
     if (wormSocket?.connected) return wormSocket;
     if (typeof window.io !== "function") { alert("실시간 게임 연결 모듈을 불러오지 못했습니다."); return null; }
-    wormSocket = window.io();
+    wormSocket = window.io({
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 500,
+        reconnectionDelayMax: 3000,
+        timeout: 8000
+    });
     wormSocket.on("worm:joined", ({id})=>{
         wormRunning=true;
         wormCenterMessage.hidden=true;
@@ -1874,6 +1880,8 @@ function wormConnect(){
         wormDeathText.textContent = killer ? `${killer}에게 길을 막혔습니다. 질량 ${Math.floor(mass)}.` : `질량 ${Math.floor(mass)}로 종료되었습니다.`;
         wormDeathPanel.hidden=false;
     });
+    wormSocket.on("connect_error", ()=>{ if(wormPingEl) wormPingEl.textContent="RECONNECTING"; });
+    wormSocket.on("reconnect", ()=>{ if(wormPingEl) wormPingEl.textContent="CONNECTED"; });
     wormSocket.on("worm:error", ({message})=>alert(message || "게임 연결 오류"));
     wormSocket.on("worm:ping", ({ms})=>{ if(wormPingEl) wormPingEl.textContent=`${Math.round(ms)}ms`; });
     return wormSocket;
@@ -1952,7 +1960,7 @@ function wormRender(now){
     ctx.restore();
     if(wormMassEl)wormMassEl.textContent=Math.floor(me?.mass||0);
     if(wormLengthEl)wormLengthEl.textContent=Math.floor(me?.length||0);
-    if(wormOnlineCountEl)wormOnlineCountEl.textContent=`${state.players.length} ONLINE`;
+    if(wormOnlineCountEl){ const humans=(state.players||[]).filter(p=>!p.isBot).length; wormOnlineCountEl.textContent=`${humans} ONLINE · ${state.players.length} IN ARENA`; }
     if(wormLeaderboardEl){
         const top=[...(state.players||[])].sort((a,b)=>b.mass-a.mass).slice(0,8);
         wormLeaderboardEl.innerHTML='<div class="worm-leader-title">TOP PLAYERS</div>'+top.map((p,i)=>`<div class="worm-row"><span class="rank">${i+1}</span><span class="dot" style="background:${p.color}"></span><span class="name">${wormEscapeHtml(p.nickname)}</span><span class="mass">${Math.floor(p.mass)}</span></div>`).join('');
