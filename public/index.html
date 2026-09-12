@@ -254,15 +254,53 @@
                 </div>
                 <span class="game-card-arrow">›</span>
             </button>
-            <button id="hubDoomGame" class="game-card doom-hub-card" type="button">
-                <div class="game-card-art doom-art">DOOM</div>
+            <button id="hubWormGame" class="game-card worm-hub-card" type="button">
+                <div class="game-card-art worm-art">🪱</div>
                 <div class="game-card-body">
-                    <span class="game-card-tag">OFFICIAL GAME</span>
-                    <strong>DOOM + DOOM II</strong>
-                    <small>공식 DOOM 페이지에서 원작과 DOOM II를 확인할 수 있습니다.</small>
+                    <span class="game-card-tag">REALTIME IO MULTIPLAYER</span>
+                    <strong>Worm Arena</strong>
+                    <small>실시간으로 다른 플레이어와 경쟁하며 먹고, 성장하고, 1위를 차지하세요.</small>
                 </div>
-                <span class="game-card-arrow">↗</span>
+                <span class="game-card-arrow">›</span>
             </button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     REALTIME WORM ARENA
+================================================== -->
+<div id="wormGameModal" class="worm-game-modal" aria-hidden="true">
+    <div id="wormGameBackdrop" class="worm-game-backdrop"></div>
+    <div class="worm-game-window" role="dialog" aria-modal="true" aria-label="Worm Arena">
+        <div class="worm-topbar">
+            <div class="worm-brand"><span class="worm-logo">🪱</span><div><strong>WORM ARENA</strong><small>REALTIME MULTIPLAYER</small></div></div>
+            <div class="worm-status"><span id="wormOnlineCount">0 ONLINE</span><span id="wormPing">●</span></div>
+            <button id="closeWormGameBtn" class="game-close-btn" type="button" aria-label="Worm Arena 닫기">×</button>
+        </div>
+        <div class="worm-stage">
+            <canvas id="wormGameCanvas"></canvas>
+            <div class="worm-hud-left">
+                <div class="worm-score-card"><span>YOUR MASS</span><strong id="wormMass">10</strong></div>
+                <div class="worm-score-card"><span>LENGTH</span><strong id="wormLength">8</strong></div>
+            </div>
+            <div class="worm-leaderboard" id="wormLeaderboard"><div class="worm-leader-title">TOP PLAYERS</div></div>
+            <div class="worm-center-message" id="wormCenterMessage">
+                <div class="worm-start-panel">
+                    <div class="worm-big-icon">🪱</div>
+                    <h3>WORM ARENA</h3>
+                    <p>실시간 아레나에서 먹고 성장하세요.<br>다른 지렁이의 몸통에 머리가 닿으면 탈락합니다.</p>
+                    <input id="wormNickname" maxlength="14" placeholder="닉네임" value="Player">
+                    <button id="wormStartBtn" type="button">ARENA 입장</button>
+                    <small>PC: 마우스로 조종 · Space/클릭: 부스트<br>모바일: 화면 드래그 · 부스트 버튼</small>
+                </div>
+            </div>
+            <div id="wormJoystick" class="worm-joystick" aria-hidden="true"><div class="worm-stick"></div></div>
+            <button id="wormBoostBtn" class="worm-boost-btn" type="button">BOOST</button>
+            <div id="wormDeathPanel" class="worm-death-panel" hidden>
+                <strong>WORM DOWN</strong><span id="wormDeathText">다시 도전하세요.</span>
+                <button id="wormRestartBtn" type="button">다시 플레이</button>
+            </div>
         </div>
     </div>
 </div>
