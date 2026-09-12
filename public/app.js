@@ -5416,7 +5416,14 @@ function survivalTakeDamage(amount) {
 }
 
 function survivalCollectXp(value) {
-    if (survivalEligibleUpgrades().length === 0) { survivalState.xp = survivalState.xpNeed; survivalUpdateHud(); return; }
+    // 모든 기술이 MAX이면 경험치를 받아도 레벨업/선택창을 절대 다시 열지 않는다.
+    if (survivalEligibleUpgrades().length === 0) {
+        survivalState.xp = survivalState.xpNeed;
+        survivalState.pausedForLevel = false;
+        survivalLevelUp?.classList.add("hidden");
+        survivalUpdateHud();
+        return;
+    }
     survivalState.xp += Math.max(0, value);
     let safety = 0;
     while (survivalState.xp >= survivalState.xpNeed && safety++ < 12) {
@@ -5430,6 +5437,53 @@ function survivalCollectXp(value) {
 
 function survivalEligibleUpgrades() {
     return SURVIVAL_UPGRADES.filter((item) => (survivalState.upgradeLevels[item.key] || 0) < SURVIVAL_MAX_SKILL_LEVEL);
+}
+
+// 개발자 MAX는 단순히 UI의 Lv.8 표시만 바꾸는 것이 아니라,
+// 실제 전투에 사용되는 모든 수치를 최대 상태로 직접 보정한다.
+function survivalForceMaxBuild() {
+    const u = survivalState.upgrades || (survivalState.upgrades = { ...SURVIVAL_DEFAULT_UPGRADES });
+    const maxLevel = SURVIVAL_MAX_SKILL_LEVEL;
+
+    // 100개 기술의 레벨을 예외 없이 실제 MAX(Lv.8)으로 만든다.
+    for (const item of SURVIVAL_UPGRADES) survivalState.upgradeLevels[item.key] = maxLevel;
+
+    // 수치형/확률형 기술의 실제 최대 전투값.
+    Object.assign(u, {
+        damage: 18, fireRate: 18, moveSpeed: 3.2, magnet: 18, projectile: 16,
+        crit: 0.92, bulletSpeed: 18, pierce: 24, area: 18, armor: 24, regen: 24,
+        frost: 24, orbital: 12, lightning: 24, bomb: 24, drone: 8, lifesteal: 24,
+        xpBoost: 18, range: 18, bulletSize: 18, damageBoss: 18, eliteDamage: 18,
+        knockback: 24, dash: 24, shield: 8, thorns: 24, pickupXp: 18, goldXp: 18,
+        weaponCooldown: 18, lightningChain: 24, bombRadius: 18, bombDamage: 18,
+        bladeDamage: 18, bladeSpeed: 18, droneDamage: 18, droneCount: 8, critDamage: 18,
+        healthPickup: 18, enemySlow: 24, execute: 24, homing: 24, healthOrb: 24,
+        bossXp: 18, bossSlow: 24, focus: 24, emergencyHeal: 8, dodge: 24, repulse: 24,
+        overdrive: 24, speedDamage: 18, fireBottle: 8, boomerang: 8, ricochet: 8,
+        railgun: 8, laser: 8, meteor: 8, iceNova: 8, poisonCloud: 8, bleed: 8, burn: 8,
+        shrapnel: 8, vortex: 8, gravityWell: 8, timeWarp: 8, haste: 8, overheat: 8,
+        bloodPact: 8, salvage: 8, choicePlus: 8, lucky: 8, revive: 8, clone: 8,
+        turret: 8, sentry: 8, droneOrbit: 8, droneShield: 8, droneMissile: 8,
+        bladeWave: 8, pulse: 8, chainShot: 8, splitShot: 8, fanShot: 8, sniper: 8,
+        scatterBomb: 8, minefield: 8, flameTrail: 8, acidPool: 8, storm: 8, quake: 8,
+        shockwave: 8, prism: 8, voidRift: 8, soulHarvest: 8, executioner: 8,
+        giantSlayer: 8, bossBreaker: 8, adrenaline: 8, secondWind: 8, phaseShift: 8,
+        healingRain: 8, vacuum: 8, precision: 8, greed: 8,
+    });
+
+    const p = survivalState.player || (survivalState.player = {
+        x: 0, y: 0, radius: 17, hp: 100, maxHp: 100, invuln: 0, facing: 0,
+    });
+    p.maxHp = 9999;
+    p.hp = p.maxHp;
+    p.radius = 22;
+
+    survivalState.shieldCharges = 12;
+    survivalState.emergencyHealReady = true;
+    survivalState.overdriveTimer = 999999;
+    survivalState.developerCheat = true;
+    survivalState.pausedForLevel = false;
+    survivalLevelUp?.classList.add("hidden");
 }
 
 function survivalApplyUpgrade(key) {
@@ -5747,49 +5801,18 @@ async function survivalDeveloperCheat(){
         const r=await fetch("/api/developer/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code})});
         const d=await r.json();
         if(!r.ok||!d.ok)throw new Error(d.message||"개발자 코드가 올바르지 않습니다.");
-        const p=survivalState.player || (survivalState.player={x:0,y:0,radius:17,hp:100,maxHp:100,invuln:0,facing:0});
-        survivalState.player=p;
-        survivalState.developerCheat=true;
 
-        // 모든 기술을 실제 최대 레벨(8)까지 올린다.
-        // 이미 MAX인 기술은 중복 적용하지 않고, 누락된 기술도 강제로 8레벨까지 보정한다.
-        for(const item of SURVIVAL_UPGRADES){
-            let level=survivalState.upgradeLevels[item.key]||0;
-            while(level<SURVIVAL_MAX_SKILL_LEVEL){
-                if(!survivalApplyUpgrade(item.key))break;
-                level=survivalState.upgradeLevels[item.key]||0;
-            }
-            survivalState.upgradeLevels[item.key]=SURVIVAL_MAX_SKILL_LEVEL;
-        }
+        // 기존 방식처럼 Lv.8까지 반복해서 누적하는 대신,
+        // 모든 기술과 실제 전투 수치를 한 번에 MAX 상태로 확정한다.
+        survivalForceMaxBuild();
 
-        // 핵심 수치는 확실하게 MAX 상태로 보정한다.
-        p.maxHp=Math.max(9999,Number(p.maxHp)||100);
-        p.hp=p.maxHp;
-        p.radius=22;
-        survivalState.upgrades.damage=Math.max(18,survivalState.upgrades.damage||1);
-        survivalState.upgrades.fireRate=Math.max(18,survivalState.upgrades.fireRate||1);
-        survivalState.upgrades.moveSpeed=Math.max(2.8,survivalState.upgrades.moveSpeed||1);
-        survivalState.upgrades.maxHp=8;
-        survivalState.upgrades.projectile=Math.max(16,survivalState.upgrades.projectile||1);
-        survivalState.upgrades.drone=Math.max(8,survivalState.upgrades.drone||0);
-        survivalState.upgrades.homing=Math.max(8,survivalState.upgrades.homing||0);
-        survivalState.upgrades.knockback=Math.max(24,survivalState.upgrades.knockback||0);
-        survivalState.upgrades.repulse=Math.max(24,survivalState.upgrades.repulse||0);
-        survivalState.upgrades.goldXp=Math.max(8,survivalState.upgrades.goldXp||1);
-        survivalState.upgrades.bossXp=Math.max(8,survivalState.upgrades.bossXp||1);
-        survivalState.upgrades.bossSlow=Math.max(24,survivalState.upgrades.bossSlow||0);
-        survivalState.upgrades.bossBreaker=Math.max(8,survivalState.upgrades.bossBreaker||0);
-        survivalState.shieldCharges=12;
-        survivalState.emergencyHealReady=true;
-        survivalState.overdriveTimer=999999;
-
-        // 모든 기술이 MAX이므로 XP는 꽉 찬 상태로 유지하되, 레벨업/선택창은 절대 열리지 않는다.
+        // MAX 상태에서는 XP가 꽉 차 있어도 어떤 선택창도 열리지 않는다.
         survivalState.xp=survivalState.xpNeed;
         survivalState.pausedForLevel=false;
         survivalLevelUp?.classList.add("hidden");
         survivalUpdateHud();
-        survivalAddParticle(p.x||0,p.y||0,"#ffd83d",120);
-        alert("개발자 모드 활성화: 모든 기술 MAX");
+        survivalAddParticle(survivalState.player.x||0,survivalState.player.y||0,"#ffd83d",120);
+        alert("개발자 모드 활성화: 모든 기술 Lv.8 MAX + 실제 능력치 MAX");
     }catch(e){alert(e.message||"개발자 인증 실패");}
 }
 function survivalPause(){if(!survivalState.running||survivalState.won)return;survivalState.pauseMenuOpen=true;survivalState.pausedForLevel=true;survivalPauseOverlay?.classList.remove("hidden");}
