@@ -3118,3 +3118,30 @@ footer {
     .map-key-row button { height: 43px; }
     .url-window { width: 100%; border-radius: 0; }
 }
+
+
+/* Premium survival/map additions */
+.doom-art {
+    background: radial-gradient(circle at 50% 35%, #ff5a32 0, #6b120c 45%, #130606 100%);
+    color: #fff0d0;
+    font-size: 34px;
+    font-weight: 950;
+    letter-spacing: .08em;
+    text-shadow: 0 3px 18px rgba(255,70,20,.55);
+}
+.map-free-note {
+    position: absolute;
+    left: 16px;
+    bottom: 14px;
+    z-index: 700;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(7,13,22,.82);
+    color: rgba(235,247,255,.78);
+    border: 1px solid rgba(255,255,255,.1);
+    font-size: 12px;
+    backdrop-filter: blur(10px);
+}
+.leaflet-container { font-family: inherit; }
+.leaflet-control-attribution { font-size: 10px; }
+.boss-reward-card { cursor: default !important; border-color: rgba(255,211,71,.5) !important; box-shadow: 0 0 28px rgba(255,211,71,.14); }
