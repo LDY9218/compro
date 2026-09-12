@@ -10,7 +10,12 @@ dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: true, methods: ["GET", "POST", "PUT", "DELETE"] } });
+const io = new Server(server, {
+    cors: { origin: true, methods: ["GET", "POST", "PUT", "DELETE"] },
+    connectionStateRecovery: { maxDisconnectionDuration: 5 * 60 * 1000, skipMiddlewares: true },
+    pingInterval: 25000,
+    pingTimeout: 20000
+});
 const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = process.env.COMTIME_DATA_DIR ? path.resolve(process.env.COMTIME_DATA_DIR) : path.join(__dirname, "data");
 
@@ -353,6 +358,7 @@ app.get("/api/notices", (req, res) => {
 app.get("/api/admin/check", (req, res) => {
     res.json({ ok: true, isAdmin: isAdmin(req) });
 });
+app.post("/api/developer/verify",(req,res)=>{const configured=String(process.env.DEV_CODE||process.env.ADMIN_CODE||"").trim();const supplied=String(req.body?.code||"").trim();if(!configured||!supplied||supplied!==configured)return res.status(403).json({ok:false,message:"개발자 코드가 올바르지 않습니다."});res.json({ok:true});});
 
 app.post("/api/notices", (req, res) => {
     if (!isAdmin(req)) return res.status(403).json({ ok: false, message: "관리자 권한이 없습니다." });
@@ -1404,8 +1410,177 @@ function startCarGameLoop() {
 
 startCarGameLoop();
 
+// =========================================================
+// WORM ARENA — REALTIME MULTIPLAYER
+// =========================================================
+const WORM_WORLD = 5200;
+const WORM_TICK_MS = 50;
+const WORM_MAX_PLAYERS = 24;
+const WORM_BOT_COUNT = 6;
+const WORM_FOOD_TARGET = 360;
+const WORM_ROOM = "public";
+const wormPlayers = new Map();
+const wormFood = [];
+let wormFoodId = 1;
+let wormLastStateAt = 0;
+const WORM_COLORS = ["#55f59b","#59b7ff","#ff6e8d","#ffc857","#b98cff","#48e0d1","#ff8b4d","#f26bff","#9be15d","#6dd5ed"];
+
+function wormRand(min,max){ return min + Math.random()*(max-min); }
+function wormDist2(ax,ay,bx,by){ const dx=ax-bx,dy=ay-by; return dx*dx+dy*dy; }
+function wormSpawnFood(x=wormRand(180,WORM_WORLD-180), y=wormRand(180,WORM_WORLD-180), value=1, color=null){
+    wormFood.push({id:wormFoodId++,x,y,r:value>=8?8:value>=3?6:4,value,color:color||["#70ffb0","#ffe56b","#72c7ff","#ff79bd"][Math.floor(Math.random()*4)]});
+}
+function wormFillFood(){ while(wormFood.length<WORM_FOOD_TARGET) wormSpawnFood(); }
+function wormMakePlayer(id,nickname, isBot=false){
+    const angle=Math.random()*Math.PI*2;
+    const x=wormRand(650,WORM_WORLD-650), y=wormRand(650,WORM_WORLD-650);
+    const color=WORM_COLORS[Math.floor(Math.random()*WORM_COLORS.length)];
+    const trail=[]; for(let i=0;i<80;i++) trail.push({x:x-Math.cos(angle)*i*5,y:y-Math.sin(angle)*i*5});
+    return {id,nickname:String(nickname||"Player").replace(/[^\p{L}\p{N}_ -]/gu,"").slice(0,14)||"Player",x,y,angle,targetAngle:angle,dirX:Math.cos(angle),dirY:Math.sin(angle),boost:false,mass:isBot?18:12,length:10,radius:12,speed:isBot?178:185,trail,color,alive:true,lastInput:Date.now(),spawnShieldUntil:Date.now()+3000,isBot};
+}
+function wormEnsureBots(){
+    let bots=[...wormPlayers.values()].filter(p=>p.isBot);
+    while(bots.length<WORM_BOT_COUNT && wormPlayers.size<WORM_MAX_PLAYERS){
+        const id=`bot-${bots.length+1}`;
+        if(wormPlayers.has(id)){ bots=[...wormPlayers.values()].filter(p=>p.isBot); continue; }
+        const bot=wormMakePlayer(id,`BOT ${bots.length+1}`,true);
+        wormPlayers.set(id,bot);
+        bots.push(bot);
+    }
+}
+function wormBotThink(p, now){
+    if(!p.isBot || !p.alive) return;
+    const nearby=wormFood.reduce((best,f)=>{
+        const d=wormDist2(p.x,p.y,f.x,f.y);
+        return d<(best?.d??Infinity)?{f,d}:best;
+    },null);
+    if(now-p.lastInput>900 || Math.random()<0.012){
+        let tx=p.x+p.dirX*500, ty=p.y+p.dirY*500;
+        if(nearby && nearby.d<900*900){ tx=nearby.f.x; ty=nearby.f.y; }
+        if(p.x<450) tx+=700; else if(p.x>WORM_WORLD-450) tx-=700;
+        if(p.y<450) ty+=700; else if(p.y>WORM_WORLD-450) ty-=700;
+        const a=Math.atan2(ty-p.y,tx-p.x);
+        p.dirX=Math.cos(a); p.dirY=Math.sin(a); p.targetAngle=a;
+        p.boost=p.mass>28 && Math.random()<0.28;
+        p.lastInput=now;
+    }
+}
+function wormPlayerSegments(p){
+    const wanted=Math.max(28,Math.min(180,Math.floor(18+p.mass*0.85)));
+    const out=[]; const spacing=7; let carry=0; let prev=p.trail[0];
+    if(!prev) return out;
+    out.push({x:prev.x,y:prev.y});
+    for(let i=1;i<p.trail.length && out.length<wanted;i++){
+        const q=p.trail[i]; const d=Math.hypot(q.x-prev.x,q.y-prev.y); carry+=d;
+        if(carry>=spacing){out.push({x:q.x,y:q.y});carry=0;}
+        prev=q;
+    }
+    return out;
+}
+function wormTurnToward(p){
+    const desired=Math.atan2(p.dirY,p.dirX); let d=desired-p.angle;
+    while(d>Math.PI)d-=Math.PI*2; while(d<-Math.PI)d+=Math.PI*2;
+    const maxTurn=0.12; p.angle += Math.max(-maxTurn,Math.min(maxTurn,d));
+    p.dirX=Math.cos(p.angle); p.dirY=Math.sin(p.angle);
+}
+function wormDropMass(p){
+    const drops=Math.min(65,Math.max(8,Math.floor(p.mass/2)));
+    for(let i=0;i<drops;i++){
+        const a=Math.random()*Math.PI*2, r=Math.random()*Math.max(20,p.radius*7);
+        wormSpawnFood(p.x+Math.cos(a)*r,p.y+Math.sin(a)*r,Math.max(2,Math.floor(p.mass/drops)),p.color);
+    }
+}
+function wormKill(victim,killerName){
+    if(!victim || !victim.alive)return;
+    victim.alive=false; wormDropMass(victim);
+    const sock=io.sockets.sockets.get(victim.id);
+    if(sock) sock.emit("worm:died",{mass:victim.mass,killer:killerName||null});
+    if(victim.isBot){
+        setTimeout(()=>{
+            if(!wormPlayers.has(victim.id)) return;
+            const bot=wormMakePlayer(victim.id,victim.nickname,true);
+            wormPlayers.set(victim.id,bot);
+        },1800);
+    }
+}
+function wormPublicState(){
+    const players=[...wormPlayers.values()].filter(p=>p.alive).map(p=>({
+        id:p.id,nickname:p.nickname,x:p.x,y:p.y,mass:Math.round(p.mass),length:Math.round(p.length),radius:p.radius,color:p.color,dirX:p.dirX,dirY:p.dirY,isBot:!!p.isBot,segments:wormPlayerSegments(p)
+    }));
+    return {world:WORM_WORLD,me:null,players,food:wormFood.slice(0,450)};
+}
+function wormEmitState(){
+    const now=Date.now();
+    if(now-wormLastStateAt<50)return; wormLastStateAt=now;
+    for(const p of wormPlayers.values()){
+        if(!p.alive)continue;
+        const sock=io.sockets.sockets.get(p.id); if(!sock)continue;
+        const state=wormPublicState(); state.me=p.id; sock.emit("worm:state",state);
+    }
+}
+function wormTick(){
+    const dt=WORM_TICK_MS/1000;
+    const now=Date.now();
+    wormEnsureBots();
+    wormFillFood();
+    for(const p of wormPlayers.values()){
+        if(!p.alive)continue;
+        wormBotThink(p, now);
+        wormTurnToward(p);
+        const boost=p.boost && p.mass>5;
+        const speed=p.speed*(boost?1.48:1);
+        if(boost)p.mass=Math.max(5,p.mass-0.045);
+        p.x+=p.dirX*speed*dt; p.y+=p.dirY*speed*dt;
+        if(p.x<20||p.x>WORM_WORLD-20||p.y<20||p.y>WORM_WORLD-20){ wormKill(p,"경계"); continue; }
+        p.trail.unshift({x:p.x,y:p.y});
+        const keep=Math.min(260,Math.max(80,Math.floor(40+p.mass*1.8)));
+        if(p.trail.length>keep)p.trail.length=keep;
+        p.radius=Math.min(25,10+Math.sqrt(p.mass)*0.7);
+        p.length=Math.floor(7+p.mass*0.72);
+        // food pickup
+        for(let i=wormFood.length-1;i>=0;i--){
+            const f=wormFood[i]; const rr=p.radius+f.r+5;
+            if(wormDist2(p.x,p.y,f.x,f.y)<=rr*rr){
+                p.mass+=f.value; wormFood.splice(i,1);
+            }
+        }
+    }
+    const alive=[...wormPlayers.values()].filter(p=>p.alive);
+    for(const p of alive){
+        if(Date.now()<p.spawnShieldUntil)continue;
+        const headR=p.radius*.78;
+        for(const q of alive){
+            if(q.id===p.id)continue;
+            const seg=wormPlayerSegments(q);
+            for(let i=4;i<seg.length;i+=2){
+                const r=headR+q.radius*.78;
+                if(wormDist2(p.x,p.y,seg[i].x,seg[i].y)<r*r){ wormKill(p,q.nickname); break; }
+            }
+            if(!p.alive)break;
+        }
+    }
+    wormEmitState();
+}
+wormEnsureBots();
+setInterval(wormTick,WORM_TICK_MS);
+
 io.on("connection", (socket) => {
     socket.emit("notices:update", { notices: getSortedNotices(), updatedAt: new Date().toISOString() });
+
+    socket.on("worm:join", ({ nickname } = {}) => {
+        if(wormPlayers.size>=WORM_MAX_PLAYERS){ socket.emit("worm:error",{message:"현재 아레나가 가득 찼습니다. 잠시 후 다시 시도하세요."}); return; }
+        if(wormPlayers.has(socket.id)) return;
+        const p=wormMakePlayer(socket.id,nickname,false); wormPlayers.set(socket.id,p);
+        wormEnsureBots();
+        socket.emit("worm:joined",{id:socket.id});
+        wormEmitState();
+    });
+    socket.on("worm:input", ({x=1,y=0,boost=false}={}) => {
+        const p=wormPlayers.get(socket.id); if(!p||!p.alive)return;
+        const len=Math.hypot(Number(x),Number(y))||1; p.dirX=Math.max(-1,Math.min(1,Number(x)/len)); p.dirY=Math.max(-1,Math.min(1,Number(y)/len)); p.targetAngle=Math.atan2(p.dirY,p.dirX); p.boost=!!boost; p.lastInput=Date.now();
+    });
+    socket.on("worm:leave",()=>{ const p=wormPlayers.get(socket.id); if(p){wormPlayers.delete(socket.id); if(p.alive)wormDropMass(p);} });
+    const wormPingTimer=setInterval(()=>{ if(socket.connected) socket.emit("worm:ping",{ms:0}); else clearInterval(wormPingTimer); },3000);
 
     socket.on("car:create-room", () => {
         if (socket.data.carRoomCode) leaveCarRoom(socket, false);
@@ -1454,6 +1629,8 @@ io.on("connection", (socket) => {
 
     socket.on("disconnect", () => {
         leaveCarRoom(socket, true);
+        const p=wormPlayers.get(socket.id);
+        if(p && !p.isBot){ if(p.alive)wormDropMass(p); wormPlayers.delete(socket.id); }
     });
 });
 
