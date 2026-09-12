@@ -1568,8 +1568,17 @@ io.on("connection", (socket) => {
     socket.emit("notices:update", { notices: getSortedNotices(), updatedAt: new Date().toISOString() });
 
     socket.on("worm:join", ({ nickname } = {}) => {
+        const existing=wormPlayers.get(socket.id);
+        // 죽은 플레이어가 다시 ENTER하면 같은 소켓으로 새 지렁이를 즉시 생성한다.
+        if(existing && !existing.alive){
+            const p=wormMakePlayer(socket.id,nickname,false);
+            wormPlayers.set(socket.id,p);
+            socket.emit("worm:joined",{id:socket.id});
+            wormEmitState();
+            return;
+        }
         if(wormPlayers.size>=WORM_MAX_PLAYERS){ socket.emit("worm:error",{message:"현재 아레나가 가득 찼습니다. 잠시 후 다시 시도하세요."}); return; }
-        if(wormPlayers.has(socket.id)) return;
+        if(existing) return;
         const p=wormMakePlayer(socket.id,nickname,false); wormPlayers.set(socket.id,p);
         wormEnsureBots();
         socket.emit("worm:joined",{id:socket.id});
