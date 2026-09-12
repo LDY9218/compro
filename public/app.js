@@ -61,7 +61,26 @@ const closeGameHubBtn = document.getElementById("closeGameHubBtn");
 const hubSurvivalGame = document.getElementById("hubSurvivalGame");
 const hubBirdGame = document.getElementById("hubBirdGame");
 const hubCarGame = document.getElementById("hubCarGame");
-const hubDoomGame = document.getElementById("hubDoomGame");
+const hubWormGame = document.getElementById("hubWormGame");
+
+const wormGameModal = document.getElementById("wormGameModal");
+const wormGameBackdrop = document.getElementById("wormGameBackdrop");
+const closeWormGameBtn = document.getElementById("closeWormGameBtn");
+const wormGameCanvas = document.getElementById("wormGameCanvas");
+const wormCenterMessage = document.getElementById("wormCenterMessage");
+const wormStartBtn = document.getElementById("wormStartBtn");
+const wormRestartBtn = document.getElementById("wormRestartBtn");
+const wormNickname = document.getElementById("wormNickname");
+const wormMassEl = document.getElementById("wormMass");
+const wormLengthEl = document.getElementById("wormLength");
+const wormOnlineCountEl = document.getElementById("wormOnlineCount");
+const wormPingEl = document.getElementById("wormPing");
+const wormLeaderboardEl = document.getElementById("wormLeaderboard");
+const wormDeathPanel = document.getElementById("wormDeathPanel");
+const wormDeathText = document.getElementById("wormDeathText");
+const wormJoystick = document.getElementById("wormJoystick");
+const wormStick = wormJoystick?.querySelector(".worm-stick");
+const wormBoostBtn = document.getElementById("wormBoostBtn");
 
 const birdGameModal = document.getElementById("birdGameModal");
 const gameBackdrop = document.getElementById("gameBackdrop");
@@ -1781,6 +1800,187 @@ function closeGameHub() {
     gameHubModal.classList.remove("active");
     gameHubModal.setAttribute("aria-hidden", "true");
     unlockPageScroll();
+}
+
+
+// ==================================================
+// WORM ARENA — REALTIME MULTIPLAYER
+// ==================================================
+let wormSocket = null;
+let wormState = null;
+let wormRunning = false;
+let wormBoosting = false;
+let wormAim = { x: 1, y: 0 };
+let wormJoystickActive = false;
+let wormJoystickPointer = null;
+let wormLastFrame = 0;
+
+function wormResizeCanvas(){
+    if (!wormGameCanvas) return;
+    const rect = wormGameCanvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    wormGameCanvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    wormGameCanvas.height = Math.max(1, Math.floor(rect.height * dpr));
+}
+
+function wormOpen(){
+    if (!wormGameModal) return;
+    wormGameModal.classList.add("active");
+    wormGameModal.setAttribute("aria-hidden","false");
+    wormCenterMessage.hidden = false;
+    wormDeathPanel.hidden = true;
+    wormResizeCanvas();
+    lockPageScroll();
+    wormDrawIntro();
+}
+
+function wormClose(){
+    if (!wormGameModal) return;
+    wormRunning = false;
+    wormBoosting = false;
+    if (wormSocket){ wormSocket.emit("worm:leave"); wormSocket.disconnect(); wormSocket = null; }
+    wormGameModal.classList.remove("active");
+    wormGameModal.setAttribute("aria-hidden","true");
+    unlockPageScroll();
+}
+
+function wormDrawIntro(){
+    if (!wormGameCanvas) return;
+    wormResizeCanvas();
+    const ctx=wormGameCanvas.getContext("2d");
+    const w=wormGameCanvas.width, h=wormGameCanvas.height;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle="#07100c"; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle="rgba(116,255,184,.05)"; ctx.lineWidth=1;
+    const step=Math.max(35,Math.floor(Math.min(w,h)/12));
+    for(let x=0;x<w;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+    for(let y=0;y<h;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+}
+
+function wormConnect(){
+    if (wormSocket?.connected) return wormSocket;
+    if (typeof window.io !== "function") { alert("실시간 게임 연결 모듈을 불러오지 못했습니다."); return null; }
+    wormSocket = window.io();
+    wormSocket.on("worm:joined", ({id})=>{
+        wormRunning=true;
+        wormCenterMessage.hidden=true;
+        wormDeathPanel.hidden=true;
+        wormState = wormState || {};
+        wormState.me=id;
+    });
+    wormSocket.on("worm:state", state=>{ wormState=state; });
+    wormSocket.on("worm:died", ({mass=0, killer})=>{
+        wormRunning=false; wormBoosting=false;
+        wormDeathText.textContent = killer ? `${killer}에게 길을 막혔습니다. 질량 ${Math.floor(mass)}.` : `질량 ${Math.floor(mass)}로 종료되었습니다.`;
+        wormDeathPanel.hidden=false;
+    });
+    wormSocket.on("worm:error", ({message})=>alert(message || "게임 연결 오류"));
+    wormSocket.on("worm:ping", ({ms})=>{ if(wormPingEl) wormPingEl.textContent=`${Math.round(ms)}ms`; });
+    return wormSocket;
+}
+
+function wormStart(){
+    const socket=wormConnect(); if(!socket) return;
+    const name=(wormNickname?.value||"Player").trim().slice(0,14)||"Player";
+    socket.emit("worm:join", {nickname:name});
+}
+
+function wormSendInput(){
+    if(!wormSocket?.connected || !wormRunning) return;
+    wormSocket.emit("worm:input", {x:wormAim.x,y:wormAim.y,boost:wormBoosting});
+}
+
+function wormSetAimFromPointer(clientX,clientY){
+    if(!wormGameCanvas) return;
+    const r=wormGameCanvas.getBoundingClientRect();
+    const x=clientX-r.left-r.width/2, y=clientY-r.top-r.height/2;
+    const len=Math.hypot(x,y)||1;
+    wormAim={x:x/len,y:y/len};
+    wormSendInput();
+}
+
+function wormRender(now){
+    if(!wormGameCanvas) return;
+    const ctx=wormGameCanvas.getContext("2d");
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const w=wormGameCanvas.width, h=wormGameCanvas.height;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle="#07100c"; ctx.fillRect(0,0,w,h);
+    const state=wormState;
+    if(!state || !state.players){ wormDrawIntro(); requestAnimationFrame(wormRender); return; }
+    const me=state.players.find(p=>p.id===state.me) || state.players[0];
+    const zoom=Math.max(.72,Math.min(1.25,1.08-(me?.mass||10)/1300));
+    const camX=me?.x||state.world/2, camY=me?.y||state.world/2;
+    ctx.save(); ctx.scale(dpr,dpr);
+    const vw=w/dpr,vh=h/dpr;
+    ctx.translate(vw/2,vh/2); ctx.scale(zoom,zoom); ctx.translate(-camX,-camY);
+    // world background
+    ctx.fillStyle="#08130e"; ctx.fillRect(0,0,state.world,state.world);
+    const grid=100; ctx.strokeStyle="rgba(105,255,176,.055)";ctx.lineWidth=1;
+    const sx=Math.max(0,Math.floor((camX-vw/(2*zoom))/grid)*grid), ex=Math.min(state.world,Math.ceil((camX+vw/(2*zoom))/grid)*grid);
+    const sy=Math.max(0,Math.floor((camY-vh/(2*zoom))/grid)*grid), ey=Math.min(state.world,Math.ceil((camY+vh/(2*zoom))/grid)*grid);
+    for(let x=sx;x<=ex;x+=grid){ctx.beginPath();ctx.moveTo(x,sy);ctx.lineTo(x,ey);ctx.stroke();}
+    for(let y=sy;y<=ey;y+=grid){ctx.beginPath();ctx.moveTo(sx,y);ctx.lineTo(ex,y);ctx.stroke();}
+    // boundary
+    ctx.strokeStyle="rgba(88,255,170,.3)";ctx.lineWidth=5;ctx.strokeRect(0,0,state.world,state.world);
+    // food
+    for(const f of state.food||[]){
+        const pulse=1+Math.sin((now+f.id*91)/250)*.12; const rr=f.r*pulse;
+        const g=ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,rr*2.4);g.addColorStop(0,f.color);g.addColorStop(1,"rgba(0,0,0,0)");
+        ctx.fillStyle=g;ctx.beginPath();ctx.arc(f.x,f.y,rr*2.4,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,rr,0,Math.PI*2);ctx.fill();
+    }
+    // worms
+    for(const p of state.players){
+        if(!p.segments?.length) continue;
+        ctx.lineCap="round";ctx.lineJoin="round";
+        ctx.beginPath();
+        for(let i=0;i<p.segments.length;i++){const q=p.segments[i]; if(i===0)ctx.moveTo(q.x,q.y);else ctx.lineTo(q.x,q.y);}
+        ctx.lineWidth=p.radius*2.2;ctx.strokeStyle=p.color;ctx.globalAlpha=.2;ctx.stroke();ctx.globalAlpha=1;
+        ctx.lineWidth=p.radius*2;ctx.strokeStyle=p.color;ctx.stroke();
+        for(let i=p.segments.length-1;i>=0;i-=Math.max(1,Math.floor(p.segments.length/14))){
+            const q=p.segments[i];ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(q.x,q.y,p.radius*(.82+.18*(1-i/p.segments.length)),0,Math.PI*2);ctx.fill();
+        }
+        const head=p.segments[0];
+        ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(head.x-p.dirY*p.radius*.38,head.y+p.dirX*p.radius*.38,p.radius*.25,0,Math.PI*2);ctx.fill();
+        ctx.beginPath();ctx.arc(head.x+p.dirY*p.radius*.38,head.y-p.dirX*p.radius*.38,p.radius*.25,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle="#07100c";ctx.beginPath();ctx.arc(head.x-p.dirY*p.radius*.38,head.y+p.dirX*p.radius*.38,p.radius*.11,0,Math.PI*2);ctx.fill();
+        ctx.beginPath();ctx.arc(head.x+p.dirY*p.radius*.38,head.y-p.dirX*p.radius*.38,p.radius*.11,0,Math.PI*2);ctx.fill();
+        if(p.id===state.me){ctx.font=`700 ${Math.max(10,p.radius*1.25)}px sans-serif`;ctx.textAlign="center";ctx.fillStyle="#dffff0";ctx.fillText(p.nickname,head.x,head.y-p.radius*2.2);}
+    }
+    ctx.restore();
+    if(wormMassEl)wormMassEl.textContent=Math.floor(me?.mass||0);
+    if(wormLengthEl)wormLengthEl.textContent=Math.floor(me?.length||0);
+    if(wormOnlineCountEl)wormOnlineCountEl.textContent=`${state.players.length} ONLINE`;
+    if(wormLeaderboardEl){
+        const top=[...(state.players||[])].sort((a,b)=>b.mass-a.mass).slice(0,8);
+        wormLeaderboardEl.innerHTML='<div class="worm-leader-title">TOP PLAYERS</div>'+top.map((p,i)=>`<div class="worm-row"><span class="rank">${i+1}</span><span class="dot" style="background:${p.color}"></span><span class="name">${wormEscapeHtml(p.nickname)}</span><span class="mass">${Math.floor(p.mass)}</span></div>`).join('');
+    }
+    requestAnimationFrame(wormRender);
+}
+
+function wormEscapeHtml(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;", "'":"&#39;"}[c]));}
+
+if(wormGameModal){
+    window.addEventListener("resize",wormResizeCanvas);
+    wormStartBtn?.addEventListener("click",wormStart);
+    wormRestartBtn?.addEventListener("click",()=>{wormDeathPanel.hidden=true;wormStart();});
+    closeWormGameBtn?.addEventListener("click",wormClose);
+    wormGameBackdrop?.addEventListener("click",wormClose);
+    wormGameCanvas?.addEventListener("pointermove",e=>{ if(e.pointerType!=="touch") wormSetAimFromPointer(e.clientX,e.clientY); });
+    wormGameCanvas?.addEventListener("pointerdown",e=>{ if(e.pointerType!=="touch"){wormBoosting=true;wormBoostBtn?.classList.add("active");wormSendInput();} });
+    wormGameCanvas?.addEventListener("pointerup",()=>{wormBoosting=false;wormBoostBtn?.classList.remove("active");wormSendInput();});
+    wormGameCanvas?.addEventListener("pointerleave",()=>{wormBoosting=false;wormBoostBtn?.classList.remove("active");wormSendInput();});
+    window.addEventListener("keydown",e=>{if(e.code==="Space" && wormGameModal.classList.contains("active")){e.preventDefault();wormBoosting=true;wormBoostBtn?.classList.add("active");wormSendInput();}});
+    window.addEventListener("keyup",e=>{if(e.code==="Space"){wormBoosting=false;wormBoostBtn?.classList.remove("active");wormSendInput();}});
+    wormBoostBtn?.addEventListener("pointerdown",e=>{e.preventDefault();wormBoosting=true;wormBoostBtn.classList.add("active");wormSendInput();});
+    wormBoostBtn?.addEventListener("pointerup",e=>{e.preventDefault();wormBoosting=false;wormBoostBtn.classList.remove("active");wormSendInput();});
+    wormJoystick?.addEventListener("pointerdown",e=>{e.preventDefault();wormJoystickActive=true;wormJoystickPointer=e.pointerId;wormJoystick.setPointerCapture(e.pointerId);});
+    wormJoystick?.addEventListener("pointermove",e=>{if(!wormJoystickActive||e.pointerId!==wormJoystickPointer)return;const r=wormJoystick.getBoundingClientRect();let x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height/2);const m=Math.hypot(x,y)||1;const max=r.width*.34;const k=Math.min(1,max/m);x*=k;y*=k;wormStick.style.transform=`translate(${x}px,${y}px)`;const n=Math.hypot(x,y)||1;wormAim={x:x/n,y:y/n};wormSendInput();});
+    const joyEnd=e=>{if(e.pointerId!==wormJoystickPointer)return;wormJoystickActive=false;wormJoystickPointer=null;wormStick.style.transform="translate(0,0)";};
+    wormJoystick?.addEventListener("pointerup",joyEnd);wormJoystick?.addEventListener("pointercancel",joyEnd);
+    requestAnimationFrame(wormRender);
 }
 
 // ==================================================
@@ -4418,8 +4618,9 @@ hubCarGame?.addEventListener("click", () => {
     openCarGameModal();
 });
 
-hubDoomGame?.addEventListener("click", () => {
-    window.open("https://doom.bethesda.net/en-US/doom_doomii", "_blank", "noopener,noreferrer");
+hubWormGame?.addEventListener("click", () => {
+    closeGameHub();
+    wormOpen();
 });
 
 
@@ -5285,16 +5486,18 @@ function survivalUpdate(dt) {
 
     survivalState.spawnTimer += dt;
     const waveInCycle = ((survivalState.wave - 1) % survivalState.bossIntervalWaves) + 1;
+    // 매 5웨이브 사이클의 2번째 웨이브는 대규모 러시.
+    // 그 외 웨이브도 초반 1~2웨이브 정도의 밀도를 유지해서 화면이 비지 않게 한다.
     const intenseWave = waveInCycle === 2;
-    const maxEnemies = 110 + Math.min(70, survivalState.wave * 3);
+    const maxEnemies = (intenseWave ? 230 : 175) + Math.min(120, survivalState.wave * 4);
     const spawnEvery = intenseWave
-        ? Math.max(0.12, 0.42 - survivalState.wave * 0.004)
-        : Math.max(0.34, 0.72 - survivalState.wave * 0.003);
+        ? Math.max(0.10, 0.22 - survivalState.wave * 0.0018)
+        : Math.max(0.25, 0.38 - survivalState.wave * 0.0014);
     if (!survivalState.bossActive && survivalState.enemies.length < maxEnemies && survivalState.spawnTimer >= spawnEvery) {
         survivalState.spawnTimer = 0;
         const amount = intenseWave
-            ? Math.min(9, 3 + Math.floor(survivalState.wave / 4))
-            : Math.min(4, 1 + Math.floor(survivalState.wave / 8));
+            ? Math.min(12, 7 + Math.floor(survivalState.wave / 6))
+            : Math.min(6, 3 + Math.floor(survivalState.wave / 10));
         for (let i = 0; i < amount && survivalState.enemies.length < maxEnemies; i += 1) survivalSpawnEnemy();
     }
 
@@ -5761,6 +5964,10 @@ window.addEventListener("resize", survivalResize);
 window.addEventListener("keydown", (event) => {
     if (event.code === "Escape" && gameHubModal?.classList.contains("active")) {
         closeGameHub();
+        return;
+    }
+    if (event.code === "Escape" && wormGameModal?.classList.contains("active")) {
+        wormClose();
         return;
     }
     if (event.code === "Escape" && survivalGameModal?.classList.contains("active")) {
