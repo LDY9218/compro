@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#667dff">
+    <title>COMTIME PRO</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="/style.css?v=23">
+</head>
+<body>
+
+<header>
+    <div class="logo">C</div>
+
+    <div class="brand-area">
+        <div class="brand-text">
+            <h1>COMTIME PRO</h1>
+            <p>스마트 학교 알리미</p>
+        </div>
+    </div>
+
+    <button id="gameHubBtn" class="bird-game-btn" type="button" aria-label="게임 모음" title="게임 모음">🎮</button>
+    <button id="menuBtn" class="menu-btn" type="button" aria-label="메뉴 열기" title="메뉴">☰</button>
+
+    <div class="clock">
+        <strong id="clock">00:00:00</strong>
+        <span id="todayDate">날짜</span>
+    </div>
+    <button id="headerProfileBtn" class="header-profile-btn" type="button" aria-label="프로필 및 설정" title="프로필 및 설정">
+        <span id="headerProfileText">C</span>
+        <img id="headerProfileImage" alt="프로필 사진" hidden>
+    </button>
+</header>
+
+<main>
+    <section class="search-box">
+        <h2>학교 찾기</h2>
+        <div class="search-row">
+            <input id="schoolInput" type="text" placeholder="학교 이름을 입력하세요" autocomplete="off">
+            <button id="schoolSearchBtn" type="button">검색</button>
+        </div>
+        <div id="schoolResults">
+            <p class="hint">학교 이름을 검색해 주세요.</p>
+        </div>
+    </section>
+
+    <section class="hero">
+        <div>
+            <span>현재 수업</span>
+            <h2 id="currentSubject">학교를 선택해주세요.</h2>
+            <p id="currentTeacher">-</p>
+            <div class="next">다음 수업 <strong id="nextSubject">-</strong></div>
+            <div id="weekendScheduleInfo" class="weekend-schedule-info" aria-live="polite"></div>
+        </div>
+
+        <div class="school-selected">
+            <strong id="schoolName">학교 미선택</strong>
+            <span id="schoolInfo">학교를 검색해서 선택하세요.</span>
+        </div>
+    </section>
+
+    <section class="selector">
+        <div>
+            <label for="gradeSelect">학년</label>
+            <select id="gradeSelect">
+                <option value="1">1학년</option>
+                <option value="2">2학년</option>
+                <option value="3">3학년</option>
+                <option value="4">4학년</option>
+                <option value="5">5학년</option>
+                <option value="6">6학년</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="classSelect">반</label>
+            <select id="classSelect"></select>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="section-title">
+            <h2>시간표</h2>
+            <p>학교의 주간 시간표를 확인할 수 있습니다.</p>
+        </div>
+        <div id="timetableGrid" class="timetable">
+            <div class="message">학교를 먼저 선택해주세요.</div>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="section-title">
+            <h2>오늘의 급식</h2>
+            <p>NEIS 학교급식 정보를 불러옵니다.</p>
+        </div>
+        <div id="mealBox" class="meal">
+            <div class="message">학교를 먼저 선택해주세요.</div>
+        </div>
+    </section>
+</main>
+
+<footer>
+    COMTIME PRO · 학교 시간표 & 급식 알리미
+</footer>
+
+<div class="creator-credit">Created for COMTIME PRO</div>
+
+<!-- ==================================================
+     AUTH MODAL
+================================================== -->
+<div id="authModal" class="auth-modal active" aria-hidden="false">
+    <div class="auth-backdrop"></div>
+    <div class="auth-window" role="dialog" aria-modal="true" aria-label="COMTIME PRO 로그인">
+        <div class="auth-brand">C</div>
+        <span class="auth-label">COMTIME PRO</span>
+        <h2 id="authTitle">로그인</h2>
+        <p id="authDescription">계정에 로그인하면 학교, 반, 추천 알고리즘, Gemini 대화 기록을 안전하게 저장할 수 있습니다.</p>
+
+        <form id="loginForm" class="auth-form">
+            <input id="loginUsername" type="text" autocomplete="username" maxlength="24" placeholder="아이디" required>
+            <input id="loginPassword" type="password" autocomplete="current-password" maxlength="128" placeholder="비밀번호" required>
+            <button type="submit" class="auth-primary-btn">로그인</button>
+        </form>
+
+        <form id="registerForm" class="auth-form" hidden>
+            <input id="registerUsername" type="text" autocomplete="username" maxlength="24" placeholder="아이디 (3~24자)" required>
+            <input id="registerDisplayName" type="text" autocomplete="nickname" maxlength="40" placeholder="닉네임" required>
+            <input id="registerPassword" type="password" autocomplete="new-password" maxlength="128" placeholder="비밀번호 (6자 이상)" required>
+            <input id="registerPasswordConfirm" type="password" autocomplete="new-password" maxlength="128" placeholder="비밀번호 확인" required>
+            <button type="submit" class="auth-primary-btn">회원가입</button>
+        </form>
+
+        <div id="authStatus" class="auth-status"></div>
+        <button id="authGuestBtn" class="auth-guest-btn" type="button"><span class="guest-orb">G</span><span><b>게스트로 바로 시작</b><small>계정 없이 임시 프로필로 이용</small></span><span class="guest-arrow">→</span></button>
+        <button id="authSwitchBtn" class="auth-switch-btn" type="button">계정이 없나요? 회원가입</button>
+    </div>
+</div>
+
+<!-- ==================================================
+     MENU MODAL
+================================================== -->
+<div id="menuModal" class="menu-modal" aria-hidden="true">
+    <div id="menuBackdrop" class="menu-backdrop"></div>
+
+    <div class="menu-window" role="dialog" aria-modal="true" aria-label="메뉴">
+        <div class="menu-header">
+            <div>
+                <span class="menu-label">COMTIME PRO</span>
+                <h2>메뉴</h2>
+            </div>
+            <button id="closeMenuBtn" class="menu-close-btn" type="button" aria-label="메뉴 닫기">×</button>
+        </div>
+
+        <div class="menu-user-id">
+            <label>로그인 계정</label>
+            <div class="menu-account-row">
+                <strong id="menuAccountName">로그인되지 않음</strong>
+                <button id="logoutBtn" type="button">로그아웃</button>
+            </div>
+            <small id="adminModeLabel">일반 사용자 모드</small>
+        </div>
+        <div class="menu-list">
+            <button id="openGeminiBtn" class="menu-item" type="button">
+                <span class="menu-item-icon">✦</span>
+                <span>
+                    <strong>Gemini AI</strong>
+                    <small>AI에게 무엇이든 물어보기</small>
+                </span>
+                <span class="menu-arrow">›</span>
+            </button>
+
+            <button id="openNoticeBtn" class="menu-item" type="button">
+                <span class="menu-item-icon">📢</span>
+                <span>
+                    <strong>공지사항</strong>
+                    <small>COMTIME PRO 공지 확인</small>
+                </span>
+                <span class="menu-arrow">›</span>
+            </button>
+
+            <button id="openShortsBtn" class="menu-item" type="button">
+                <span class="menu-item-icon">▶</span>
+                <span>
+                    <strong>YouTube Shorts</strong>
+                    <small>자동으로 불러오는 짧은 영상</small>
+                </span>
+                <span class="menu-arrow">›</span>
+            </button>
+
+            <button id="openChatBtn" class="menu-item" type="button">
+                <span class="menu-item-icon">💬</span>
+                <span>
+                    <strong>채팅</strong>
+                    <small>친구를 추가하고 메시지를 주고받기</small>
+                </span>
+                <span class="menu-arrow">›</span>
+            </button>
+
+            <button id="openMapBtn" class="menu-item" type="button">
+                <span class="menu-item-icon">🗺️</span>
+                <span>
+                    <strong>지도</strong>
+                    <small>Google 지도와 현재 위치 보기</small>
+                </span>
+                <span class="menu-arrow">›</span>
+            </button>
+
+            <button id="openUrlBtn" class="menu-item" type="button">
+                <span class="menu-item-icon">↗</span>
+                <span>
+                    <strong>URL 이동</strong>
+                    <small>주소를 붙여 넣어 사이트로 이동</small>
+                </span>
+                <span class="menu-arrow">›</span>
+            </button>
+
+            <button id="openSettingsBtn" class="menu-item settings-menu-item" type="button">
+                <span class="menu-item-icon">⚙</span>
+                <span><strong>설정</strong><small>프로필 · 계정 · 테마 · 프레임</small></span>
+                <span class="menu-arrow">›</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     GAME HUB / ARCADE
+================================================== -->
+<div id="gameHubModal" class="game-hub-modal" aria-hidden="true">
+    <div id="gameHubBackdrop" class="game-hub-backdrop"></div>
+    <div class="game-hub-window" role="dialog" aria-modal="true" aria-label="게임 모음">
+        <div class="game-hub-header">
+            <div>
+                <span class="game-hub-label">COMTIME ARCADE</span>
+                <h2>게임 모음</h2>
+                <p>원하는 게임을 골라 바로 플레이하세요.</p>
+            </div>
+            <button id="closeGameHubBtn" class="game-close-btn" type="button" aria-label="게임 모음 닫기">×</button>
+        </div>
+        <div class="game-hub-grid">
+            <button id="hubSurvivalGame" class="game-card survival-hub-card" type="button">
+                <div class="game-card-art survival-art">⚔️</div>
+                <div class="game-card-body">
+                    <span class="game-card-tag">SURVIVOR ROGUELITE</span>
+                    <strong>무한 생존</strong>
+                    <small>끝없이 몰려오는 적을 처치하고, 보스가 떨어뜨린 황금 경험치로 50가지 능력을 조합하세요.</small>
+                </div>
+                <span class="game-card-arrow">›</span>
+            </button>
+            <button id="hubBirdGame" class="game-card" type="button">
+                <div class="game-card-art bird-art">🐦</div>
+                <div class="game-card-body">
+                    <span class="game-card-tag">ARCADE</span>
+                    <strong>Bird Bump</strong>
+                    <small>기존 Bird Bump 게임을 그대로 플레이합니다.</small>
+                </div>
+                <span class="game-card-arrow">›</span>
+            </button>
+            <button id="hubCarGame" class="game-card" type="button">
+                <div class="game-card-art car-art">🚗</div>
+                <div class="game-card-body">
+                    <span class="game-card-tag">REALTIME MULTIPLAYER</span>
+                    <strong>실시간 카게임</strong>
+                    <small>기존 2인 실시간 카게임을 그대로 플레이합니다.</small>
+                </div>
+                <span class="game-card-arrow">›</span>
+            </button>
+            <button id="hubWormGame" class="game-card worm-hub-card" type="button">
+                <div class="game-card-art worm-art">🪱</div>
+                <div class="game-card-body">
+                    <span class="game-card-tag">REALTIME IO MULTIPLAYER</span>
+                    <strong>Worm Arena</strong>
+                    <small>실시간으로 다른 플레이어와 경쟁하며 먹고, 성장하고, 1위를 차지하세요.</small>
+                </div>
+                <span class="game-card-arrow">›</span>
+            </button>
+
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     SETTINGS
+================================================== -->
+<div id="settingsModal" class="settings-modal" aria-hidden="true">
+    <div id="settingsBackdrop" class="settings-backdrop"></div>
+    <div class="settings-window" role="dialog" aria-modal="true" aria-label="설정">
+        <div class="settings-header">
+            <div><span class="settings-eyebrow">COMTIME PRO</span><h2>설정</h2><p>프로필과 화면 환경을 원하는 방식으로 맞춰보세요.</p></div>
+            <button id="closeSettingsBtn" class="menu-close-btn" type="button" aria-label="설정 닫기">×</button>
+        </div>
+        <div class="settings-body">
+            <section class="settings-section settings-profile-section">
+                <div class="settings-section-title"><span>프로필</span><small>내 정보를 관리합니다</small></div>
+                <div class="settings-profile-card">
+                    <div id="settingsProfileAvatar" class="settings-profile-avatar">C</div>
+                    <div class="settings-profile-info"><strong id="settingsProfileName">게스트</strong><small id="settingsProfileUsername">guest</small></div>
+                    <label class="settings-upload-btn"><span>사진 변경</span><input id="profileImageInput" type="file" accept="image/png,image/jpeg,image/webp" hidden></label>
+                </div>
+                <label class="settings-field">닉네임<input id="settingsDisplayName" maxlength="40" placeholder="닉네임"></label>
+                <button id="saveProfileBtn" class="settings-primary-btn" type="button">프로필 저장</button>
+            </section>
+            <section class="settings-section">
+                <div class="settings-section-title"><span>계정</span><small>아이디와 비밀번호</small></div>
+                <label class="settings-field">아이디<input id="settingsUsername" maxlength="24" placeholder="아이디"></label>
+                <label class="settings-field">새 비밀번호<input id="settingsNewPassword" type="password" maxlength="128" placeholder="변경할 때만 입력"></label>
+                <button id="saveAccountBtn" class="settings-primary-btn" type="button">계정 정보 변경</button>
+            </section>
+            <section class="settings-section">
+                <div class="settings-section-title"><span>프로필 프레임</span><small>프로필 사진과 기본 프로필에 적용됩니다</small></div>
+                <div class="profile-frame-grid">
+                    <button class="profile-frame-choice" data-frame="none" type="button"><span class="frame-preview frame-none"><span class="frame-preview-inner">C</span></span><b>없음</b><small>기본</small></button>
+                    <button class="profile-frame-choice" data-frame="gold" type="button"><span class="frame-preview frame-gold"><span class="frame-preview-inner">C</span></span><b>금색</b><small>Gold</small></button>
+                    <button class="profile-frame-choice" data-frame="silver" type="button"><span class="frame-preview frame-silver"><span class="frame-preview-inner">C</span></span><b>은색</b><small>Silver</small></button>
+                    <button class="profile-frame-choice" data-frame="season" type="button"><span class="frame-preview frame-season"><span class="frame-preview-inner">C</span></span><b>계절</b><small>자동 적용</small></button>
+                </div>
+            </section>
+
+            <section class="settings-section">
+                <div class="settings-section-title"><span>테마</span><small>앱 전체의 색상과 분위기</small></div>
+                <div class="theme-grid">
+                    <button class="theme-choice" data-theme="white" type="button"><i></i><b>화이트</b><small>Clean</small></button>
+                    <button class="theme-choice" data-theme="blue" type="button"><i></i><b>블루</b><small>Ocean</small></button>
+                    <button class="theme-choice" data-theme="purple" type="button"><i></i><b>퍼플</b><small>Violet</small></button>
+                    <button class="theme-choice" data-theme="black" type="button"><i></i><b>블랙</b><small>Midnight</small></button>
+                    <button class="theme-choice" data-theme="yellow" type="button"><i></i><b>옐로우</b><small>Solar</small></button>
+                </div>
+            </section>
+            <section class="settings-section settings-danger">
+                <div class="settings-section-title"><span>데이터 초기화</span><small>계정은 유지됩니다</small></div>
+                <p>아이디와 비밀번호를 제외한 학교 설정, Gemini 기록, 친구/메시지, 추천 관련 기록과 프로필 설정을 초기화합니다.</p>
+                <button id="resetAllDataBtn" class="settings-danger-btn" type="button">모든 기록 초기화</button>
+            </section>
+            <div id="settingsStatus" class="settings-status" role="status"></div>
+            <button id="settingsLogoutBtn" class="settings-logout-btn" type="button">로그아웃</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     REALTIME WORM ARENA
+================================================== -->
+<div id="wormGameModal" class="worm-game-modal" aria-hidden="true">
+    <div id="wormGameBackdrop" class="worm-game-backdrop"></div>
+    <div class="worm-game-window" role="dialog" aria-modal="true" aria-label="Worm Arena">
+        <div class="worm-topbar">
+            <div class="worm-brand"><span class="worm-logo">🪱</span><div><strong>WORM ARENA</strong><small>REALTIME MULTIPLAYER</small></div></div>
+            <div class="worm-status"><span id="wormOnlineCount">0 ONLINE</span><span id="wormPing">●</span></div>
+        </div>
+        <button id="closeWormGameBtn" class="worm-floating-close" type="button" aria-label="Worm Arena 닫기">×</button>
+        <div class="worm-stage">
+            <canvas id="wormGameCanvas"></canvas>
+            <div class="worm-hud-left">
+                <div class="worm-score-card"><span>YOUR MASS</span><strong id="wormMass">10</strong></div>
+                <div class="worm-score-card"><span>LENGTH</span><strong id="wormLength">8</strong></div>
+            </div>
+            <div class="worm-leaderboard" id="wormLeaderboard"><div class="worm-leader-title">TOP PLAYERS</div></div>
+            <div class="worm-center-message" id="wormCenterMessage">
+                <div class="worm-start-panel">
+                    <div class="worm-big-icon">🪱</div>
+                    <h3>WORM ARENA</h3>
+                    <p>실시간 아레나에서 먹고 성장하세요.<br>다른 지렁이의 몸통에 머리가 닿으면 탈락합니다.</p>
+                    <input id="wormNickname" maxlength="14" placeholder="닉네임" value="Player">
+                    <button id="wormStartBtn" type="button">ENTER</button>
+                    <small>PC: 마우스로 조종 · Space/클릭: 부스트<br>모바일: 화면 드래그 · 부스트 버튼</small>
+                </div>
+            </div>
+            <div id="wormJoystick" class="worm-joystick" aria-hidden="true"><div class="worm-stick"></div></div>
+            <button id="wormBoostBtn" class="worm-boost-btn" type="button">BOOST</button>
+            <div id="wormDeathPanel" class="worm-death-panel" hidden>
+                <strong>WORM DOWN</strong><span id="wormDeathText">다시 도전하세요.</span>
+                <button id="wormRestartBtn" type="button">다시 플레이</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     5-MIN SURVIVAL GAME
+================================================== -->
+<div id="survivalGameModal" class="survival-game-modal" aria-hidden="true">
+    <div id="survivalBackdrop" class="survival-backdrop"></div>
+    <div class="survival-game-window" role="dialog" aria-modal="true" aria-label="무한 생존 게임">
+        <div class="survival-game-header">
+            <div>
+                <span class="survival-eyebrow">COMTIME SURVIVAL</span>
+                <h2>무한 생존</h2>
+                <p>무한 웨이브에서 성장하세요. 5웨이브마다 보스전이 시작되고, 보스전에서는 넓은 사각형 전장이 봉쇄됩니다. 보스 처치 후 황금 경험치를 먹으면 랜덤 3개 기술이 동시에 강화됩니다.</p>
+            </div>
+            <button id="closeSurvivalBtn" class="survival-close-btn" type="button" aria-label="게임 닫기">×</button>
+        </div>
+        <div id="survivalGameStage" class="survival-game-stage">
+            <canvas id="survivalCanvas"></canvas>
+            <div class="survival-hud">
+                <div class="survival-hud-top"><button id="survivalPauseBtn" class="survival-pause-btn" type="button">Ⅱ</button>
+                    <div class="survival-time"><span>TIME</span><strong id="survivalTime">∞ 00:00</strong></div>
+                    <div class="survival-wave"><span>WAVE</span><strong id="survivalWave">1</strong></div>
+                    <div class="survival-kills"><span>KILLS</span><strong id="survivalKills">0</strong></div>
+                    <div class="survival-score"><span>SCORE</span><strong id="survivalScore">0</strong></div>
+                </div>
+                <div class="survival-bars">
+                    <div class="survival-bar-row"><span>HP</span><div><i id="survivalHpBar"></i></div></div>
+                    <div class="survival-bar-row xp"><span>XP</span><div><i id="survivalXpBar"></i></div></div>
+                </div>
+            </div>
+            <div id="survivalBossBanner" class="survival-boss-banner">BOSS WAVE</div>
+            <div id="survivalBossHp" class="survival-boss-hp"><i id="survivalBossHpBar"></i></div>
+            <div id="survivalStartScreen" class="survival-overlay">
+                <div class="survival-start-card">
+                    <div class="survival-logo">⚔</div>
+                    <span class="survival-eyebrow">ENDLESS RUN</span>
+                    <h3>끝없이 강해져라</h3>
+                    <p>PC: WASD / 모바일: 조이스틱<br>공격은 자동입니다. 웨이브가 올라갈수록 적의 체력과 접촉 피해가 강해집니다.<br>보스전은 넓은 사각형 가두리에서 진행되며, 보스를 잡으면 랜덤 3개 기술이 모두 한 단계씩 강화됩니다.</p>
+                    <div class="survival-start-actions"><button id="survivalStartBtn" class="survival-primary-btn" type="button">게임 시작</button><button id="survivalDeveloperBtn" class="survival-secondary-btn" type="button">개발자 코드</button></div>
+                </div>
+            </div>
+            <div id="survivalPauseOverlay" class="survival-overlay hidden"><div class="survival-start-card survival-pause-card"><span class="survival-eyebrow">PAUSED</span><h3>게임 일시정지</h3><p>현재 진행 시간과 웨이브가 멈춥니다.</p><button id="survivalResumeBtn" class="survival-primary-btn" type="button">게임으로 돌아가기</button><button id="survivalPauseDeveloperBtn" class="survival-secondary-btn" type="button">개발자 코드</button><button id="survivalQuitBtn" class="survival-secondary-btn" type="button">그만두기</button></div></div><div id="survivalLevelUp" class="survival-overlay hidden">
+                <div class="survival-level-card">
+                    <span class="survival-eyebrow">LEVEL UP</span>
+                    <h3>랜덤 3개 중 하나를 선택하세요</h3>
+                    <div id="survivalUpgradeChoices" class="survival-upgrade-grid"></div>
+                </div>
+            </div>
+            <div id="survivalEndScreen" class="survival-overlay hidden">
+                <div class="survival-start-card">
+                    <div id="survivalEndIcon" class="survival-logo">☠</div>
+                    <span id="survivalEndEyebrow" class="survival-eyebrow">RUN OVER</span>
+                    <h3 id="survivalEndTitle">쓰러졌습니다</h3>
+                    <p id="survivalEndStats">처치 0 · 레벨 1</p>
+                    <button id="survivalRestartBtn" class="survival-primary-btn" type="button">다시 하기</button>
+                </div>
+            </div>
+            <div id="survivalJoystick" class="survival-joystick" aria-label="이동 조이스틱">
+                <div id="survivalJoystickKnob" class="survival-joystick-knob"></div>
+            </div>
+            <div class="survival-mobile-tip">드래그해서 이동</div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     MAP MODAL
+================================================== -->
+<div id="mapModal" class="map-modal" aria-hidden="true">
+    <div id="mapBackdrop" class="map-backdrop"></div>
+    <div class="map-window" role="dialog" aria-modal="true" aria-label="무료 지도">
+        <div class="map-header">
+            <div>
+                <span class="map-eyebrow">COMTIME MAP</span>
+                <h2>지도</h2>
+                <p id="mapStatus">무료 지도 준비 중...</p>
+            </div>
+            <button id="closeMapBtn" class="map-close-btn" type="button" aria-label="지도 닫기">×</button>
+        </div>
+        <div class="map-toolbar">
+            <button id="mapMyLocationBtn" class="map-tool-btn" type="button">내 위치</button>
+            <button id="mapZoomInBtn" class="map-tool-btn" type="button">+</button>
+            <button id="mapZoomOutBtn" class="map-tool-btn" type="button">−</button>
+        </div>
+        <div id="mapCanvas" class="map-canvas"></div>
+        <div class="map-free-note">OpenStreetMap 기반 무료 지도 · 위치 정보는 브라우저 권한을 통해서만 가져옵니다.</div>
+    </div>
+</div>
+
+<!-- ==================================================
+     URL NAVIGATOR
+================================================== -->
+<div id="urlModal" class="url-modal" aria-hidden="true">
+    <div id="urlBackdrop" class="url-backdrop"></div>
+    <div class="url-window" role="dialog" aria-modal="true" aria-label="URL 이동">
+        <div class="url-header">
+            <div>
+                <span class="url-eyebrow">QUICK NAVIGATOR</span>
+                <h2>URL 이동</h2>
+                <p>사이트 주소를 붙여 넣으면 새 탭에서 이동합니다.</p>
+            </div>
+            <button id="closeUrlBtn" class="url-close-btn" type="button" aria-label="URL 창 닫기">×</button>
+        </div>
+        <form id="urlForm" class="url-form">
+            <label for="urlInput">웹사이트 주소</label>
+            <input id="urlInput" type="url" inputmode="url" placeholder="https://example.com" autocomplete="url" spellcheck="false">
+            <div class="url-actions">
+                <button id="urlCancelBtn" type="button">취소</button>
+                <button type="submit">사이트로 이동</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ==================================================
+     NOTICE MODAL
+================================================== -->
+<div id="noticeModal" class="notice-modal" aria-hidden="true">
+    <div id="noticeBackdrop" class="notice-backdrop"></div>
+    <div class="notice-window" role="dialog" aria-modal="true" aria-label="공지사항">
+        <div class="notice-header">
+            <div>
+                <span class="game-window-label">COMTIME PRO</span>
+                <h2>📢 공지사항</h2>
+            </div>
+            <div class="notice-header-actions">
+                <button id="noticeDeveloperAuthBtn" class="notice-developer-auth-btn" type="button">개발자 인증</button>
+                <button id="noticeAddBtn" class="notice-add-btn" type="button" hidden>＋ 공지 추가</button>
+                <button id="closeNoticeBtn" class="game-close-btn" type="button">×</button>
+            </div>
+        </div>
+        <div id="noticeListView" class="notice-body">
+            <div id="noticeList" class="notice-list"></div>
+        </div>
+        <div id="noticeDetailView" class="notice-detail" hidden>
+            <button id="noticeBackBtn" class="notice-back-btn" type="button">← 공지 목록</button>
+            <div id="noticeDetail"></div>
+        </div>
+        <div id="noticeEditorView" class="notice-editor" hidden>
+            <div class="notice-editor-title" id="noticeEditorTitle">공지 추가</div>
+            <input id="noticeTitleInput" type="text" maxlength="100" placeholder="공지 제목">
+            <textarea id="noticeContentInput" rows="10" maxlength="5000" placeholder="공지 내용을 입력하세요."></textarea>
+            <div class="notice-editor-actions">
+                <button id="noticeEditorCancelBtn" type="button">취소</button>
+                <button id="noticeEditorSaveBtn" type="button">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     REALTIME CAR GAME MODAL
+================================================== -->
+<div id="carGameModal" class="car-game-modal" aria-hidden="true">
+    <div id="carGameBackdrop" class="car-game-backdrop"></div>
+
+    <div class="car-game-window" role="dialog" aria-modal="true" aria-label="실시간 카게임">
+        <div class="car-game-header">
+            <div>
+                <span class="game-window-label">REALTIME MULTIPLAYER</span>
+                <h2>실시간 카게임</h2>
+            </div>
+            <button id="closeCarGameBtn" class="game-close-btn" type="button" aria-label="카게임 닫기">×</button>
+        </div>
+
+        <div id="carLobby" class="car-screen">
+            <div class="car-lobby-card">
+                <div class="car-game-icon">🚗</div>
+                <h3>친구와 함께 플레이</h3>
+                <p>4자리 숫자 방 번호로 2명이 연결됩니다.</p>
+
+                <button id="createCarRoomBtn" class="car-primary-btn" type="button">방 생성하기</button>
+
+                <div class="car-or"><span>또는</span></div>
+
+                <input id="joinCarRoomInput" class="car-room-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="4자리 방 번호" autocomplete="off">
+                <button id="joinCarRoomBtn" class="car-secondary-btn" type="button">방 참가하기</button>
+                <div id="carRoomStatus" class="car-status"></div>
+            </div>
+        </div>
+
+        <div id="carWaiting" class="car-screen" hidden>
+            <div class="car-waiting-card">
+                <div class="car-game-icon">🔗</div>
+                <span class="car-small-label">ROOM CODE</span>
+                <div id="carRoomCode" class="car-room-code">0000</div>
+                <p>상대방에게 이 4자리 번호를 알려주세요.</p>
+                <div class="car-waiting-pulse">상대방을 기다리는 중...</div>
+                <button id="cancelCarRoomBtn" class="car-secondary-btn" type="button">방 나가기</button>
+            </div>
+        </div>
+
+        <div id="carGameArea" class="car-game-area" hidden>
+            <div class="car-hud">
+                <div class="car-hud-player">
+                    <span>YOU</span>
+                    <strong id="myCarHearts">♥ ♥ ♥</strong>
+                </div>
+                <div class="car-room-badge">ROOM <strong id="carRoomSmallCode">0000</strong></div>
+                <div class="car-hud-player enemy-hud">
+                    <span>GHOST</span>
+                    <strong id="enemyCarHearts">♥ ♥ ♥</strong>
+                </div>
+            </div>
+
+            <div id="carRoad" class="car-road" tabindex="0" aria-label="자동차 게임 도로">
+                <div class="road-edge road-edge-left"></div>
+                <div class="road-edge road-edge-right"></div>
+                <div class="road-lane-line lane-line-1"></div>
+                <div class="road-lane-line lane-line-2"></div>
+                <div id="carObstacles" class="car-obstacles"></div>
+
+                <div id="enemyCar" class="car-player enemy-car">
+                    <span class="car-body">🚗</span>
+                    <span class="car-name">GHOST</span>
+                </div>
+
+                <div id="myCar" class="car-player my-car">
+                    <span class="car-body">🚙</span>
+                    <span class="car-name">YOU</span>
+                </div>
+
+                <div id="carHitFlash" class="car-hit-flash" hidden></div>
+                <div id="carCountdown" class="car-countdown" hidden>3</div>
+            </div>
+
+            <div class="car-mobile-controls" aria-label="자동차 이동 버튼">
+                <button id="carLeftBtn" type="button" aria-label="왼쪽 이동">←</button>
+                <div class="car-mobile-help">누르고 있는 동안 이동</div>
+                <button id="carRightBtn" type="button" aria-label="오른쪽 이동">→</button>
+            </div>
+            <div class="car-desktop-help">PC: ← → 방향키 · 모바일: 아래 버튼을 누르고 이동</div>
+        </div>
+
+        <div id="carGameOver" class="car-screen" hidden>
+            <div class="car-gameover-card">
+                <div id="carGameOverIcon" class="car-game-icon">🏁</div>
+                <h3 id="carGameOverTitle">GAME OVER</h3>
+                <p id="carGameOverMessage">게임이 종료되었습니다.</p>
+                <button id="carBackLobbyBtn" class="car-primary-btn" type="button">로비로 돌아가기</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     GEMINI MODAL
+================================================== -->
+<div id="geminiModal" class="game-modal" aria-hidden="true">
+    <div id="geminiBackdrop" class="game-backdrop"></div>
+
+    <div class="gemini-window" role="dialog" aria-modal="true" aria-label="Gemini AI">
+        <div class="gemini-header">
+            <div>
+                <span class="game-window-label">AI ASSISTANT</span>
+                <h2>✦ Gemini AI</h2>
+            </div>
+            <div class="gemini-header-actions">
+                <button id="geminiNewChatBtn" class="gemini-new-chat-btn" type="button" title="새 대화 시작">새 대화</button>
+                <button id="closeGeminiBtn" class="game-close-btn" type="button" aria-label="Gemini 닫기">×</button>
+            </div>
+        </div>
+
+        <div class="gemini-body">
+            <div class="gemini-welcome">
+                <div class="gemini-icon">✦</div>
+                <div>
+                    <strong>무엇이든 물어보세요</strong>
+                    <p>공부, 코딩, 학교생활 등 궁금한 것을 질문해보세요.</p>
+                </div>
+            </div>
+
+            <div id="geminiMessages" class="gemini-messages">
+                <div class="gemini-message assistant">안녕하세요! 무엇을 도와드릴까요?</div>
+            </div>
+
+            <div class="gemini-input-area">
+                <textarea id="geminiInput" placeholder="Gemini에게 질문하세요..." rows="3"></textarea>
+                <button id="geminiSendBtn" type="button">전송</button>
+            </div>
+
+            <div id="geminiStatus" class="gemini-status"></div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ==================================================
+     CHAT MODAL
+================================================== -->
+<div id="chatModal" class="chat-modal" aria-hidden="true">
+    <div id="chatBackdrop" class="chat-backdrop"></div>
+    <div class="chat-window" role="dialog" aria-modal="true" aria-label="친구 채팅">
+        <div class="chat-header">
+            <div>
+                <span class="game-window-label">MESSAGES</span>
+                <h2>채팅</h2>
+            </div>
+            <button id="closeChatBtn" class="game-close-btn" type="button" aria-label="채팅 닫기">×</button>
+        </div>
+        <div class="chat-layout">
+            <aside class="chat-sidebar">
+                <div class="chat-add-row">
+                    <input id="friendUsernameInput" type="text" placeholder="친구 아이디" maxlength="24" autocomplete="off">
+                    <button id="addFriendBtn" type="button">친구 추가</button>
+                </div>
+                <div id="friendStatus" class="chat-status"></div>
+                <div class="chat-friend-title">친구 목록 <span id="friendCount">0</span></div>
+                <div id="friendList" class="friend-list"></div>
+            </aside>
+            <section class="chat-main">
+                <div id="chatEmpty" class="chat-empty">왼쪽에서 친구를 선택하세요.</div>
+                <div id="chatConversation" class="chat-conversation" hidden>
+                    <div class="chat-conversation-header">
+                        <div>
+                            <strong id="chatFriendName">친구</strong>
+                            <small id="chatFriendUsername">@friend</small>
+                        </div>
+                    </div>
+                    <div id="chatMessages" class="chat-messages"></div>
+                    <form id="chatSendForm" class="chat-send-form">
+                        <textarea id="chatInput" rows="2" maxlength="2000" placeholder="메시지를 입력하세요..." required></textarea>
+                        <button type="submit">전송</button>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     YOUTUBE SHORTS MODAL
+================================================== -->
+<div id="shortsModal" class="shorts-modal" aria-hidden="true">
+    <div id="shortsBackdrop" class="shorts-backdrop"></div>
+    <div class="shorts-window" role="dialog" aria-modal="true" aria-label="YouTube Shorts">
+        <div class="shorts-header">
+            <div>
+                <span class="game-window-label">VIDEO FEED</span>
+                <h2>▶ YouTube Shorts</h2>
+            </div>
+            <button id="closeShortsBtn" class="game-close-btn" type="button" aria-label="Shorts 닫기">×</button>
+        </div>
+        <div id="shortsFeed" class="shorts-feed"></div>
+        <div id="shortsStatus" class="shorts-status">쇼츠를 불러오는 중...</div>
+    </div>
+</div>
+
+<!-- ==================================================
+     BIRD BUMP MODAL
+================================================== -->
+<div id="birdGameModal" class="game-modal" aria-hidden="true">
+    <div id="gameBackdrop" class="game-backdrop"></div>
+
+    <div class="game-window" role="dialog" aria-modal="true" aria-label="Bird Bump">
+        <div class="game-window-header">
+            <div>
+                <span class="game-window-label">MINI GAME</span>
+                <h2>🐦 Bird Bump</h2>
+            </div>
+            <button id="closeGameBtn" class="game-close-btn" type="button" aria-label="게임 닫기">×</button>
+        </div>
+
+        <div id="birdGameContainer" class="bird-game-container">
+            <canvas id="birdGameCanvas"></canvas>
+
+            <div class="bird-hud">
+                <div class="bird-score-box">
+                    <span>SCORE</span>
+                    <strong id="birdScore">0</strong>
+                </div>
+                <div class="bird-best-box">
+                    <span>BEST</span>
+                    <strong id="birdBest">0</strong>
+                </div>
+            </div>
+
+            <div id="birdStartScreen" class="bird-game-screen">
+                <div class="bird-game-card">
+                    <div class="bird-game-icon">🐦</div>
+                    <h3>Bird Bump</h3>
+                    <p>장애물을 피하면서 최대한 오래 날아보세요.</p>
+                    <button id="birdStartBtn" class="bird-action-btn" type="button">게임 시작</button>
+                </div>
+            </div>
+
+            <div id="birdGameOverScreen" class="bird-game-screen hidden">
+                <div class="bird-game-card">
+                    <div class="bird-game-icon">💥</div>
+                    <h3>GAME OVER</h3>
+                    <p>점수 <strong id="birdFinalScore">0</strong></p>
+                    <div id="birdNewBest" class="bird-new-best"></div>
+                    <button id="birdRestartBtn" class="bird-action-btn" type="button">다시 하기</button>
+                </div>
+            </div>
+
+            <div id="birdControlHint" class="bird-control-hint">클릭 또는 SPACE</div>
+        </div>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/app.js?v=22"></script>
+<script src="/multiplayer.js?v=22"></script>
+</body>
+</html>
