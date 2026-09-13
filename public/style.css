@@ -3727,3 +3727,46 @@ header .logo{width:40px!important;height:40px!important}
  .game-window-header .game-close-btn,.game-hub-header .game-close-btn,.car-game-header .game-close-btn,.shorts-header .game-close-btn,.chat-header .game-close-btn,.gemini-header .game-close-btn,.survival-game-header .survival-close-btn,.map-header .map-close-btn,.url-header .url-close-btn,.notice-header .game-close-btn{transform:translateY(8px)!important;}
  .frame-preview{width:56px!important;height:56px!important;}.frame-preview-inner{inset:4px!important;}
 }
+
+
+/* =========================================================
+   COMTIME PRO V26 — popup priority / profile photo foreground / seasonal orbit
+========================================================= */
+header{z-index:100!important;}
+.menu-modal,.settings-modal,.game-hub-modal,.survival-game-modal,.map-modal,.url-modal,.notice-modal,.car-game-modal,.gemini-modal,.chat-modal,.shorts-modal,.game-modal,.worm-game-modal{z-index:400000!important;}
+.menu-backdrop,.settings-backdrop,.game-hub-backdrop,.survival-backdrop,.map-backdrop,.url-backdrop,.notice-backdrop,.car-game-backdrop,.gemini-backdrop,.chat-backdrop,.shorts-backdrop,.game-backdrop,.worm-game-backdrop{z-index:0!important;}
+.menu-window,.settings-window,.game-hub-window,.survival-game-window,.map-window,.url-window,.notice-window,.car-game-window,.gemini-window,.chat-window,.shorts-window,.game-window,.worm-game-window{position:relative!important;z-index:2!important;}
+
+/* The uploaded photo is the front face; the frame remains visible as an outer ring. */
+.header-profile-btn img{z-index:10!important;}
+.header-profile-btn #headerProfileText{z-index:10!important;}
+.settings-profile-avatar .profile-avatar-media{z-index:10!important;}
+.header-profile-btn[data-frame]::before,.settings-profile-avatar[data-frame]::before{z-index:5!important;}
+.header-profile-btn .season-particle,.settings-profile-avatar .season-particle{z-index:14!important;}
+.profile-avatar-media,.header-profile-btn img{aspect-ratio:1/1!important;object-fit:cover!important;object-position:center!important;border-radius:50%!important;clip-path:circle(50% at 50% 50%)!important;}
+
+/* Dense circular seasonal decorations. They are CSS shapes, not platform/system emoji. */
+.season-particle{width:12px!important;height:12px!important;background:transparent!important;color:transparent!important;font-size:0!important;border:0!important;overflow:visible!important;}
+.season-particle::before,.season-particle::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:block;}
+.season-particle[data-season="spring"]::before{width:6px;height:6px;border-radius:50%;background:#f8a6bd;box-shadow:0 -5px 0 #ffc0d1,5px 0 0 #ff9db8,0 5px 0 #ffc0d1,-5px 0 0 #ff9db8,3.5px 3.5px 0 #ffd5df,-3.5px 3.5px 0 #ffd5df;}
+.season-particle[data-season="spring"]::after{width:3px;height:3px;border-radius:50%;background:#ffd96a;}
+.season-particle[data-season="summer"]::before{width:7px;height:12px;border-radius:80% 15% 80% 15%;background:linear-gradient(135deg,#66c97e,#b5ef8b);transform:translate(-50%,-50%) rotate(calc(var(--particle-angle) + 28deg));}
+.season-particle[data-season="summer"]::after{width:1px;height:10px;background:rgba(40,120,67,.6);transform:translate(-50%,-50%) rotate(calc(var(--particle-angle) + 28deg));}
+.season-particle[data-season="autumn"]::before{width:9px;height:11px;border-radius:65% 20% 65% 20%;background:linear-gradient(135deg,#ffbd4a,#d94d32);transform:translate(-50%,-50%) rotate(calc(var(--particle-angle) + 35deg));box-shadow:inset 2px -1px 0 rgba(255,235,150,.35);}
+.season-particle[data-season="autumn"]::after{width:1px;height:8px;background:#75442a;transform:translate(-50%,-25%) rotate(calc(var(--particle-angle) + 35deg));}
+.season-particle[data-season="winter"]::before{width:9px;height:9px;background:transparent;border:1.5px solid #c9efff;border-radius:50%;box-shadow:0 0 8px rgba(145,220,255,.9);}
+.season-particle[data-season="winter"]::after{width:13px;height:2px;background:#e9fbff;box-shadow:0 -4px 0 rgba(233,251,255,.95),0 4px 0 rgba(233,251,255,.95);transform:translate(-50%,-50%) rotate(45deg);}
+.season-particle[data-season="winter"][data-kind="snowman"]::before{width:11px;height:14px;border:0;border-radius:50%;background:radial-gradient(circle at 38% 35%,#283747 0 1px,transparent 1.5px),radial-gradient(circle at 62% 35%,#283747 0 1px,transparent 1.5px),linear-gradient(#f7fdff,#ccecf7);box-shadow:0 -6px 0 -2px #f7fdff,0 0 7px rgba(180,235,255,.8);}
+.season-particle[data-season="winter"][data-kind="snowman"]::after{width:5px;height:2px;background:#f4a24b;transform:translate(-10%,-10%) rotate(8deg);}
+
+/* Vector skill icons: never fall back to system emoji. */
+.skill-vector-icon{width:48px;height:48px;display:grid;place-items:center;border-radius:15px;background:radial-gradient(circle at 35% 25%,rgba(255,255,255,.16),transparent 45%),linear-gradient(145deg,rgba(255,255,255,.12),rgba(255,255,255,.035));border:1px solid rgba(255,255,255,.12);color:var(--skill-icon,#9deaff);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 8px 22px rgba(0,0,0,.16);}
+.skill-vector-icon svg{width:30px;height:30px;filter:drop-shadow(0 0 7px currentColor);}
+.survival-upgrade-btn .skill-vector-icon{margin-bottom:8px;}
+.final-boss-reward-card{position:relative;overflow:hidden!important;border-color:rgba(255,220,90,.55)!important;background:radial-gradient(circle at 50% 15%,rgba(255,215,82,.18),transparent 42%),linear-gradient(145deg,rgba(255,255,255,.10),rgba(255,255,255,.035))!important;}
+.final-skill-art{width:66px;height:66px;margin:0 auto 8px;position:relative;display:grid;place-items:center;filter:drop-shadow(0 0 15px rgba(255,213,80,.75));}
+.final-skill-core{width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff8c6,#ffd54c 35%,#ff8c2a 70%,#7c2f0e);box-shadow:0 0 0 5px rgba(255,219,93,.16),0 0 30px rgba(255,187,50,.8);}
+.final-skill-art i{position:absolute;inset:6px;border:2px solid rgba(255,220,94,.8);border-radius:50%;transform:rotate(35deg);animation:finalSkillSpin 3s linear infinite;}
+.final-skill-art i:nth-child(2){inset:12px;transform:rotate(-35deg);animation-duration:2.2s;}
+.final-skill-art i:nth-child(3){inset:0;transform:rotate(75deg);animation-duration:4.2s;}
+@keyframes finalSkillSpin{to{transform:rotate(395deg)}}

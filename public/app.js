@@ -4931,7 +4931,7 @@ const survivalState = {
     height: 0,
 };
 
-// 50개의 성장 선택지. 중복 선택 시 해당 스킬의 레벨이 올라가며 수치가 더 강해집니다.
+// 100개의 성장 선택지. 중복 선택 시 해당 스킬의 레벨이 올라가며 수치가 더 강해집니다.
 const SURVIVAL_UPGRADES = [
     { key: "damage", icon: "✦", title: "화력 강화", desc: "모든 무기 피해가 증가합니다." },
     { key: "fireRate", icon: "⚡", title: "연사 강화", desc: "자동 공격 간격이 줄어듭니다." },
@@ -4961,7 +4961,7 @@ const SURVIVAL_UPGRADES = [
     { key: "shield", icon: "◇", title: "보호막", desc: "일정 주기로 피해를 막는 보호막을 얻습니다." },
     { key: "thorns", icon: "♢", title: "가시 갑옷", desc: "접촉한 적에게 반사 피해를 줍니다." },
     { key: "pickupXp", icon: "✦", title: "경험치 증폭", desc: "가까운 경험치가 더 빨리 날아옵니다." },
-    { key: "goldXp", icon: "●", title: "황금 경험치", desc: "보스가 더 큰 경험치 덩어리를 떨어뜨립니다." },
+    { key: "vacuum", icon: "◌", title: "진공 수집기", desc: "주기적으로 전장의 경험치를 강하게 끌어당깁니다." },
     { key: "weaponCooldown", icon: "◌", title: "스킬 쿨다운", desc: "특수 기술의 재사용 간격이 감소합니다." },
     { key: "lightningChain", icon: "ϟ", title: "연쇄 번개", desc: "번개가 더 많은 적을 연결합니다." },
     { key: "bombRadius", icon: "✹", title: "폭발 범위", desc: "주변 폭발의 반경이 크게 증가합니다." },
@@ -4972,7 +4972,7 @@ const SURVIVAL_UPGRADES = [
     { key: "droneCount", icon: "◇", title: "드론 증원", desc: "전투 드론이 추가됩니다." },
     { key: "critDamage", icon: "◆", title: "치명타 피해", desc: "치명타의 위력이 증가합니다." },
     { key: "healthPickup", icon: "❤", title: "회복 증폭", desc: "회복 구슬을 먹었을 때 회복량이 추가로 증가합니다." },
-    { key: "enemySlow", icon: "❄", title: "감속장", desc: "주변 적의 이동 속도가 지속적으로 감소합니다." },
+    { key: "precision", icon: "⊙", title: "정밀 조준", desc: "적의 약점을 정확히 맞히면 피해가 크게 증가합니다." },
     { key: "execute", icon: "☄", title: "처형 탄환", desc: "체력이 낮은 적에게 마무리 피해가 크게 증가합니다." },
     { key: "homing", icon: "⌁", title: "유도 탄환", desc: "발사된 탄환이 가까운 적을 향해 휘어집니다." },
     { key: "healthOrb", icon: "♥", title: "회복 구슬", desc: "적이 회복 구슬을 떨어뜨릴 확률이 생기고 구슬 회복량이 증가합니다." },
@@ -4983,7 +4983,7 @@ const SURVIVAL_UPGRADES = [
     { key: "dodge", icon: "◇", title: "회피 훈련", desc: "적의 공격을 일정 확률로 완전히 회피합니다." },
     { key: "repulse", icon: "◉", title: "퇴격 장치", desc: "주기적으로 주변 적을 밀어내 공간을 만들어 줍니다." },
     { key: "overdrive", icon: "✪", title: "오버드라이브", desc: "레벨업 직후 공격 속도와 화력이 폭발적으로 상승합니다." },
-    { key: "momentum", icon: "↗", title: "질주 화력", desc: "빠르게 이동할수록 다음 탄환의 피해가 증가합니다." },    { key: "fireBottle", icon: "♨", title: "화염병 투척", desc: "적 밀집 지역에 화염병을 던져 지속 화염 지대를 만듭니다." },
+    { key: "healingRain", icon: "+", title: "회복 비", desc: "주기적으로 주변에 회복 구슬을 생성합니다." },    { key: "fireBottle", icon: "♨", title: "화염병 투척", desc: "적 밀집 지역에 화염병을 던져 지속 화염 지대를 만듭니다." },
     { key: "boomerang", icon: "↩", title: "귀환 칼날", desc: "관통 칼날이 적을 지나간 뒤 플레이어에게 되돌아옵니다." },
     { key: "ricochet", icon: "⤢", title: "반사 탄환", desc: "탄환이 적중한 뒤 가까운 다른 적으로 한 번 더 튕겨갑니다." },
     { key: "railgun", icon: "▰", title: "레일건", desc: "긴 충전 뒤 전장을 가르는 초장거리 관통 사격을 발사합니다." },
@@ -5034,17 +5034,17 @@ const SURVIVAL_UPGRADES = [
     { key: "phaseShift", icon: "◇", title: "위상 이동", desc: "짧은 주기로 적과 투사체를 통과할 수 있습니다." },
 ];
 
-const SURVIVAL_MAX_SKILL_LEVEL = 8;
+const SURVIVAL_MAX_SKILL_LEVEL = 5;
 
 const SURVIVAL_DEFAULT_UPGRADES = {
     damage: 1, fireRate: 1, moveSpeed: 1, maxHp: 1, magnet: 1, projectile: 1,
     crit: 0, bulletSpeed: 1, pierce: 0, area: 1, armor: 0, regen: 0, frost: 0,
     orbital: 0, lightning: 0, bomb: 0, drone: 0, lifesteal: 0, xpBoost: 1, range: 1,
     bulletSize: 1, damageBoss: 1, eliteDamage: 1, knockback: 0, dash: 0, shield: 0, thorns: 0,
-    pickupXp: 1, goldXp: 1, weaponCooldown: 1, lightningChain: 0, bombRadius: 1, bombDamage: 1,
+    pickupXp: 1, vacuum: 0, weaponCooldown: 1, lightningChain: 0, bombRadius: 1, bombDamage: 1,
     bladeDamage: 1, bladeSpeed: 1, droneDamage: 1, droneCount: 0, critDamage: 1, healthPickup: 1,
-    enemySlow: 0, execute: 0, homing: 0, healthOrb: 0, bossXp: 1, bossSlow: 0,
-    focus: 0, emergencyHeal: 0, dodge: 0, repulse: 0, overdrive: 0, momentum: 1,
+    precision: 0, execute: 0, homing: 0, healthOrb: 0, bossXp: 1, bossSlow: 0,
+    focus: 0, emergencyHeal: 0, dodge: 0, repulse: 0, overdrive: 0, healingRain: 0,
     fireBottle: 0, boomerang: 0, ricochet: 0, railgun: 0, laser: 0, meteor: 0, iceNova: 0, poisonCloud: 0, bleed: 0, burn: 0, shrapnel: 0, vortex: 0, gravityWell: 0, timeWarp: 0, haste: 0, overheat: 0, bloodPact: 0, salvage: 0, choicePlus: 0, lucky: 0, revive: 0, clone: 0, turret: 0, sentry: 0, droneOrbit: 0, droneShield: 0, droneMissile: 0, bladeWave: 0, pulse: 0, chainShot: 0, splitShot: 0, fanShot: 0, sniper: 0, scatterBomb: 0, minefield: 0, flameTrail: 0, acidPool: 0, storm: 0, quake: 0, shockwave: 0, prism: 0, voidRift: 0, soulHarvest: 0, executioner: 0, giantSlayer: 0, bossBreaker: 0, adrenaline: 0, secondWind: 0, phaseShift: 0,
 };
 
@@ -5105,7 +5105,7 @@ function survivalReset() {
     survivalState.regenTimer = 0;
     survivalState.repulseTimer = 0;
     survivalState.pauseMenuOpen = false; survivalState.bossDashTimer=0; survivalState.bossDashTime=0; survivalState.bossDashVx=0; survivalState.bossDashVy=0;
-    survivalState.fireBottleTimer=0; survivalState.laserTimer=0; survivalState.meteorTimer=0; survivalState.iceNovaTimer=0; survivalState.poisonTimer=0; survivalState.vortexTimer=0; survivalState.pulseTimer=0; survivalState.fanShotTimer=0; survivalState.stormTimer=0; survivalState.quakeTimer=0; survivalState.healingRainTimer=0; survivalState.vacuumTimer=0; survivalState.droneMissileTimer=0; survivalState.bladeWaveTimer=0; survivalState.railgunTimer=0;
+    survivalState.fireBottleTimer=0; survivalState.laserTimer=0; survivalState.meteorTimer=0; survivalState.iceNovaTimer=0; survivalState.poisonTimer=0; survivalState.vortexTimer=0; survivalState.pulseTimer=0; survivalState.fanShotTimer=0; survivalState.stormTimer=0; survivalState.quakeTimer=0; survivalState.healingRainTimer=0; survivalState.vacuumTimer=0; survivalState.droneMissileTimer=0; survivalState.bladeWaveTimer=0; survivalState.railgunTimer=0; survivalState.finalPowerTimer=0; survivalState.finalPowerMultiplier=1; survivalState.finalOverdriveLevel=0; survivalState.specialTimer=0; survivalState.reviveCharges=0; survivalState.soulStacks=0; survivalState.cloneTimer=0; survivalState.phaseShiftTimer=0;
     survivalState.emergencyHealReady = true;
     survivalState.shieldCharges = 0;
     survivalState.overdriveTimer = 0;
@@ -5115,7 +5115,7 @@ function survivalReset() {
     survivalState.bullets = [];
     survivalState.gems = [];
     survivalState.particles = [];
-    survivalState.upgrades = { ...SURVIVAL_DEFAULT_UPGRADES };
+    survivalState.upgrades = { ...SURVIVAL_DEFAULT_UPGRADES, finalOverdrive: 0 };
     survivalState.upgradeLevels = Object.fromEntries(SURVIVAL_UPGRADES.map((item) => [item.key, 0]));
     survivalState.player = {
         x: 0,
@@ -5343,13 +5343,13 @@ function survivalDropGem(enemy) {
     const isBoss = !!enemy.boss;
     const base = Math.max(1, enemy.xp || 1);
     const value = isBoss
-        ? Math.round(base * 3.6 * survivalState.upgrades.bossXp * survivalState.upgrades.goldXp)
+        ? Math.round(base * 4.2 * survivalState.upgrades.bossXp * Math.max(1, survivalState.upgrades.xpBoost * 0.65))
         : Math.max(1, Math.round(base * survivalState.upgrades.xpBoost));
     survivalState.gems.push({
         x: enemy.x,
         y: enemy.y,
         value,
-        radius: isBoss ? 19 + Math.min(10, survivalState.upgrades.goldXp) : (base >= 12 ? 8 : 5),
+        radius: isBoss ? 19 + Math.min(10, survivalState.upgrades.bossXp) : (base >= 12 ? 8 : 5),
         color: isBoss ? "#ffd83d" : (base >= 12 ? "#b9f36b" : "#66d9ff"),
         bossGem: isBoss,
         healthGem: false,
@@ -5367,6 +5367,29 @@ function survivalDropGem(enemy) {
     }
 }
 
+function survivalGrantFinalBossSkill() {
+    if ((survivalState.finalOverdriveLevel || 0) >= SURVIVAL_MAX_SKILL_LEVEL) return false;
+    survivalState.finalOverdriveLevel = Math.min(SURVIVAL_MAX_SKILL_LEVEL, (survivalState.finalOverdriveLevel || 0) + 1);
+    survivalState.finalPowerTimer = 0;
+    survivalState.finalPowerMultiplier = Math.max(1, survivalState.finalPowerMultiplier || 1);
+    survivalState.upgrades.finalOverdrive = survivalState.finalOverdriveLevel;
+    survivalAddParticle(survivalState.player?.x || 0, survivalState.player?.y || 0, "#ffe36b", 120);
+    if (survivalLevelUp && survivalUpgradeChoices) {
+        survivalState.pausedForLevel = true;
+        survivalLevelUp.classList.remove("hidden");
+        const eyebrow = survivalLevelUp.querySelector(".survival-eyebrow");
+        const title = survivalLevelUp.querySelector("h3");
+        if (eyebrow) eyebrow.textContent = "FINAL BOSS REWARD";
+        if (title) title.textContent = "초월 폭주를 획득했습니다";
+        survivalUpgradeChoices.innerHTML = `<div class="survival-upgrade-btn boss-reward-card final-boss-reward-card"><div class="final-skill-art"><div class="final-skill-core"></div><i></i><i></i><i></i></div><strong>초월 폭주</strong><small>Lv.${survivalState.finalOverdriveLevel} / ${SURVIVAL_MAX_SKILL_LEVEL} · 10초마다 현재 공격력이 2배가 됩니다.</small></div>`;
+        setTimeout(() => {
+            survivalState.pausedForLevel = false;
+            survivalLevelUp.classList.add("hidden");
+        }, 2200);
+    }
+    return true;
+}
+
 function survivalKillEnemy(index) {
     const e = survivalState.enemies[index];
     if (!e) return;
@@ -5376,10 +5399,14 @@ function survivalKillEnemy(index) {
         survivalState.focusStacks = Math.min(8, survivalState.focusStacks + 1);
     }
     survivalDropGem(e);
+    if(survivalState.upgrades.salvage>0 && (e.boss || e.type==="tank" || e.type==="brute" || e.type==="shooter") && Math.random()<Math.min(.8,.16*survivalState.upgrades.salvage)) survivalDropGem({...e,boss:false,x:e.x+survivalRandom(-18,18),y:e.y+survivalRandom(-18,18),xp:Math.max(8,(e.xp||10)*.55)});
+    if(survivalState.upgrades.soulHarvest>0){survivalState.soulStacks=Math.min(60,survivalState.soulStacks+survivalState.upgrades.soulHarvest);}
     survivalAddParticle(e.x, e.y, e.color, e.boss ? 26 : 6);
     survivalState.enemies.splice(index, 1);
     if (e.boss) {
+        const wasFinalBoss = !!e.finalBoss;
         survivalFinishBossWave();
+        if (wasFinalBoss && Math.random() < 0.10) survivalGrantFinalBossSkill();
     }
     if (survivalState.upgrades.lifesteal > 0 && Math.random() < Math.min(0.75, survivalState.upgrades.lifesteal * 0.08)) {
         survivalState.player.hp = Math.min(survivalState.player.maxHp, survivalState.player.hp + survivalState.player.maxHp * 0.035);
@@ -5403,7 +5430,12 @@ function survivalTakeDamage(amount) {
     p.hp -= reduced;
     p.invuln = 0.35;
     survivalAddParticle(p.x, p.y, "#ff6b7a", 8);
-    if (p.hp <= 0) survivalEnd(false);
+    if (p.hp <= 0 && survivalState.reviveCharges > 0) {
+        survivalState.reviveCharges -= 1;
+        p.hp = p.maxHp * .62;
+        p.invuln = 2.2;
+        survivalAddParticle(p.x,p.y,"#fff2a4",90);
+    } else if (p.hp <= 0) survivalEnd(false);
 }
 
 function survivalCollectXp(value) {
@@ -5440,7 +5472,7 @@ function survivalForceMaxBuild() {
     const u = survivalState.upgrades || (survivalState.upgrades = { ...SURVIVAL_DEFAULT_UPGRADES });
     const maxLevel = SURVIVAL_MAX_SKILL_LEVEL;
 
-    // 100개 기술의 레벨을 예외 없이 실제 MAX(Lv.8)으로 만든다.
+    // 100개 기술의 레벨을 예외 없이 실제 MAX(Lv.5)으로 만든다.
     for (const item of SURVIVAL_UPGRADES) {
         survivalState.upgradeLevels[item.key] = maxLevel;
         if (!Number.isFinite(Number(u[item.key]))) u[item.key] = maxLevel;
@@ -5452,12 +5484,12 @@ function survivalForceMaxBuild() {
         crit: 0.92, bulletSpeed: 18, pierce: 24, area: 18, armor: 24, regen: 24,
         frost: 24, orbital: 12, lightning: 24, bomb: 24, drone: 8, lifesteal: 24,
         xpBoost: 18, range: 18, bulletSize: 18, damageBoss: 18, eliteDamage: 18,
-        knockback: 24, dash: 24, shield: 8, thorns: 24, pickupXp: 18, goldXp: 18,
+        knockback: 24, dash: 24, shield: 8, thorns: 24, pickupXp: 18, vacuum: 24,
         weaponCooldown: 18, lightningChain: 24, bombRadius: 18, bombDamage: 18,
         bladeDamage: 18, bladeSpeed: 18, droneDamage: 18, droneCount: 8, critDamage: 18,
-        healthPickup: 18, enemySlow: 24, execute: 24, homing: 24, healthOrb: 24,
+        healthPickup: 18, precision: 24, execute: 24, homing: 24, healthOrb: 24,
         bossXp: 18, bossSlow: 24, focus: 24, emergencyHeal: 8, dodge: 24, repulse: 24,
-        overdrive: 24, speedDamage: 18, fireBottle: 8, boomerang: 8, ricochet: 8,
+        overdrive: 24, healingRain: 8, speedDamage: 18, fireBottle: 8, boomerang: 8, ricochet: 8,
         railgun: 8, laser: 8, meteor: 8, iceNova: 8, poisonCloud: 8, bleed: 8, burn: 8,
         shrapnel: 8, vortex: 8, gravityWell: 8, timeWarp: 8, haste: 8, overheat: 8,
         bloodPact: 8, salvage: 8, choicePlus: 8, lucky: 8, revive: 8, clone: 8,
@@ -5466,7 +5498,7 @@ function survivalForceMaxBuild() {
         scatterBomb: 8, minefield: 8, flameTrail: 8, acidPool: 8, storm: 8, quake: 8,
         shockwave: 8, prism: 8, voidRift: 8, soulHarvest: 8, executioner: 8,
         giantSlayer: 8, bossBreaker: 8, adrenaline: 8, secondWind: 8, phaseShift: 8,
-        healingRain: 8, vacuum: 8, precision: 8, greed: 8,
+        
     });
 
     const p = survivalState.player || (survivalState.player = {
@@ -5477,7 +5509,13 @@ function survivalForceMaxBuild() {
     p.radius = 22;
 
     survivalState.shieldCharges = 12;
+    survivalState.reviveCharges = SURVIVAL_MAX_SKILL_LEVEL;
+    survivalState.soulStacks = SURVIVAL_MAX_SKILL_LEVEL * 8;
     survivalState.emergencyHealReady = true;
+    survivalState.finalOverdriveLevel = SURVIVAL_MAX_SKILL_LEVEL;
+    survivalState.finalPowerTimer = 0;
+    survivalState.finalPowerMultiplier = 1;
+    u.finalOverdrive = SURVIVAL_MAX_SKILL_LEVEL;
     survivalState.overdriveTimer = 999999;
     survivalState.developerCheat = true;
     survivalState.pausedForLevel = false;
@@ -5521,6 +5559,7 @@ function survivalApplyUpgrade(key) {
         case "shield": u.shield += maxed ? 3 : 1; survivalState.shieldCharges = Math.min(12, survivalState.shieldCharges + (maxed ? 4 : 1)); break;
         case "thorns": u.thorns += maxed ? 3 : 1; break;
         case "pickupXp": u.pickupXp *= 1.22 * maxBoost; break;
+        case "vacuum": u.vacuum += maxed ? 3 : 1; break;
         case "weaponCooldown": u.weaponCooldown *= 1.12 * maxBoost; break;
         case "lightningChain": u.lightningChain += maxed ? 3 : 1; break;
         case "bombRadius": u.bombRadius *= 1.14 * maxBoost; break;
@@ -5531,7 +5570,7 @@ function survivalApplyUpgrade(key) {
         case "droneCount": u.droneCount += maxed ? 2 : 1; u.drone = Math.min(8, u.drone + (maxed ? 2 : 1)); break;
         case "critDamage": u.critDamage *= 1.16 * maxBoost; break;
         case "healthPickup": u.healthPickup *= 1.14 * maxBoost; break;
-        case "enemySlow": u.enemySlow += maxed ? 3 : 1; break;
+        case "precision": u.precision += maxed ? 3 : 1; break;
         case "execute": u.execute += maxed ? 3 : 1; break;
         case "homing": u.homing += maxed ? 3 : 1; break;
         case "healthOrb": u.healthOrb += maxed ? 3 : 1; break;
@@ -5542,7 +5581,7 @@ function survivalApplyUpgrade(key) {
         case "dodge": u.dodge += maxed ? 3 : 1; break;
         case "repulse": u.repulse += maxed ? 3 : 1; break;
         case "overdrive": u.overdrive += maxed ? 3 : 1; survivalState.overdriveTimer = 10 + u.overdrive * 1.2; break;
-        case "momentum": u.speedDamage *= 1.15 * maxBoost; break;
+        case "healingRain": u.healingRain += 1; break;
         case "fireBottle": u.fireBottle += 1; break;
         case "boomerang": u.boomerang += 1; break;
         case "ricochet": u.ricochet += 1; break;
@@ -5559,16 +5598,16 @@ function survivalApplyUpgrade(key) {
         case "timeWarp": u.timeWarp += 1; break;
         case "haste": u.haste += 1; break;
         case "overheat": u.overheat += 1; break;
-        case "bloodPact": u.bloodPact += 1; break;
+        case "bloodPact": { u.bloodPact += 1; const p=survivalState.player; if(p){ p.maxHp=Math.max(40,p.maxHp*(1-0.025)); p.hp=Math.min(p.hp,p.maxHp); } u.damage*=1.16; break; }
         case "salvage": u.salvage += 1; break;
         case "choicePlus": u.choicePlus += 1; break;
         case "lucky": u.lucky += 1; break;
-        case "revive": u.revive += 1; break;
+        case "revive": u.revive += 1; survivalState.reviveCharges = Math.min(SURVIVAL_MAX_SKILL_LEVEL,u.revive); break;
         case "clone": u.clone += 1; break;
         case "turret": u.turret += 1; break;
         case "sentry": u.sentry += 1; break;
         case "droneOrbit": u.droneOrbit += 1; break;
-        case "droneShield": u.droneShield += 1; break;
+        case "droneShield": u.droneShield += 1; survivalState.shieldCharges = Math.min(12,survivalState.shieldCharges + 1); break;
         case "droneMissile": u.droneMissile += 1; break;
         case "bladeWave": u.bladeWave += 1; break;
         case "pulse": u.pulse += 1; break;
@@ -5599,7 +5638,7 @@ function survivalApplyUpgrade(key) {
 
 function survivalCollectBossXp(gem) {
     if (!gem || !gem.bossGem) return;
-    survivalState.score=(Number.isFinite(Number(survivalState.score))?Number(survivalState.score):0)+Math.round((Number(gem.value)||0)*3*(1+(Number(survivalState.upgrades.greed)||0)*0.08));
+    survivalState.score=(Number.isFinite(Number(survivalState.score))?Number(survivalState.score):0)+Math.round((Number(gem.value)||0)*3*(1+(Number(survivalState.upgrades.bossXp)||0)*0.08));
     // 황금 경험치는 실제 경험치에도 크게 반영하되, 보스 보상 UI와 일반 레벨업 UI가 겹치지 않도록 즉시 레벨만 계산합니다.
     survivalState.xp += gem.value;
     let bossLevelSafety = 0;
@@ -5628,7 +5667,7 @@ function survivalCollectBossXp(gem) {
         if (title) title.textContent = picked.length ? "황금 경험치 보상 — 3개 기술이 동시에 강화되었습니다" : "모든 기술이 최대 레벨입니다";
         survivalUpgradeChoices.innerHTML = picked.map((u) => {
             const lv = survivalState.upgradeLevels[u.key] || 0;
-            return `<div class="survival-upgrade-btn boss-reward-card"><span class="upgrade-icon">${u.icon}</span><strong>${u.title}</strong><small>Lv.${lv} · ${lv >= SURVIVAL_MAX_SKILL_LEVEL ? "MAX — 최종 강화" : "강화 완료"}</small></div>`;
+            return `<div class="survival-upgrade-btn boss-reward-card">${survivalSkillIcon(u.key)}<strong>${u.title}</strong><small>Lv.${lv} · ${lv >= SURVIVAL_MAX_SKILL_LEVEL ? "MAX — 최종 강화" : "강화 완료"}</small></div>`;
         }).join("");
         if (!picked.length) {
             survivalUpgradeChoices.innerHTML = `<div class="survival-upgrade-btn boss-reward-card"><strong>MAX BUILD</strong><small>모든 기술이 최대 레벨에 도달했습니다.</small></div>`;
@@ -5638,6 +5677,26 @@ function survivalCollectBossXp(gem) {
             survivalLevelUp.classList.add("hidden");
         }, 1400);
     }
+}
+
+function survivalSkillIcon(key) {
+    const hash = String(key || "skill").split("").reduce((a,c)=>((a*33+c.charCodeAt(0))>>>0),17);
+    const n = hash % 10;
+    const colors = ["#8de8ff","#9c8cff","#ffd66b","#ff8f9f","#76f0c0"];
+    const c = colors[n % colors.length];
+    const d = [
+        `<path d="M16 3 19.5 12 29 16l-9.5 4L16 29l-3.5-9L3 16l9.5-4L16 3Z"/>`,
+        `<circle cx="16" cy="16" r="10"/><path d="M16 6v20M6 16h20M9 9l14 14M23 9 9 23"/>`,
+        `<path d="M16 3 19 11l8 3-8 3-3 10-3-10-8-3 8-3 3-8Z"/>`,
+        `<path d="M7 23 12 8l4 8 4-10 5 17H7Z"/>`,
+        `<rect x="5" y="5" width="22" height="22" rx="6"/><path d="m9 17 4-4 3 3 5-6"/>`,
+        `<path d="M6 23 16 5l10 18"/><path d="M10 18h12"/>`,
+        `<circle cx="16" cy="16" r="5"/><path d="M16 3v6M16 23v6M3 16h6M23 16h6"/>`,
+        `<path d="M5 19c6 0 6-14 12-14 4 0 4 6 10 6"/><path d="M5 23h22"/>`,
+        `<path d="M16 4 27 10v12l-11 6L5 22V10L16 4Z"/><path d="m11 16 3 3 6-7"/>`,
+        `<path d="m16 4 3.2 7.8L28 13l-6.2 5.1L23 26l-7-4.1L9 26l1.2-7.9L4 13l8.8-1.2L16 4Z"/>`
+    ][n];
+    return `<span class="skill-vector-icon" style="--skill-icon:${c}"><svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
 }
 
 function survivalUpgradePreview(key, level) {
@@ -5671,7 +5730,7 @@ function survivalUpgradePreview(key, level) {
         shield: `Lv.${level} → Lv.${n} · 보호막 단계 +1`,
         thorns: `Lv.${level} → Lv.${n} · 접촉 반사 피해 +1`,
         pickupXp: `Lv.${level} → Lv.${n} · 경험치 흡수 속도 +22%`,
-        goldXp: `Lv.${level} → Lv.${n} · 황금 경험치 크기 +1`,
+        vacuum: `Lv.${level} → Lv.${n} · 전장 경험치 강제 흡입력 강화`,
         weaponCooldown: `Lv.${level} → Lv.${n} · 특수 기술 쿨다운 감소`,
         lightningChain: `Lv.${level} → Lv.${n} · 번개 연쇄 대상 +2`,
         bombRadius: `Lv.${level} → Lv.${n} · 폭발 반경 +14%`,
@@ -5682,7 +5741,7 @@ function survivalUpgradePreview(key, level) {
         droneCount: `Lv.${level} → Lv.${n} · 드론 증원 +1`,
         critDamage: `Lv.${level} → Lv.${n} · 치명타 피해 +16%`,
         healthPickup: `Lv.${level} → Lv.${n} · 회복 구슬 회복량 +14%`,
-        enemySlow: `Lv.${level} → Lv.${n} · 주변 감속 효과 강화`,
+        precision: `Lv.${level} → Lv.${n} · 약점 적중 피해 강화`,
         execute: `Lv.${level} → Lv.${n} · 저체력 적 마무리 피해 +16%`,
         homing: `Lv.${level} → Lv.${n} · 탄환 유도력 강화`,
         healthOrb: `Lv.${level} → Lv.${n} · 회복 구슬 확률/회복량 증가`,
@@ -5693,7 +5752,7 @@ function survivalUpgradePreview(key, level) {
         dodge: `Lv.${level} → Lv.${n} · 회피 확률 +3.5%`,
         repulse: `Lv.${level} → Lv.${n} · 퇴격 장치 범위/힘 증가`,
         overdrive: `Lv.${level} → Lv.${n} · 강화 후 오버드라이브 지속/화력 증가`,
-        momentum: `Lv.${level} → Lv.${n} · 이동 중 다음 탄환 피해 +${Math.round((level + 1) * 8)}%`,
+        healingRain: `Lv.${level} → Lv.${n} · 회복 비 생성량/주기 강화`,
     };
     if (!text[key]) { const skill=SURVIVAL_UPGRADES.find(item=>item.key===key); return `Lv.${level} → Lv.${n} · ${skill?.desc || "고유 효과 강화"}`; }
     return text[key];
@@ -5714,12 +5773,20 @@ function survivalOpenLevelUp(reason = "LEVEL UP") {
         survivalLevelUp?.classList.add("hidden");
         return false;
     }
+    const rareKeys = new Set([
+        "fireBottle","boomerang","ricochet","railgun","laser","meteor","iceNova","poisonCloud",
+        "bleed","burn","shrapnel","vortex","gravityWell","timeWarp","haste","overheat","bloodPact",
+        "salvage","choicePlus","lucky","revive","clone","turret","sentry","droneOrbit","droneShield",
+        "droneMissile","bladeWave","pulse","chainShot","splitShot","fanShot","sniper","scatterBomb",
+        "minefield","flameTrail","acidPool","storm","quake","shockwave","prism","voidRift","soulHarvest",
+        "executioner","giantSlayer","bossBreaker","adrenaline","secondWind","phaseShift","precision","vacuum","healingRain"
+    ]);
     const weighted = [...available].sort((a, b) => {
         const al = survivalState.upgradeLevels[a.key] || 0;
         const bl = survivalState.upgradeLevels[b.key] || 0;
-        // 이미 투자한 기술이 다시 등장할 가능성을 조금 높여
-        // 같은 빌드를 계속 진화시키는 로그라이크 선택감을 만든다.
-        return (Math.random() + al * 0.18) - (Math.random() + bl * 0.18);
+        const ar = rareKeys.has(a.key) ? -0.42 : 0;
+        const br = rareKeys.has(b.key) ? -0.42 : 0;
+        return (Math.random() + al * 0.18 + ar) - (Math.random() + bl * 0.18 + br);
     });
     // 남은 기술이 1~2개뿐이면 정확히 그 개수만 표시한다.
     // 3개 이상 남아 있을 때만 기존 선택지 확장 효과를 적용한다.
@@ -5727,6 +5794,11 @@ function survivalOpenLevelUp(reason = "LEVEL UP") {
         ? weighted.length
         : (survivalState.upgrades.choicePlus > 0 ? Math.min(4, weighted.length) : 3);
     const shuffled = weighted.slice(0, choiceCount);
+    const rareAvailable = available.filter(item => rareKeys.has(item.key));
+    if (rareAvailable.length && Math.random() < Math.min(0.92, 0.72 + (survivalState.upgrades.lucky || 0) * 0.035) && choiceCount >= 3) {
+        const rarePick = rareAvailable[Math.floor(Math.random() * rareAvailable.length)];
+        if (!shuffled.some(item => item.key === rarePick.key)) shuffled[choiceCount - 1] = rarePick;
+    }
     if (survivalUpgradeChoices) {
         survivalUpgradeChoices.innerHTML = shuffled.map((u) => {
             const level = survivalState.upgradeLevels[u.key] || 0;
@@ -5734,7 +5806,7 @@ function survivalOpenLevelUp(reason = "LEVEL UP") {
             const repeatText = level > 0 ? survivalUpgradePreview(u.key, level) : `Lv.1 · ${u.desc}`;
             return `
                 <button class="survival-upgrade-btn" type="button" data-upgrade="${u.key}">
-                    <span class="upgrade-icon">${u.icon}</span>
+                    ${survivalSkillIcon(u.key)}
                     <strong>${u.title}</strong>
                     <small>${repeatText}</small>
                 </button>
@@ -5812,7 +5884,7 @@ async function survivalDeveloperCheat(){
         survivalLevelUp?.classList.add("hidden");
         survivalUpdateHud();
         survivalAddParticle(survivalState.player.x||0,survivalState.player.y||0,"#ffd83d",120);
-        alert("개발자 모드 활성화: 모든 기술 Lv.8 MAX + 실제 능력치 MAX");
+        alert("개발자 모드 활성화: 100개 기술 Lv.5 MAX + 실제 능력치 MAX");
     }catch(e){alert(e.message||"개발자 인증 실패");}
 }
 function survivalPause(){if(!survivalState.running||survivalState.won)return;survivalState.pauseMenuOpen=true;survivalState.pausedForLevel=true;survivalPauseOverlay?.classList.remove("hidden");}
@@ -5834,6 +5906,19 @@ function survivalUpdate(dt) {
     survivalState.regenTimer += dt;
     survivalState.repulseTimer += dt;
     survivalState.overdriveTimer = Math.max(0, survivalState.overdriveTimer - dt);
+    if (survivalState.finalOverdriveLevel > 0) {
+        survivalState.finalPowerTimer += dt;
+        const interval = 10;
+        if (survivalState.finalPowerTimer >= interval) {
+            const bursts = Math.floor(survivalState.finalPowerTimer / interval);
+            survivalState.finalPowerTimer -= bursts * interval;
+            for (let i = 0; i < bursts; i += 1) {
+                survivalState.finalPowerMultiplier *= 2;
+                survivalState.upgrades.damage *= 2;
+            }
+            survivalAddParticle(p.x, p.y, "#ffe36b", 90 + survivalState.finalOverdriveLevel * 15);
+        }
+    }
     if (survivalState.upgrades.regen > 0 && survivalState.regenTimer >= 1) {
         survivalState.regenTimer = 0;
         p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.005 * survivalState.upgrades.regen);
@@ -5901,9 +5986,20 @@ function survivalUpdate(dt) {
                 b.vy = Math.sin(nextAngle) * speed;
             }
         }
+        if (b.boomerang && b.life < 0.95) {
+            const ang=Math.atan2(p.y-b.y,p.x-b.x), speed=Math.max(260,Math.hypot(b.vx,b.vy));
+            b.vx += Math.cos(ang)*900*dt; b.vy += Math.sin(ang)*900*dt;
+        }
         b.x += b.vx * dt;
         b.y += b.vy * dt;
         b.life -= dt;
+    }
+    const expiredBullets=[];
+    for(const b of survivalState.bullets){if(b.life<=0) expiredBullets.push(b);}
+    for(const b of expiredBullets){
+        if(u.splitShot>0 && !b.splitShot && !b.enemyBullet){
+            const count=Math.min(5,2+u.splitShot); for(let q=0;q<count;q++){const a=Math.PI*2*q/count; survivalState.bullets.push({x:b.x,y:b.y,vx:Math.cos(a)*460,vy:Math.sin(a)*460,radius:3.5,damage:(b.damage||20)*.28,life:.85,pierceLeft:0,splitShot:true,homing:u.homing*.5});}
+        }
     }
     survivalState.bullets = survivalState.bullets.filter((b) => b.life > 0);
 
@@ -5953,6 +6049,7 @@ function survivalUpdate(dt) {
             const d = Math.hypot(b.x - e.x, b.y - e.y);
             if (d < e.r + b.radius) {
                 let hitDamage = b.damage;
+                if (u.soulHarvest > 0) hitDamage *= 1 + Math.min(2.2, survivalState.soulStacks * u.soulHarvest * 0.008);
                 if (e.boss) hitDamage *= u.damageBoss;
                 else if (e.type === "tank" || e.type === "brute" || e.type === "shooter") hitDamage *= u.eliteDamage;
                 if (u.execute > 0 && e.hp / e.maxHp < 0.28) hitDamage *= 1 + Math.min(1.5, u.execute * 0.16);
@@ -5969,8 +6066,27 @@ function survivalUpdate(dt) {
                     const moveVector = survivalMoveVector();
                     hitDamage *= 1 + Math.min(1.8, moveVector.magnitude * (u.speedDamage - 1) * 0.12);
                 }
-                if(u.sniper>0)hitDamage*=1+Math.min(2.4,d/260*u.sniper*.08); if(u.precision>0&&d<e.r*.45+b.radius)hitDamage*=1+u.precision*.09; if(e.boss&&e.dashTime>0&&u.bossBreaker>0){e.dashTime=0;e.dashTimer=Math.max(e.dashTimer,1.2);hitDamage*=1+u.bossBreaker*.12;}
+                if(u.sniper>0)hitDamage*=1+Math.min(2.4,d/260*u.sniper*.08);
+                if(u.precision>0&&d<e.r*.45+b.radius)hitDamage*=1+Math.min(2.2,u.precision*.12);
+                if(u.giantSlayer>0)hitDamage*=1+Math.min(2.5,Math.max(0,e.r-18)*u.giantSlayer*.022);
+                if(u.overheat>0)hitDamage*=1+Math.min(1.5,u.overheat*.035);
+                if(e.boss&&e.dashTime>0&&u.bossBreaker>0){e.dashTime=0;e.dashTimer=Math.max(e.dashTimer,1.2);hitDamage*=1+u.bossBreaker*.12;}
+                if(u.executioner>0 && !e.boss && e.hp/e.maxHp<0.10 && Math.random()<Math.min(.65,u.executioner*.12)) hitDamage=e.hp+999999;
                 e.hp -= hitDamage;
+                if(u.ricochet>0 && !b.ricochetDepth){
+                    const other=survivalState.enemies.filter(q=>q!==e).sort((a,z)=>survivalDist(e,a)-survivalDist(e,z))[0];
+                    if(other){ const a=Math.atan2(other.y-e.y,other.x-e.x); survivalState.bullets.push({x:e.x,y:e.y,vx:Math.cos(a)*620,vy:Math.sin(a)*620,radius:5,damage:hitDamage*.42,life:1.15,pierceLeft:0,homing:u.homing*.5,ricochetDepth:1}); }
+                }
+                if(u.shrapnel>0 && !b.shrapnel){
+                    for(let q=0;q<Math.min(6,2+u.shrapnel);q++){const a=Math.PI*2*q/Math.min(6,2+u.shrapnel);survivalState.bullets.push({x:b.x,y:b.y,vx:Math.cos(a)*430,vy:Math.sin(a)*430,radius:3.5,damage:hitDamage*.16,life:.7,pierceLeft:0,shrapnel:true});}
+                }
+                if(u.chainShot>0 && !b.chainShot){
+                    const chainTargets=survivalState.enemies.filter(q=>q!==e).sort((a,z)=>survivalDist(e,a)-survivalDist(e,z)).slice(0,Math.min(5,u.chainShot+1));
+                    for(const q of chainTargets){if(survivalDist(e,q)<180+u.chainShot*24) q.hp-=hitDamage*(.18+.04*u.chainShot);}
+                }
+                if(u.prism>0 && !b.prism){
+                    const rays=Math.min(8,3+u.prism); for(let q=0;q<rays;q++){const a=Math.PI*2*q/rays; survivalState.bullets.push({x:e.x,y:e.y,vx:Math.cos(a)*520,vy:Math.sin(a)*520,radius:3,damage:hitDamage*.12,life:.65,pierceLeft:1,prism:true});}
+                }
                 if(u.bleed>0)e.bleed=Math.max(e.bleed||0,1.4+u.bleed*.2); if(u.burn>0)e.burn=Math.max(e.burn||0,1.8+u.burn*.2);
                 if (u.knockback > 0) {
                     const push=Math.min(92,8+u.knockback*4),pd=Math.hypot(e.x-p.x,e.y-p.y)||1; e.x+=((e.x-p.x)/pd)*push;e.y+=((e.y-p.y)/pd)*push;
@@ -6082,11 +6198,32 @@ function survivalUpdate(dt) {
     if(u.storm&&survivalState.stormTimer>Math.max(.5,2.8-u.storm*.12)){survivalState.stormTimer=0;for(let n=0;n<Math.min(4+u.storm,12);n++){const t=survivalState.enemies[Math.floor(Math.random()*survivalState.enemies.length)];if(!t)break;t.hp-=90*u.damage;survivalAddParticle(t.x,t.y,'#bfeaff',16);}}
     if(u.quake&&survivalState.quakeTimer>Math.max(2.2,6.5-u.quake*.2)){survivalState.quakeTimer=0;for(const e of survivalState.enemies)e.hp-=95*u.damage;survivalAddParticle(p.x,p.y,'#d6a06b',60);}
     if(u.shockwave&&survivalState.quakeTimer>Math.max(1.5,4.5-u.shockwave*.15)){survivalState.quakeTimer=0;const r=150+u.shockwave*14;for(const e of survivalState.enemies){const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy)||1;if(d<r){e.hp-=70*u.damage;e.x+=dx/d*80;e.y+=dy/d*80;}}}
-    if(u.vacuum&&survivalState.vacuumTimer>Math.max(1.5,4-u.vacuum*.2)){survivalState.vacuumTimer=0;for(const g of survivalState.gems){g.x+=(p.x-g.x)*.35;g.y+=(p.y-g.y)*.35;}}
-    if(u.healingRain&&survivalState.healingRainTimer>Math.max(3,9-u.healingRain*.3)){survivalState.healingRainTimer=0;for(let i=0;i<Math.min(3+u.healingRain,12);i++)survivalState.gems.push({x:p.x+survivalRandom(-180,180),y:p.y+survivalRandom(-180,180),value:0,radius:7,color:'#ff7ea4',bossGem:false,healthGem:true});}
+    if(u.vacuum&&survivalState.vacuumTimer>Math.max(.65,3.8-u.vacuum*.22)){survivalState.vacuumTimer=0;for(const g of survivalState.gems){g.x+=(p.x-g.x)*.35;g.y+=(p.y-g.y)*.35;}}
+    if(u.healingRain&&survivalState.healingRainTimer>Math.max(2.4,8.2-u.healingRain*.32)){survivalState.healingRainTimer=0;for(let i=0;i<Math.min(3+u.healingRain,12);i++)survivalState.gems.push({x:p.x+survivalRandom(-180,180),y:p.y+survivalRandom(-180,180),value:0,radius:7,color:'#ff7ea4',bossGem:false,healthGem:true});}
     if(u.droneMissile&&survivalState.droneMissileTimer>Math.max(1,3.8-u.droneMissile*.15)){survivalState.droneMissileTimer=0;const t=survivalNearestEnemy();if(t)survivalState.bullets.push({x:p.x,y:p.y,vx:0,vy:-20,radius:8,damage:95*u.damage*(1+u.droneMissile*.1),life:3,pierceLeft:2,drone:true,homing:Math.max(4,u.homing*1.8),missile:true});}
     if(u.bladeWave&&survivalState.bladeWaveTimer>Math.max(.8,3.2-u.bladeWave*.14)){survivalState.bladeWaveTimer=0;for(let n=0;n<8;n++){const a=n*Math.PI/4;survivalState.bullets.push({x:p.x,y:p.y,vx:Math.cos(a)*380,vy:Math.sin(a)*380,radius:6,damage:55*u.damage,life:1.2,pierceLeft:2});}}
     if(u.railgun&&survivalState.railgunTimer>Math.max(1.8,6.5-u.railgun*.25)){survivalState.railgunTimer=0;const t=survivalNearestEnemy();if(t){const a=Math.atan2(t.y-p.y,t.x-p.x);for(const e of survivalState.enemies){const relx=e.x-p.x,rely=e.y-p.y,perp=Math.abs(relx*Math.sin(a)-rely*Math.cos(a));if(perp<22)e.hp-=320*u.damage*(1+u.railgun*.1);}survivalAddParticle(t.x,t.y,'#ffffff',80);}}
+
+    // 5강 특수 기술들의 실제 전투 효과. 모두 공용 bullet/적 시스템을 사용하므로 업그레이드 즉시 체감됩니다.
+    survivalState.specialTimer += dt;
+    survivalState.cloneTimer += dt;
+    survivalState.phaseShiftTimer += dt;
+    if(survivalState.specialTimer >= .28){
+        const step=survivalState.specialTimer; survivalState.specialTimer=0;
+        if(u.boomerang>0){const t=survivalNearestEnemy(); if(t){const a=Math.atan2(t.y-p.y,t.x-p.x); for(let q=0;q<Math.min(3,u.boomerang);q++){const aa=a+(q-(Math.min(3,u.boomerang)-1)/2)*.18; survivalState.bullets.push({x:p.x,y:p.y,vx:Math.cos(aa)*560,vy:Math.sin(aa)*560,radius:6,damage:70*u.damage,life:1.9,pierceLeft:2,boomerang:true});}}}
+        if(u.gravityWell>0 && Math.floor(survivalState.elapsed*4)!==Math.floor((survivalState.elapsed-step)*4)){const r=170+u.gravityWell*24; for(const e of survivalState.enemies){const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy)||1;if(d<r){e.x+=dx/d*(1-d/r)*130*step;e.y+=dy/d*(1-d/r)*130*step;e.hp-=18*u.damage*u.gravityWell*step;}} survivalAddParticle(p.x,p.y,'#8d6dff',18);}
+        if(u.clone>0 && survivalState.cloneTimer>Math.max(1.5,4.2-u.clone*.2)){survivalState.cloneTimer=0;const r=90+u.clone*12;for(const e of survivalState.enemies)if(survivalDist(p,e)<r)e.hp-=45*u.damage*u.clone;survivalAddParticle(p.x+survivalRandom(-25,25),p.y+survivalRandom(-25,25),'#7ee7ff',22);}
+        if(u.turret>0 && Math.floor(survivalState.elapsed*2)!==Math.floor((survivalState.elapsed-step)*2)){const t=survivalNearestEnemy();if(t){const a=Math.atan2(t.y-p.y,t.x-p.x);survivalState.bullets.push({x:p.x+Math.cos(a+1.57)*35,y:p.y+Math.sin(a+1.57)*35,vx:Math.cos(a)*600,vy:Math.sin(a)*600,radius:5,damage:65*u.damage*u.turret*.35,life:1.6,pierceLeft:1,turret:true});}}
+        if(u.sentry>0 && Math.floor(survivalState.elapsed)!==Math.floor(survivalState.elapsed-step)){const t=survivalNearestEnemy();if(t){const a=Math.atan2(t.y-p.y,t.x-p.x);survivalState.bullets.push({x:p.x,y:p.y,vx:Math.cos(a)*720,vy:Math.sin(a)*720,radius:4,damage:95*u.damage*u.sentry*.28,life:1.5,pierceLeft:2,sentry:true});}}
+        if(u.droneOrbit>0){const r=88;const blades=Math.min(8,u.droneOrbit+1);for(let q=0;q<blades;q++){const a=survivalState.orbitalAngle*1.4+q*Math.PI*2/blades;const ox=p.x+Math.cos(a)*r,oy=p.y+Math.sin(a)*r;for(const e of survivalState.enemies)if(Math.hypot(e.x-ox,e.y-oy)<e.r+12)e.hp-=32*u.damage*u.droneOrbit*step;}}
+        if(u.scatterBomb>0 && Math.floor(survivalState.elapsed*2)!==Math.floor((survivalState.elapsed-step)*2)){const t=survivalNearestEnemy();if(t){const count=Math.min(7,2+u.scatterBomb);for(let q=0;q<count;q++){const a=Math.PI*2*q/count,r=55+q*8;const x=t.x+Math.cos(a)*r,y=t.y+Math.sin(a)*r;for(const e of survivalState.enemies)if(Math.hypot(e.x-x,e.y-y)<55)e.hp-=42*u.damage*u.scatterBomb*.22;}survivalAddParticle(t.x,t.y,'#ffb05c',25);}}
+        if(u.minefield>0){const r=70+u.minefield*9;for(const e of survivalState.enemies)if(survivalDist(p,e)<r)e.hp-=16*u.damage*u.minefield*step;}
+        if(u.flameTrail>0 && Math.hypot(survivalMoveVector().x,survivalMoveVector().y)>0.1){const r=42+u.flameTrail*6;for(const e of survivalState.enemies)if(survivalDist(p,e)<r)e.hp-=24*u.damage*u.flameTrail*step;}
+        if(u.acidPool>0){const r=62+u.acidPool*8;for(const e of survivalState.enemies)if(survivalDist(p,e)<r)e.hp-=20*u.damage*u.acidPool*step;}
+        if(u.voidRift>0){const r=120+u.voidRift*14;for(const e of survivalState.enemies){const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy)||1;if(d<r){e.x+=dx/d*65*step;e.y+=dy/d*65*step;e.hp-=28*u.damage*u.voidRift*step;}}}
+        if(u.secondWind>0 && survivalState.bossNumber>0 && survivalState.enemies.some(e=>e.boss)===false && survivalState.bossActive===false){p.hp=Math.min(p.maxHp,p.hp+p.maxHp*.002*u.secondWind);}
+        if(u.phaseShift>0 && survivalState.phaseShiftTimer>Math.max(2.2,6-u.phaseShift*.45)){survivalState.phaseShiftTimer=0;p.invuln=Math.max(p.invuln,0.8+u.phaseShift*.08);survivalAddParticle(p.x,p.y,'#d8f6ff',28);}
+    }
     // Remove enemies defeated by special weapons.
     for (let ei = survivalState.enemies.length - 1; ei >= 0; ei -= 1) {
         if (survivalState.enemies[ei].hp <= 0) survivalKillEnemy(ei);
@@ -6606,12 +6743,9 @@ function openGeminiModal() {
 function closeGeminiModal() {
     if (!geminiModal) return;
 
-    if (geminiAbortController) {
-        geminiAbortController.abort();
-        geminiAbortController = null;
-    }
-
-    geminiStreaming = false;
+    // 창을 닫아도 현재 요청은 취소하지 않습니다.
+    // 스트리밍은 백그라운드에서 계속 진행되고, 답변은 숨겨진 메시지 DOM에 누적됩니다.
+    // 다시 열면 진행 중인 답변을 그대로 확인할 수 있습니다.
     geminiModal.classList.remove("active");
     geminiModal.setAttribute("aria-hidden", "true");
     unlockPageScroll();
@@ -7752,10 +7886,10 @@ function getProfileImage(){ return localStorage.getItem(PROFILE_IMAGE_KEY) || cu
 function getProfileFrame(){ const f=currentUser?.profile?.profileFrame || localStorage.getItem(PROFILE_FRAME_KEY) || "none"; return PROFILE_FRAMES.includes(f)?f:"none"; }
 function getSeasonFrame(){ const m=new Date().getMonth()+1; if(m>=3&&m<=5)return "spring"; if(m>=6&&m<=8)return "summer"; if(m>=9&&m<=11)return "autumn"; return "winter"; }
 const SEASON_PARTICLE_SETS = {
-    spring:["🌸","🌸","🌷","🌸","🌼","🌸","🌷","🌸","🌼","🌸","🌷","🌸","🌼","🌸","🌷","🌸","🌼","🌸"],
-    summer:["🍃","🌿","🍃","🌱","🍃","🌿","🍃","🌱","🍃","🌿","🍃","🌱","🍃","🌿","🍃","🌱","🍃","🌿"],
-    autumn:["🍁","🍂","🍁","🍂","🍁","🍂","🍁","🍂","🍁","🍂","🍁","🍂","🍁","🍂","🍁","🍂","🍁","🍂"],
-    winter:["❄️","❄","❄️","⛄","❄","❄️","❄","❄️","⛄","❄","❄️","❄","❄️","⛄","❄","❄️","❄","❄️"]
+    spring: Array.from({length: 28}, (_, i) => i),
+    summer: Array.from({length: 28}, (_, i) => i),
+    autumn: Array.from({length: 32}, (_, i) => i),
+    winter: Array.from({length: 30}, (_, i) => i)
 };
 function applyProfileFrame(el,frame=getProfileFrame()){
     if(!el)return;
@@ -7768,22 +7902,22 @@ function renderSeasonParticles(el,frame){
     el.querySelectorAll(":scope > .season-particle").forEach(node=>node.remove());
     if(frame!=="season")return;
     const season=getSeasonFrame();
-    const symbols=SEASON_PARTICLE_SETS[season] || SEASON_PARTICLE_SETS.autumn;
-    const count=symbols.length;
+    const count=(SEASON_PARTICLE_SETS[season] || SEASON_PARTICLE_SETS.autumn).length;
     const isPreview=el.classList.contains("frame-preview");
     const isSettings=el.classList.contains("settings-profile-avatar");
-    const radius=isPreview?41:(isSettings?44:29);
-    symbols.forEach((symbol,index)=>{
+    const radius=isPreview?42:(isSettings?47:30);
+    for(let index=0; index<count; index+=1){
         const particle=document.createElement("span");
         particle.className="season-particle";
-        particle.textContent=symbol;
+        particle.dataset.season=season;
+        particle.dataset.kind=season==="winter" && index%9===0 ? "snowman" : String(index%5);
         particle.style.setProperty("--particle-angle",`${(index/count)*360-90}deg`);
-        particle.style.setProperty("--particle-radius",`${radius}px`);
-        particle.style.setProperty("--particle-scale",String(0.78 + ((index*7)%5)*0.08));
-        particle.style.setProperty("--particle-delay",`${(index%6)*0.08}s`);
+        particle.style.setProperty("--particle-radius",`${radius + ((index*11)%9)-4}px`);
+        particle.style.setProperty("--particle-scale",String(0.62 + ((index*7)%7)*0.075));
+        particle.style.setProperty("--particle-delay",`${(index%8)*0.07}s`);
         particle.setAttribute("aria-hidden","true");
         el.appendChild(particle);
-    });
+    }
 }
 function renderProfileUI(){
     const name=String(currentUser?.displayName || currentUser?.username || "게스트").trim() || "게스트";
@@ -8070,10 +8204,18 @@ profileImageInput?.addEventListener("change",()=>{
     reader.onload=()=>{
         const src=String(reader.result||""); const img=new Image();
         img.onload=()=>{
-            const max=320, scale=Math.min(1,max/Math.max(img.width,img.height));
-            const c=document.createElement("canvas"); c.width=Math.max(1,Math.round(img.width*scale)); c.height=Math.max(1,Math.round(img.height*scale));
-            c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-            const data=c.toDataURL("image/jpeg",.86); localStorage.setItem(PROFILE_IMAGE_KEY,data);
+            const size=320;
+            const c=document.createElement("canvas");
+            c.width=size; c.height=size;
+            const ctx=c.getContext("2d");
+            const sourceSize=Math.min(img.naturalWidth||img.width,img.naturalHeight||img.height);
+            const sx=((img.naturalWidth||img.width)-sourceSize)/2;
+            const sy=((img.naturalHeight||img.height)-sourceSize)/2;
+            ctx.imageSmoothingEnabled=true;
+            ctx.imageSmoothingQuality="high";
+            ctx.drawImage(img,sx,sy,sourceSize,sourceSize,0,0,size,size);
+            const data=c.toDataURL("image/jpeg",.9);
+            localStorage.setItem(PROFILE_IMAGE_KEY,data);
             currentUser=currentUser||{username:"guest",displayName:"게스트",profile:{}}; currentUser.profile={...(currentUser.profile||{}),profileImage:data};
             renderProfileUI(); if(settingsStatus)settingsStatus.textContent="프로필 사진이 적용되었습니다.";
             if(authToken) saveProfileToServer(); else saveGuestSession();
