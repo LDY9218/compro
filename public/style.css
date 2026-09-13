@@ -3176,10 +3176,6 @@ footer {
 
 /* WORM ARENA: ENTER 이후 시작 패널과 안내 UI는 완전히 숨김 */
 .worm-game-modal.worm-live .worm-center-message { display:none !important; }
-.worm-game-modal.worm-live .worm-topbar,
-.worm-game-modal.worm-live .worm-leaderboard { display:none !important; }
-
-
 /* V18 SETTINGS / GLOBAL THEMES / PERSISTENT PROFILE */
 :root{
   --theme-a:#4f6fff; --theme-b:#7b8cff; --theme-c:#35b9ff;
@@ -3259,7 +3255,6 @@ button:not(.game-close-btn):not(.worm-floating-close){transition:background .18s
 /* Worm: close button must survive the live/joined state. */
 .worm-floating-close{position:absolute;top:12px;right:14px;width:44px;height:44px;min-width:44px;border:1px solid rgba(255,255,255,.2);border-radius:50%;display:flex!important;align-items:center;justify-content:center;background:rgba(8,15,12,.82);color:#fff;font-size:28px;line-height:1;cursor:pointer;z-index:10000;box-shadow:0 8px 22px rgba(0,0,0,.28);backdrop-filter:blur(8px)}
 .worm-floating-close:hover{background:rgba(20,30,24,.96);transform:scale(1.04)}
-.worm-game-modal.worm-live .worm-topbar,.worm-game-modal.worm-live .worm-leaderboard{display:none!important}
 .worm-game-modal.worm-live .worm-stage{top:0!important}
 .worm-game-modal.worm-live .worm-center-message{display:none!important}
 .worm-death-panel strong,.worm-death-panel span{color:#fff!important}
@@ -3269,3 +3264,59 @@ button:not(.game-close-btn):not(.worm-floating-close){transition:background .18s
   header{padding:0 14px}.clock{margin-left:auto;margin-right:5px}.header-profile-btn{margin-left:5px}
   .worm-floating-close{top:10px;right:10px;width:44px;height:44px;min-width:44px;min-height:44px;font-size:29px;z-index:10000}
 }
+
+
+/* V19 stability / complete theme surface / profile image / worm close */
+.settings-profile-avatar{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--theme-a),var(--theme-b),var(--theme-c));color:#fff;font-weight:900;}
+.settings-profile-avatar > img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;}
+.settings-profile-avatar > span{position:relative;z-index:1;}
+.settings-profile-avatar.has-image > span{display:none;}
+.worm-floating-close{position:absolute!important;display:flex!important;visibility:visible!important;opacity:1!important;top:12px!important;right:14px!important;z-index:999999!important;pointer-events:auto!important;}
+.worm-game-modal.worm-live .worm-floating-close{display:flex!important;visibility:visible!important;opacity:1!important;}
+/* All primary interactive surfaces follow the selected theme. */
+body,button,input,select,textarea{font-family:inherit;}
+body a{color:var(--theme-b);}
+button{border-color:var(--theme-border);}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--theme-b);outline-offset:2px;}
+main label,main .hint,main .message,footer,.creator-credit{color:var(--theme-muted);}
+main .selector,main .section-title,main .next,.school-selected{background:var(--theme-card);}
+.selector select,.selector input,.search-row input{background:var(--theme-card);color:var(--theme-text);border-color:var(--theme-border);}
+.selector label,.search-box label,.school-selected span{color:var(--theme-muted);}
+.section-title h2,.section-title p,.hero span,.hero p,.next{color:var(--theme-text);}
+footer{border-top-color:var(--theme-border);background:var(--theme-card);}
+.menu-close-btn,.settings-close-btn,.map-close-btn,.notice-close-btn,.game-close-btn{border-color:var(--theme-border);background:var(--theme-card);color:var(--theme-text);}
+.settings-section{background:var(--theme-soft);border-color:var(--theme-border);}
+.settings-section h3{color:var(--theme-text);}
+.theme-choice{position:relative;overflow:hidden;}
+.theme-choice i{box-shadow:0 4px 12px var(--theme-shadow);}
+.auth-primary-btn,.settings-primary-btn,.search-row button,.selector button{background:linear-gradient(135deg,var(--theme-a),var(--theme-b),var(--theme-c))!important;}
+/* Keep game-specific visuals intact while ensuring their action buttons use the theme where appropriate. */
+.survival-secondary-btn:hover,.worm-death-panel button:hover,.worm-start-panel button:hover{filter:brightness(1.06);}
+@media(max-width:800px){.worm-floating-close{top:10px!important;right:10px!important;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;}}
+
+
+/* V19 complete theme coverage for the application shell */
+:root{--theme-gradient:linear-gradient(135deg,var(--theme-a),var(--theme-b),var(--theme-c));}
+body{background:var(--theme-bg)!important;color:var(--theme-text)!important;}
+main > section,.selector,.section,.search-box,.hero,.meal,.timetable,.school-selected,.section-title,.next{color:var(--theme-text);}
+.search-box,.hero,.meal,.timetable,.selector,.school-selected{background:var(--theme-card)!important;border-color:var(--theme-border)!important;}
+.search-box h2,.hero h2,.section-title h2,.school-selected strong,.selector label,.section-title p,.hero p,.hero span,.next{color:var(--theme-text);}
+.message,.hint,main small,footer,.creator-credit{color:var(--theme-muted);}
+.search-row input,.selector select{background:var(--theme-card)!important;color:var(--theme-text)!important;border-color:var(--theme-border)!important;}
+.search-row input::placeholder,.selector select:disabled{color:var(--theme-muted);}
+.search-row button,.selector button,.auth-primary-btn,.settings-primary-btn,.chat-add-row button,.chat-send-form button,.car-primary-btn,.notice-add-btn{background:var(--theme-gradient)!important;color:#fff!important;}
+.menu-window,.settings-window,.auth-window,.chat-window,.game-hub-window,.notice-window{background:var(--theme-card)!important;color:var(--theme-text)!important;border-color:var(--theme-border)!important;}
+.menu-item,.game-card,.school-results .school-item,.settings-profile-card,.settings-section,.theme-choice{background:var(--theme-card)!important;color:var(--theme-text)!important;border-color:var(--theme-border)!important;}
+.menu-item:hover,.game-card:hover,.school-results .school-item:hover,.theme-choice:hover{background:var(--theme-soft)!important;border-color:var(--theme-b)!important;}
+.menu-item strong,.game-card strong,.settings-profile-name,.settings-section h3,.theme-choice{color:var(--theme-text);}
+.menu-item small,.game-card small,.settings-profile-info small,.settings-field,.settings-status{color:var(--theme-muted);}
+.menu-header,.settings-header,.chat-header,.game-hub-header,.notice-header{background:linear-gradient(135deg,var(--theme-soft),var(--theme-card))!important;border-color:var(--theme-border)!important;}
+.auth-backdrop,.menu-backdrop,.settings-backdrop{background:rgba(0,0,0,.46);}
+.auth-window input,.settings-field input,.settings-field select,.settings-field textarea{background:var(--theme-soft)!important;color:var(--theme-text)!important;border-color:var(--theme-border)!important;}
+.auth-window input:focus,.settings-field input:focus,.settings-field select:focus,.settings-field textarea:focus{border-color:var(--theme-b)!important;}
+.auth-guest-btn,.settings-upload-btn{background:var(--theme-soft)!important;color:var(--theme-text)!important;border-color:var(--theme-border)!important;}
+.auth-guest-btn:hover,.settings-upload-btn:hover{background:var(--theme-card)!important;border-color:var(--theme-b)!important;}
+.header-profile-btn,.logo,.auth-brand,.settings-profile-avatar{background:var(--theme-gradient)!important;}
+.theme-choice.active{background:var(--theme-soft)!important;border-color:var(--theme-a)!important;}
+.settings-danger{border-color:rgba(210,70,70,.32)!important;}
+.settings-danger-btn{background:linear-gradient(135deg,#d84b5b,#ef6b6b)!important;color:#fff!important;border:0!important;}
