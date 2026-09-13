@@ -3770,3 +3770,37 @@ header{z-index:100!important;}
 .final-skill-art i:nth-child(2){inset:12px;transform:rotate(-35deg);animation-duration:2.2s;}
 .final-skill-art i:nth-child(3){inset:0;transform:rotate(75deg);animation-duration:4.2s;}
 @keyframes finalSkillSpin{to{transform:rotate(395deg)}}
+
+
+/* =========================================================
+   COMTIME PRO V27 — mobile viewport + simple seasonal ring + worm performance
+========================================================= */
+@media (max-width:800px){
+  .survival-game-modal{inset:0!important;padding:0!important;align-items:stretch!important;}
+  .survival-game-window{width:100vw!important;height:100dvh!important;max-height:none!important;min-height:0!important;border-radius:0!important;border:0!important;margin:0!important;}
+  .survival-game-stage{inset:68px 0 0!important;}
+  .survival-level-card{width:min(420px,calc(100vw - 24px))!important;max-height:calc(100dvh - 90px)!important;padding:14px!important;border-radius:18px!important;}
+  .survival-upgrade-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;max-height:55dvh!important;padding:0!important;}
+  .survival-upgrade-btn{min-height:58px!important;height:58px!important;display:grid!important;grid-template-columns:30px minmax(0,1fr)!important;grid-template-rows:auto auto!important;column-gap:7px!important;padding:7px!important;border-radius:12px!important;}
+  .survival-upgrade-btn .skill-vector-icon{width:30px!important;height:30px!important;grid-row:1 / 3!important;margin:0!important;border-radius:9px!important;}
+  .survival-upgrade-btn .skill-vector-icon svg{width:20px!important;height:20px!important;}
+  .survival-upgrade-btn strong{font-size:11px!important;line-height:1.1!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}
+  .survival-upgrade-btn small{font-size:8px!important;line-height:1.2!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}
+}
+
+/* Seasonal decorations are intentionally sparse and evenly spaced around the circle. */
+.season-particle{animation:none!important;}
+.season-particle::before,.season-particle::after{transform:translate(-50%,-50%)!important;}
+.season-particle[data-season="spring"]::before{width:5px!important;height:5px!important;box-shadow:0 -4px 0 #ffc0d1,4px 0 0 #ff9db8,0 4px 0 #ffc0d1,-4px 0 0 #ff9db8!important;}
+.season-particle[data-season="spring"]::after{width:2px!important;height:2px!important;}
+.season-particle[data-season="summer"]::before{width:6px!important;height:10px!important;transform:translate(-50%,-50%) rotate(25deg)!important;}
+.season-particle[data-season="summer"]::after{height:8px!important;}
+.season-particle[data-season="autumn"]::before{width:7px!important;height:9px!important;transform:translate(-50%,-50%) rotate(35deg)!important;}
+.season-particle[data-season="autumn"]::after{height:6px!important;}
+.season-particle[data-season="winter"]::before{width:7px!important;height:7px!important;}
+.season-particle[data-season="winter"]::after{width:10px!important;height:1.5px!important;box-shadow:0 -3px 0 rgba(233,251,255,.95),0 3px 0 rgba(233,251,255,.95)!important;}
+.season-particle[data-season="winter"][data-kind="snowman"]::before{width:9px!important;height:11px!important;}
+
+.worm-minimap{position:absolute!important;right:14px!important;top:14px!important;width:150px!important;height:150px!important;display:none!important;z-index:12!important;border-radius:12px!important;overflow:hidden!important;box-shadow:0 10px 30px rgba(0,0,0,.3)!important;pointer-events:none!important;}
+.worm-minimap.active{display:block!important;}
+@media(max-width:800px){.worm-minimap{right:10px!important;top:10px!important;width:112px!important;height:112px!important;border-radius:10px!important;}}

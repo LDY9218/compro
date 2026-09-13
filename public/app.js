@@ -1814,6 +1814,40 @@ function wormResizeCanvas(){
     wormGameCanvas.height = Math.max(1, Math.floor(rect.height * dpr));
 }
 
+let wormMinimapCanvas=null;
+let wormMinimapCtx=null;
+function wormEnsureMinimap(){
+    if(!wormGameModal) return;
+    if(wormMinimapCanvas && wormMinimapCanvas.isConnected) return;
+    const stage=wormGameModal.querySelector('.worm-stage');
+    if(!stage) return;
+    wormMinimapCanvas=document.createElement('canvas');
+    wormMinimapCanvas.className='worm-minimap';
+    wormMinimapCanvas.width=180; wormMinimapCanvas.height=180;
+    wormMinimapCanvas.setAttribute('aria-label','웜 아레나 미니맵');
+    wormMinimapCtx=wormMinimapCanvas.getContext('2d',{alpha:true});
+    stage.appendChild(wormMinimapCanvas);
+}
+function wormDrawMinimap(state,me){
+    wormEnsureMinimap();
+    const c=wormMinimapCanvas,ctx=wormMinimapCtx;
+    if(!c||!ctx||!state)return;
+    const size=c.clientWidth||180;
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    if(c.width!==Math.floor(size*dpr)||c.height!==Math.floor(size*dpr)){c.width=Math.floor(size*dpr);c.height=Math.floor(size*dpr);}
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,size,size);
+    ctx.fillStyle='rgba(3,12,8,.78)';ctx.fillRect(0,0,size,size);
+    ctx.strokeStyle='rgba(126,255,196,.28)';ctx.lineWidth=1;ctx.strokeRect(.5,.5,size-1,size-1);
+    const pad=8,inner=size-pad*2,scale=inner/state.world;
+    for(const p of state.players||[]){
+        const x=pad+p.x*scale,y=pad+p.y*scale;
+        const mine=p.id===state.me;
+        ctx.beginPath();ctx.arc(x,y,mine?4:3,0,Math.PI*2);
+        ctx.fillStyle=mine?'#45f59b':'#ff465f';ctx.shadowBlur=mine?7:3;ctx.shadowColor=ctx.fillStyle;ctx.fill();ctx.shadowBlur=0;
+    }
+    if(me){ctx.strokeStyle='rgba(69,245,155,.35)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(pad+me.x*scale,pad+me.y*scale,7,0,Math.PI*2);ctx.stroke();}
+}
+
 function wormOpen(){
     if (!wormGameModal) return;
     wormGameModal.classList.add('active');
@@ -1825,6 +1859,7 @@ function wormOpen(){
     wormLocalMode = false;
     wormState = null;
     wormResizeCanvas();
+    wormEnsureMinimap();
     lockPageScroll();
     wormDrawIntro();
     wormPendingJoinName = (wormNickname?.value || 'Player').trim().slice(0,14) || 'Player';
@@ -2039,12 +2074,26 @@ function wormUpdateLocal(now){
             if(p.y<100||p.y>wormState.world-100)p.dirY*=-1;
         }
         p.radius=Math.min(30,11+Math.sqrt(p.mass)*.72);p.length=Math.floor(8+p.mass*.75);
-        if(!p.trail)p.trail=[];p.trail.unshift({x:p.x,y:p.y});const keep=Math.min(240,Math.max(90,Math.floor(45+p.mass*1.7)));if(p.trail.length>keep)p.trail.length=keep;
-        p.segments=[];const segCount=Math.min(95,Math.max(20,Math.floor(p.length*1.45)));let carry=0,prev=p.trail[0];p.segments.push({x:prev.x,y:prev.y});for(let i=1;i<p.trail.length&&p.segments.length<segCount;i++){const q=p.trail[i],dd=Math.hypot(q.x-prev.x,q.y-prev.y);carry+=dd;if(carry>=7.2){p.segments.push({x:q.x,y:q.y});carry=0;}prev=q;}
+        if(!p.trail)p.trail=[];p.trail.unshift({x:p.x,y:p.y});const keep=Math.min(220,Math.max(80,Math.floor(42+p.mass*1.55)));if(p.trail.length>keep)p.trail.length=keep;
+        if(!p._segmentClock || now-p._segmentClock>=66){
+            p._segmentClock=now; p.segments=[];const segCount=Math.min(72,Math.max(18,Math.floor(p.length*1.18)));let carry=0,prev=p.trail[0];p.segments.push({x:prev.x,y:prev.y});for(let i=1;i<p.trail.length&&p.segments.length<segCount;i++){const q=p.trail[i],dd=Math.hypot(q.x-prev.x,q.y-prev.y);carry+=dd;if(carry>=9){p.segments.push({x:q.x,y:q.y});carry=0;}prev=q;}
+        }
     }
     const me=players.find(p=>p.id===wormState.me);
     if(me){for(let i=wormState.food.length-1;i>=0;i--){const f=wormState.food[i];if((me.x-f.x)**2+(me.y-f.y)**2<(me.radius+f.r+7)**2){me.mass+=f.value;wormBurst(f.x,f.y,f.color,4);wormState.food.splice(i,1);}}}
-    while(wormState.food.length<360) wormState.food.push({id:Math.random(),x:Math.random()*wormState.world,y:Math.random()*wormState.world,r:3+Math.random()*3,value:1,color:['#65ffb0','#ffdf63','#66c7ff','#ff78bd'][Math.floor(Math.random()*4)]});
+    while(wormState.food.length<280) wormState.food.push({id:Math.random(),x:Math.random()*wormState.world,y:Math.random()*wormState.world,r:3+Math.random()*3,value:1,color:['#65ffb0','#ffdf63','#66c7ff','#ff78bd'][Math.floor(Math.random()*4)]});
+}
+
+let wormRenderSorted=[];
+let wormRenderStateRef=null;
+let wormHudRenderAt=0;
+function wormGetSortedPlayers(state,now){
+    if(wormRenderStateRef!==state || now-wormHudRenderAt>250){
+        wormRenderSorted=[...(state.players||[])].sort((a,b)=>(b.mass||0)-(a.mass||0));
+        wormRenderStateRef=state;
+        wormHudRenderAt=now;
+    }
+    return wormRenderSorted;
 }
 
 function wormRender(now){
@@ -2053,38 +2102,40 @@ function wormRender(now){
     const dpr=Math.min(window.devicePixelRatio||1,2);
     const w=wormGameCanvas.width,h=wormGameCanvas.height;
     ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,w,h);
-    if(!wormState?.players){wormDrawIntro();requestAnimationFrame(wormRender);return;}
-    wormUpdateLocal(now);
+    if(!wormState?.players){wormMinimapCanvas?.classList.remove("active");wormDrawIntro();requestAnimationFrame(wormRender);return;}
+    if(wormLocalMode) wormUpdateLocal(now);
     const state=wormState;
+    wormMinimapCanvas?.classList.toggle("active", !!state.players?.length && wormGameModal?.classList.contains("worm-live"));
     const me=state.players.find(p=>p.id===state.me)||state.players[0];
     if(me){wormCamera.x += (me.x-wormCamera.x)*.11;wormCamera.y += (me.y-wormCamera.y)*.11;wormCamera.zoom += (Math.max(.58,Math.min(1.05,1.04-(me.mass||10)/1600))-wormCamera.zoom)*.08;}
     wormParticles=wormParticles.filter(q=>q.life>0);
     for(const q of wormParticles){q.x+=q.vx*(1/60);q.y+=q.vy*(1/60);q.vx*=.97;q.vy*=.97;q.life-=1/60;}
     ctx.save();ctx.scale(dpr,dpr);const vw=w/dpr,vh=h/dpr;ctx.translate(vw/2,vh/2);ctx.scale(wormCamera.zoom,wormCamera.zoom);ctx.translate(-wormCamera.x,-wormCamera.y);
-    const bg=ctx.createRadialGradient(wormCamera.x,wormCamera.y,100,wormCamera.x,wormCamera.y,2600);bg.addColorStop(0,'#10291d');bg.addColorStop(.45,'#08170f');bg.addColorStop(1,'#020705');ctx.fillStyle=bg;ctx.fillRect(0,0,state.world,state.world);
+    ctx.fillStyle='#06100b';ctx.fillRect(0,0,state.world,state.world);
     const grid=100;const left=Math.max(0,wormCamera.x-vw/(2*wormCamera.zoom)-grid),right=Math.min(state.world,wormCamera.x+vw/(2*wormCamera.zoom)+grid),top=Math.max(0,wormCamera.y-vh/(2*wormCamera.zoom)-grid),bottom=Math.min(state.world,wormCamera.y+vh/(2*wormCamera.zoom)+grid);
     ctx.lineWidth=1;ctx.strokeStyle='rgba(107,255,177,.055)';for(let x=Math.floor(left/grid)*grid;x<=right;x+=grid){ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();}for(let y=Math.floor(top/grid)*grid;y<=bottom;y+=grid){ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();}
     ctx.strokeStyle='rgba(82,255,170,.38)';ctx.lineWidth=8;ctx.shadowBlur=28;ctx.shadowColor='rgba(60,255,160,.2)';ctx.strokeRect(0,0,state.world,state.world);ctx.shadowBlur=0;
-    for(const f of state.food||[]){const pulse=1+Math.sin((now+f.id*31)/180)*.16,rr=f.r*pulse;ctx.globalAlpha=.22;ctx.fillStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,rr*4,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;ctx.fillStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,rr,0,Math.PI*2);ctx.fill();}
-    const sorted=[...state.players].sort((a,b)=>(b.mass||0)-(a.mass||0));
+    for(const f of state.food||[]){const fd=(f.x-wormCamera.x)**2+(f.y-wormCamera.y)**2;if(fd>4200**2)continue;const pulse=1+Math.sin((now+f.id*31)/180)*.16,rr=f.r*pulse;ctx.globalAlpha=.22;ctx.fillStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,rr*4,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;ctx.fillStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,rr,0,Math.PI*2);ctx.fill();}
+    const sorted=wormGetSortedPlayers(state,now);
     for(const p of sorted){
         if(!p.segments?.length)continue;
         const seg=p.segments;
         ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();for(let i=0;i<seg.length;i++){const q=seg[i];if(i===0)ctx.moveTo(q.x,q.y);else ctx.lineTo(q.x,q.y);}
         ctx.lineWidth=p.radius*2.55;ctx.strokeStyle=p.color;ctx.globalAlpha=.12;ctx.shadowBlur=25;ctx.shadowColor=p.color;ctx.stroke();ctx.globalAlpha=1;ctx.lineWidth=p.radius*1.95;ctx.shadowBlur=0;ctx.strokeStyle=p.color;ctx.stroke();
-        for(let i=seg.length-1;i>=0;i-=Math.max(2,Math.floor(seg.length/18))){const q=seg[i],k=1-i/seg.length;ctx.globalAlpha=.18+.24*k;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(q.x,q.y,p.radius*(.12+.1*k),0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+        for(let i=seg.length-1;i>=0;i-=Math.max(3,Math.floor(seg.length/10))){const q=seg[i],k=1-i/seg.length;ctx.globalAlpha=.18+.24*k;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(q.x,q.y,p.radius*(.12+.1*k),0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
         const head=seg[0];ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(head.x,head.y,p.radius*1.08,0,Math.PI*2);ctx.fill();
         ctx.fillStyle='#fff';const px=-p.dirY*p.radius*.36,py=p.dirX*p.radius*.36;ctx.beginPath();ctx.arc(head.x+px,head.y+py,p.radius*.25,0,Math.PI*2);ctx.arc(head.x-px,head.y-py,p.radius*.25,0,Math.PI*2);ctx.fill();ctx.fillStyle='#07100c';ctx.beginPath();ctx.arc(head.x+px+p.dirX*p.radius*.07,head.y+py+p.dirY*p.radius*.07,p.radius*.105,0,Math.PI*2);ctx.arc(head.x-px+p.dirX*p.radius*.07,head.y-py+p.dirY*p.radius*.07,p.radius*.105,0,Math.PI*2);ctx.fill();
         const crownRank=sorted.indexOf(p);if(crownRank<3){ctx.font=`900 ${Math.max(18,p.radius*1.35)}px system-ui,sans-serif`;ctx.textAlign='center';ctx.fillStyle=['#ffd447','#dce5ef','#b9784e'][crownRank];ctx.shadowBlur=18;ctx.shadowColor=ctx.fillStyle;ctx.fillText('♛',head.x,head.y-p.radius*1.9);ctx.shadowBlur=0;}
         if(p.id===state.me){ctx.font=`800 ${Math.max(11,p.radius*1.05)}px system-ui,sans-serif`;ctx.textAlign='center';ctx.fillStyle='rgba(240,255,248,.96)';ctx.shadowBlur=10;ctx.shadowColor='#000';ctx.fillText(p.nickname,head.x,head.y-p.radius*2.15);ctx.shadowBlur=0;}
     }
     for(const q of wormParticles){ctx.globalAlpha=Math.max(0,q.life/q.max);ctx.fillStyle=q.color;ctx.beginPath();ctx.arc(q.x,q.y,q.size,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;ctx.restore();
+    wormDrawMinimap(state,me);
     // HUD
     if(wormMassEl)wormMassEl.textContent=Math.floor(me?.mass||0);
     if(me&&me.mass>wormBestMass){wormBestMass=me.mass;localStorage.setItem('comtime_worm_best_mass',String(Math.floor(wormBestMass)));}
     if(wormLengthEl)wormLengthEl.textContent=Math.floor(me?.length||0);
     if(wormOnlineCountEl){const humans=(state.players||[]).filter(p=>!p.isBot).length;wormOnlineCountEl.textContent=`${humans} ONLINE · ${state.players.length} IN ARENA`;}
-    if(wormLeaderboardEl){const top=sorted.slice(0,8);wormLeaderboardEl.innerHTML='<div class="worm-leader-title">TOP PLAYERS · BEST '+Math.floor(wormBestMass)+'</div>'+top.map((p,i)=>`<div class="worm-row rank-${i+1}"><span class="rank">${i<3?'♛':i+1}</span><span class="dot" style="background:${p.color}"></span><span class="name">${wormEscapeHtml(p.nickname)}</span><span class="mass">${Math.floor(p.mass)}</span></div>`).join('');}
+    if(wormLeaderboardEl && now-wormLeaderboardEl._renderedAt>250){wormLeaderboardEl._renderedAt=now;const top=sorted.slice(0,8);wormLeaderboardEl.innerHTML='<div class="worm-leader-title">TOP PLAYERS · BEST '+Math.floor(wormBestMass)+'</div>'+top.map((p,i)=>`<div class="worm-row rank-${i+1}"><span class="rank">${i<3?'♛':i+1}</span><span class="dot" style="background:${p.color}"></span><span class="name">${wormEscapeHtml(p.nickname)}</span><span class="mass">${Math.floor(p.mass)}</span></div>`).join('');}
     requestAnimationFrame(wormRender);
 }
 
@@ -6021,11 +6072,11 @@ function survivalUpdate(dt) {
             if(e.shootTimer>Math.max(.75,2.2-e.bossNumber*.05)&&d<800){e.shootTimer=0;const count=8+Math.min(8,Math.floor(e.bossNumber/2));for(let n=0;n<count;n++){const a=Math.PI*2*n/count;survivalState.bullets.push({x:e.x,y:e.y,vx:Math.cos(a)*(170+e.bossNumber*4),vy:Math.sin(a)*(170+e.bossNumber*4),radius:8+Math.min(5,e.bossNumber*.15),damage:(12+e.bossNumber*2.4)*(e.finalBoss?1.35:1),life:2.5,enemyBullet:true});}}
         } else { e.x+=(dx/d)*e.speed*frostSlow*timeSlow*dt; e.y+=(dy/d)*e.speed*frostSlow*timeSlow*dt; }
         if (d < p.radius + e.r) {
-            const contactDamage = e.damage * dt * 2.2;
+            const contactDamage = e.damage * dt * 2.6;
             survivalTakeDamage(contactDamage);
             // 몸에 끼어도 적을 튕겨내지 않고, 플레이어가 받는 접촉 피해만큼 적도 함께 피해를 받습니다.
             e.hp -= contactDamage * (e.boss ? 0.72 : 1);
-            if (u.thorns > 0) e.hp -= 16 * u.damage * u.thorns * dt * 2.2;
+            if (u.thorns > 0) e.hp -= 16 * u.damage * u.thorns * dt * 2.6;
         }
     }
 
@@ -6117,7 +6168,7 @@ function survivalUpdate(dt) {
         }
         if (d < p.radius + g.radius + 5) {
             if (g.healthGem) {
-                p.hp = Math.min(p.maxHp, p.hp + p.maxHp * Math.min(0.55, (0.08 + survivalState.upgrades.healthOrb * 0.018) * survivalState.upgrades.healthPickup));
+                p.hp = Math.min(p.maxHp, p.hp + p.maxHp * Math.min(0.38, (0.05 + survivalState.upgrades.healthOrb * 0.012) * survivalState.upgrades.healthPickup));
             } else if (g.bossGem) {
                 survivalCollectBossXp(g);
             } else {
@@ -6810,7 +6861,9 @@ function appendGeminiStreamText(element, text) {
     if (!element || !text) return;
 
     element.textContent += text;
-    geminiMessages.scrollTop = geminiMessages.scrollHeight;
+    if (geminiMessages && geminiModal?.classList.contains("active")) {
+        geminiMessages.scrollTop = geminiMessages.scrollHeight;
+    }
 }
 
 async function sendGeminiMessage() {
@@ -6839,7 +6892,8 @@ async function sendGeminiMessage() {
         }
         : {};
 
-    geminiAbortController = new AbortController();
+    // 채팅창을 닫아도 Gemini 요청은 백그라운드에서 계속 완료되어야 합니다.
+    geminiAbortController = null;
 
     try {
         const response = await authFetch("/api/gemini", {
@@ -6853,8 +6907,7 @@ async function sendGeminiMessage() {
                 previousInteractionId: geminiPreviousInteractionId,
                 conversationId: geminiConversationId,
                 context
-            }),
-            signal: geminiAbortController.signal
+            })
         });
 
         if (!response.ok) {
@@ -7886,10 +7939,10 @@ function getProfileImage(){ return localStorage.getItem(PROFILE_IMAGE_KEY) || cu
 function getProfileFrame(){ const f=currentUser?.profile?.profileFrame || localStorage.getItem(PROFILE_FRAME_KEY) || "none"; return PROFILE_FRAMES.includes(f)?f:"none"; }
 function getSeasonFrame(){ const m=new Date().getMonth()+1; if(m>=3&&m<=5)return "spring"; if(m>=6&&m<=8)return "summer"; if(m>=9&&m<=11)return "autumn"; return "winter"; }
 const SEASON_PARTICLE_SETS = {
-    spring: Array.from({length: 28}, (_, i) => i),
-    summer: Array.from({length: 28}, (_, i) => i),
-    autumn: Array.from({length: 32}, (_, i) => i),
-    winter: Array.from({length: 30}, (_, i) => i)
+    spring: Array.from({length: 8}, (_, i) => i),
+    summer: Array.from({length: 8}, (_, i) => i),
+    autumn: Array.from({length: 9}, (_, i) => i),
+    winter: Array.from({length: 8}, (_, i) => i)
 };
 function applyProfileFrame(el,frame=getProfileFrame()){
     if(!el)return;
@@ -8216,9 +8269,12 @@ profileImageInput?.addEventListener("change",()=>{
             ctx.drawImage(img,sx,sy,sourceSize,sourceSize,0,0,size,size);
             const data=c.toDataURL("image/jpeg",.9);
             localStorage.setItem(PROFILE_IMAGE_KEY,data);
-            currentUser=currentUser||{username:"guest",displayName:"게스트",profile:{}}; currentUser.profile={...(currentUser.profile||{}),profileImage:data};
-            renderProfileUI(); if(settingsStatus)settingsStatus.textContent="프로필 사진이 적용되었습니다.";
-            if(authToken) saveProfileToServer(); else saveGuestSession();
+            currentUser=currentUser||{username:"guest",displayName:"게스트",profile:{}};
+            currentUser.profile={...(currentUser.profile||{}),profileImage:data};
+            renderProfileUI();
+            profileImageInput.value="";
+            if(settingsStatus)settingsStatus.textContent="프로필 사진이 적용되었습니다.";
+            if(authToken) { saveProfileToServer(); } else { saveGuestSession(); }
         }; img.src=src;
     }; reader.readAsDataURL(file);
 });
