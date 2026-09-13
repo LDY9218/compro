@@ -7751,8 +7751,39 @@ function setTheme(theme, persist=true){
 function getProfileImage(){ return localStorage.getItem(PROFILE_IMAGE_KEY) || currentUser?.profile?.profileImage || ""; }
 function getProfileFrame(){ const f=currentUser?.profile?.profileFrame || localStorage.getItem(PROFILE_FRAME_KEY) || "none"; return PROFILE_FRAMES.includes(f)?f:"none"; }
 function getSeasonFrame(){ const m=new Date().getMonth()+1; if(m>=3&&m<=5)return "spring"; if(m>=6&&m<=8)return "summer"; if(m>=9&&m<=11)return "autumn"; return "winter"; }
+const SEASON_PARTICLE_SETS = {
+    spring:["🌸","🌸","🌷","🌸","🌼","🌸","🌷","🌸","🌼","🌸","🌷","🌸","🌼","🌸","🌷","🌸","🌼","🌸"],
+    summer:["🍃","🌿","🍃","🌱","🍃","🌿","🍃","🌱","🍃","🌿","🍃","🌱","🍃","🌿","🍃","🌱","🍃","🌿"],
+    autumn:["🍁","🍂","🍁","🍂","🍁","🍂","🍁","🍂","🍁","🍂","🍁","🍂","🍁","🍂","🍁","🍂","🍁","🍂"],
+    winter:["❄️","❄","❄️","⛄","❄","❄️","❄","❄️","⛄","❄","❄️","❄","❄️","⛄","❄","❄️","❄","❄️"]
+};
 function applyProfileFrame(el,frame=getProfileFrame()){
-    if(!el)return; el.dataset.frame=frame; el.dataset.season=frame==="season"?getSeasonFrame():"";
+    if(!el)return;
+    el.dataset.frame=frame;
+    el.dataset.season=frame==="season"?getSeasonFrame():"";
+    renderSeasonParticles(el,frame);
+}
+function renderSeasonParticles(el,frame){
+    if(!el)return;
+    el.querySelectorAll(":scope > .season-particle").forEach(node=>node.remove());
+    if(frame!=="season")return;
+    const season=getSeasonFrame();
+    const symbols=SEASON_PARTICLE_SETS[season] || SEASON_PARTICLE_SETS.autumn;
+    const count=symbols.length;
+    const isPreview=el.classList.contains("frame-preview");
+    const isSettings=el.classList.contains("settings-profile-avatar");
+    const radius=isPreview?41:(isSettings?44:29);
+    symbols.forEach((symbol,index)=>{
+        const particle=document.createElement("span");
+        particle.className="season-particle";
+        particle.textContent=symbol;
+        particle.style.setProperty("--particle-angle",`${(index/count)*360-90}deg`);
+        particle.style.setProperty("--particle-radius",`${radius}px`);
+        particle.style.setProperty("--particle-scale",String(0.78 + ((index*7)%5)*0.08));
+        particle.style.setProperty("--particle-delay",`${(index%6)*0.08}s`);
+        particle.setAttribute("aria-hidden","true");
+        el.appendChild(particle);
+    });
 }
 function renderProfileUI(){
     const name=String(currentUser?.displayName || currentUser?.username || "게스트").trim() || "게스트";
@@ -7766,9 +7797,17 @@ function renderProfileUI(){
     if(settingsDisplayName) settingsDisplayName.value=currentUser?.displayName || name;
     if(settingsUsername) settingsUsername.value=currentUser?.username || "";
     if(settingsProfileAvatar){
-        settingsProfileAvatar.textContent=initial;
+        let media=settingsProfileAvatar.querySelector(":scope > .profile-avatar-media");
+        if(!media){
+            media=document.createElement("span");
+            media.className="profile-avatar-media";
+            settingsProfileAvatar.prepend(media);
+        }
+        media.textContent=image ? "" : initial;
+        media.classList.toggle("has-image",!!image);
+        media.style.backgroundImage=image ? `url("${image.replace(/"/g,'\\"')}")` : "";
         settingsProfileAvatar.classList.toggle("has-image",!!image);
-        settingsProfileAvatar.style.backgroundImage=image ? `url("${image.replace(/"/g,'\\"')}")` : "";
+        settingsProfileAvatar.style.backgroundImage="none";
         applyProfileFrame(settingsProfileAvatar,frame);
     }
     document.querySelectorAll(".profile-frame-choice").forEach(btn=>{
@@ -7827,6 +7866,7 @@ const chatSendForm = document.getElementById("chatSendForm");
 const chatInput = document.getElementById("chatInput");
 
 const AUTH_TOKEN_KEY = "comtime_auth_token";
+const AUTH_USER_CACHE_KEY = "comtime_auth_user_cache";
 let currentUser = null;
 let authToken = getStoredAuthToken();
 let authMode = "login";
@@ -7849,8 +7889,14 @@ async function authFetch(url, options = {}) {
     const headers = new Headers(options.headers || {});
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
     if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
-    const response = await fetch(url, { ...options, headers });
-    if (response.status === 401) {
+    let response = await fetch(url, { ...options, headers, credentials:"same-origin" });
+    if (response.status === 401 && authToken) {
+        const retryHeaders = new Headers(options.headers || {});
+        retryHeaders.set("X-Comtime-Auth-Token", authToken);
+        if (!retryHeaders.has("Content-Type") && options.body && !(options.body instanceof FormData)) retryHeaders.set("Content-Type", "application/json");
+        response = await fetch(url, { ...options, headers:retryHeaders, credentials:"same-origin" });
+    }
+    if (response.status === 401 && url !== "/api/me") {
         setAuthToken("");
         currentUser = null;
         showAuthModal("login", "로그인이 필요합니다.");
@@ -7931,6 +7977,7 @@ async function loginOrRegister(endpoint, payload) {
     setAuthToken(data.token);
     localStorage.removeItem(GUEST_KEY);
     currentUser = data.user;
+    try { localStorage.setItem(AUTH_USER_CACHE_KEY, JSON.stringify(currentUser)); } catch (_) {}
     setAuthAccountUI();
     hideAuthModal();
     appendClientLog("auth_success", { action: endpoint.includes("register") ? "register" : "login" });
@@ -7951,38 +7998,49 @@ async function finishAccountLogin() {
 }
 
 async function initAuth() {
-    // 실제 계정 토큰이 있으면 게스트 세션보다 항상 우선합니다.
-    if (authToken) {
-        try {
-            const response = await authFetch("/api/me");
-            const data = await response.json();
-            if (!response.ok || !data.ok) throw new Error(data.message || "세션이 만료되었습니다.");
+    // 1) localStorage token, 2) HttpOnly cookie, 3) guest session 순서로 복구합니다.
+    // 따라서 새로고침/브라우저 재실행에서도 로그인 상태가 유지됩니다.
+    try {
+        const response = await authFetch("/api/me");
+        const data = await response.json().catch(()=>({}));
+        if(response.ok && data.ok && data.user){
+            currentUser=data.user;
+            try{localStorage.setItem(AUTH_USER_CACHE_KEY,JSON.stringify(currentUser));}catch(_){}
             localStorage.removeItem(GUEST_KEY);
-            currentUser = data.user;
             setAuthAccountUI();
             await finishAccountLogin();
             return;
-        } catch (error) {
-            setAuthToken("");
-            currentUser = null;
         }
+    } catch (_) {}
+
+    // 서버가 잠시 시작 중이거나 네트워크가 순간적으로 끊긴 경우에는
+    // 저장된 계정 UI를 즉시 로그아웃시키지 않습니다. 다음 API 요청에서 재검증됩니다.
+    if(authToken){
+        try{
+            const cached=JSON.parse(localStorage.getItem(AUTH_USER_CACHE_KEY)||"null");
+            if(cached?.username){
+                currentUser=cached;
+                setAuthAccountUI();
+                setTheme(localStorage.getItem(THEME_KEY)||currentUser?.profile?.theme||"white");
+                applyUserProfile(currentUser.profile||{});
+                renderProfileUI();
+                hideAuthModal();
+                return;
+            }
+        }catch(_){}
     }
-    if (loadGuestSession()) {
+
+    if(loadGuestSession()){
         setAuthAccountUI();
-        setTheme(localStorage.getItem(THEME_KEY) || currentUser?.profile?.theme || "white");
-        applyUserProfile(currentUser.profile);
+        setTheme(localStorage.getItem(THEME_KEY)||currentUser?.profile?.theme||"white");
+        applyUserProfile(currentUser.profile||{});
         renderProfileUI();
         hideAuthModal();
         return;
     }
-    if (!authToken) {
-        setAuthAccountUI();
-        setTheme(localStorage.getItem(THEME_KEY) || "white");
-        showAuthModal("login");
-        return;
-    }
     setAuthAccountUI();
-    showAuthModal("login", "로그인이 필요합니다.");
+    setTheme(localStorage.getItem(THEME_KEY)||"white");
+    showAuthModal("login");
 }
 
 function appendClientLog(type, payload = {}) {
@@ -7996,6 +8054,7 @@ authGuestBtn?.addEventListener("click",()=>{
     currentUser={username:"guest",displayName:name,profile:{school:null,grade:"",classNum:"",theme:document.documentElement.dataset.theme||"white",profileImage:getProfileImage(),profileFrame:getProfileFrame()},algorithm:{profile:null,history:[]}};
     authToken=""; localStorage.removeItem(AUTH_TOKEN_KEY); sessionStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.setItem(GUEST_KEY,JSON.stringify({displayName:name,profile:currentUser.profile}));
+    localStorage.removeItem(AUTH_USER_CACHE_KEY);
     setTheme(localStorage.getItem(THEME_KEY)||"white"); renderProfileUI(); setAuthAccountUI(); hideAuthModal();
 });
 
@@ -8026,14 +8085,14 @@ saveProfileBtn?.addEventListener("click",async()=>{
     if(!currentUser)return; const name=String(settingsDisplayName?.value||"").trim(); if(!name){if(settingsStatus)settingsStatus.textContent="닉네임을 입력해주세요.";return;}
     currentUser.displayName=name; currentUser.profile={...(currentUser.profile||{}),theme:document.documentElement.dataset.theme||"white",profileImage:getProfileImage(),profileFrame:getProfileFrame()};
     renderProfileUI();
-    if(authToken){try{await saveProfileToServer(); const r=await authFetch("/api/me/account",{method:"PUT",body:JSON.stringify({displayName:name})}); const d=await r.json().catch(()=>({})); if(r.ok&&d.ok){setAuthToken(d.token);currentUser=d.user;applyUserProfile(currentUser.profile);renderProfileUI();}}catch{}} else saveGuestSession();
+    if(authToken){try{await saveProfileToServer(); const r=await authFetch("/api/me/account",{method:"PUT",body:JSON.stringify({displayName:name})}); const d=await r.json().catch(()=>({})); if(r.ok&&d.ok){setAuthToken(d.token);currentUser=d.user;try{localStorage.setItem(AUTH_USER_CACHE_KEY,JSON.stringify(currentUser));}catch(_){};applyUserProfile(currentUser.profile);renderProfileUI();}}catch{}} else saveGuestSession();
     if(settingsStatus)settingsStatus.textContent="프로필이 저장되었습니다.";
 });
 
 saveAccountBtn?.addEventListener("click",async()=>{
     if(!authToken){if(settingsStatus)settingsStatus.textContent="게스트 모드에서는 계정 정보를 변경할 수 없습니다.";return;}
     const username=String(settingsUsername?.value||"").trim(); const password=String(settingsNewPassword?.value||"");
-    try{const r=await authFetch("/api/me/account",{method:"PUT",body:JSON.stringify({username,password:password||undefined})}); const d=await r.json().catch(()=>({})); if(!r.ok||!d.ok)throw new Error(d.message||"계정 변경에 실패했습니다."); setAuthToken(d.token);currentUser=d.user;settingsNewPassword.value="";setAuthAccountUI();renderProfileUI();if(settingsStatus)settingsStatus.textContent="계정 정보가 변경되었습니다.";}catch(e){if(settingsStatus)settingsStatus.textContent=e.message; }
+    try{const r=await authFetch("/api/me/account",{method:"PUT",body:JSON.stringify({username,password:password||undefined})}); const d=await r.json().catch(()=>({})); if(!r.ok||!d.ok)throw new Error(d.message||"계정 변경에 실패했습니다."); setAuthToken(d.token);currentUser=d.user;try{localStorage.setItem(AUTH_USER_CACHE_KEY,JSON.stringify(currentUser));}catch(_){};settingsNewPassword.value="";setAuthAccountUI();renderProfileUI();if(settingsStatus)settingsStatus.textContent="계정 정보가 변경되었습니다.";}catch(e){if(settingsStatus)settingsStatus.textContent=e.message; }
 });
 
 document.querySelectorAll(".theme-choice").forEach(btn=>btn.addEventListener("click",async()=>{
@@ -8049,29 +8108,47 @@ document.querySelectorAll(".profile-frame-choice").forEach(btn=>btn.addEventList
     if(authToken){try{await saveProfileToServer();}catch{}} else saveGuestSession();
 }));
 
+function clearClientDataExceptCredentials(){
+    const keep=new Set([AUTH_TOKEN_KEY,AUTH_USER_CACHE_KEY,"comtimeUserId"]);
+    Object.keys(localStorage).forEach(key=>{
+        if(key.startsWith("comtime_") && !keep.has(key)) localStorage.removeItem(key);
+    });
+    sessionStorage.removeItem("comtime_guest_session");
+}
+function clearAllVisibleSchoolData(){
+    selectedSchool=null;
+    if(schoolNameEl)schoolNameEl.textContent="학교 미선택";
+    if(schoolInfoEl)schoolInfoEl.textContent="학교를 검색해 주세요.";
+    if(schoolResults)schoolResults.innerHTML='<p class="hint">학교 이름을 검색해 주세요.</p>';
+    if(timetableGrid)timetableGrid.innerHTML='<div class="message">학교를 먼저 선택해주세요.</div>';
+    if(mealBox)mealBox.innerHTML='<div class="message">학교를 먼저 선택해주세요.</div>';
+    if(currentSubjectEl)currentSubjectEl.textContent="학교를 선택해주세요.";
+    if(currentTeacherEl)currentTeacherEl.textContent="-";
+    if(nextSubjectEl)nextSubjectEl.textContent="-";
+    if(weekendScheduleInfoEl)weekendScheduleInfoEl.innerHTML="";
+    if(gradeSelect)gradeSelect.value="1";
+    if(classSelect)classSelect.innerHTML="";
+    if(window.currentTimetable)window.currentTimetable=null;
+    if(window.currentMeals)window.currentMeals=[];
+}
 resetAllDataBtn?.addEventListener("click",async()=>{
-    if(!currentUser)return; if(!confirm("아이디와 비밀번호를 제외한 모든 저장 데이터를 초기화할까요?"))return;
+    if(!currentUser)return;
+    if(!confirm("아이디와 비밀번호를 제외한 모든 저장 데이터와 시간표·급식 기록을 초기화할까요?"))return;
     try{
-        if(authToken){const r=await authFetch("/api/me/reset-data",{method:"POST"});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.message||"초기화에 실패했습니다.");currentUser=d.user;}
-        localStorage.removeItem("comtime_selected_school");
-        localStorage.removeItem(PROFILE_IMAGE_KEY);
-        localStorage.removeItem(PROFILE_FRAME_KEY);
-        localStorage.removeItem("comtime_shorts_history");
-        selectedSchool=null;
-        if(schoolNameEl)schoolNameEl.textContent="학교 미선택";
-        if(schoolInfoEl)schoolInfoEl.textContent="학교를 검색해 주세요.";
-        if(schoolResults)schoolResults.innerHTML='<p class="hint">학교 이름을 검색해 주세요.</p>';
-        if(timetableGrid)timetableGrid.innerHTML='<div class="message">학교를 먼저 선택해주세요.</div>';
-        if(mealBox)mealBox.innerHTML='<div class="message">학교를 먼저 선택해주세요.</div>';
-        if(currentSubjectEl)currentSubjectEl.textContent="학교를 선택해주세요.";
-        if(currentTeacherEl)currentTeacherEl.textContent="-";
-        if(nextSubjectEl)nextSubjectEl.textContent="-";
-        if(weekendScheduleInfoEl)weekendScheduleInfoEl.innerHTML="";
-        if(gradeSelect)gradeSelect.value="1";
-        if(classSelect)classSelect.innerHTML="";
+        if(authToken){
+            const r=await authFetch("/api/me/reset-data",{method:"POST"});
+            const d=await r.json().catch(()=>({}));
+            if(!r.ok||!d.ok)throw new Error(d.message||"초기화에 실패했습니다.");
+            currentUser=d.user;
+            try { localStorage.setItem(AUTH_USER_CACHE_KEY, JSON.stringify(currentUser)); } catch (_) {}
+        }
+        clearClientDataExceptCredentials();
+        clearAllVisibleSchoolData();
         currentUser.profile={...(currentUser.profile||{}),school:null,grade:"",classNum:"",theme:"white",profileImage:"",profileFrame:"none"};
-        setTheme("white");renderProfileUI();saveGuestSession();
-        if(settingsStatus)settingsStatus.textContent="모든 기록을 초기화했습니다.";
+        setTheme("white");
+        renderProfileUI();
+        if(currentUser.username==="guest")saveGuestSession();
+        if(settingsStatus)settingsStatus.textContent="모든 기록, 시간표, 급식 표시를 초기화했습니다.";
     }catch(e){if(settingsStatus)settingsStatus.textContent=e.message;}
 });
 
@@ -8107,6 +8184,7 @@ logoutBtn?.addEventListener("click", async () => {
     try { await authFetch("/api/auth/logout", { method: "POST" }); } catch (_) {}
     setAuthToken("");
     localStorage.removeItem(GUEST_KEY);
+    localStorage.removeItem(AUTH_USER_CACHE_KEY);
     currentUser = null;
     chatSocket?.disconnect();
     chatSocket = null;
