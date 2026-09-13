@@ -1798,6 +1798,8 @@ let wormAim = { x: 1, y: 0 };
 let wormJoystickActive = false;
 let wormJoystickPointer = null;
 let wormLastFrame = 0;
+let wormLastInputAt = 0;
+let wormLastMinimapAt = 0;
 let wormJoinWatchdog = null;
 let wormLastServerState = 0;
 let wormParticles = [];
@@ -1809,7 +1811,7 @@ let wormBestMass = Number(localStorage.getItem('comtime_worm_best_mass') || 0);
 function wormResizeCanvas(){
     if (!wormGameCanvas) return;
     const rect = wormGameCanvas.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     wormGameCanvas.width = Math.max(1, Math.floor(rect.width * dpr));
     wormGameCanvas.height = Math.max(1, Math.floor(rect.height * dpr));
 }
@@ -1833,7 +1835,7 @@ function wormDrawMinimap(state,me){
     const c=wormMinimapCanvas,ctx=wormMinimapCtx;
     if(!c||!ctx||!state)return;
     const size=c.clientWidth||180;
-    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const dpr=Math.min(window.devicePixelRatio||1,1.5);
     if(c.width!==Math.floor(size*dpr)||c.height!==Math.floor(size*dpr)){c.width=Math.floor(size*dpr);c.height=Math.floor(size*dpr);}
     ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,size,size);
     ctx.fillStyle='rgba(3,12,8,.78)';ctx.fillRect(0,0,size,size);
@@ -1885,7 +1887,7 @@ function wormDrawIntro(){
     if (!wormGameCanvas) return;
     wormResizeCanvas();
     const ctx=wormGameCanvas.getContext('2d');
-    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const dpr=Math.min(window.devicePixelRatio||1,1.5);
     const w=wormGameCanvas.width,h=wormGameCanvas.height;
     ctx.setTransform(1,0,0,1,0,0);
     ctx.clearRect(0,0,w,h);
@@ -2035,6 +2037,9 @@ function wormSendInput(){
         return;
     }
     if(!wormSocket?.connected || !wormRunning) return;
+    const now=performance.now();
+    if(now-wormLastInputAt<32) return;
+    wormLastInputAt=now;
     wormSocket.emit('worm:input',{x:wormAim.x,y:wormAim.y,boost:wormBoosting});
 }
 
@@ -2115,27 +2120,26 @@ function wormRender(now){
     const grid=100;const left=Math.max(0,wormCamera.x-vw/(2*wormCamera.zoom)-grid),right=Math.min(state.world,wormCamera.x+vw/(2*wormCamera.zoom)+grid),top=Math.max(0,wormCamera.y-vh/(2*wormCamera.zoom)-grid),bottom=Math.min(state.world,wormCamera.y+vh/(2*wormCamera.zoom)+grid);
     ctx.lineWidth=1;ctx.strokeStyle='rgba(107,255,177,.055)';for(let x=Math.floor(left/grid)*grid;x<=right;x+=grid){ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();}for(let y=Math.floor(top/grid)*grid;y<=bottom;y+=grid){ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();}
     ctx.strokeStyle='rgba(82,255,170,.38)';ctx.lineWidth=8;ctx.shadowBlur=28;ctx.shadowColor='rgba(60,255,160,.2)';ctx.strokeRect(0,0,state.world,state.world);ctx.shadowBlur=0;
-    for(const f of state.food||[]){const fd=(f.x-wormCamera.x)**2+(f.y-wormCamera.y)**2;if(fd>4200**2)continue;const pulse=1+Math.sin((now+f.id*31)/180)*.16,rr=f.r*pulse;ctx.globalAlpha=.22;ctx.fillStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,rr*4,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;ctx.fillStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,rr,0,Math.PI*2);ctx.fill();}
+    for(const f of state.food||[]){const fd=(f.x-wormCamera.x)**2+(f.y-wormCamera.y)**2;if(fd>3000**2)continue;const rr=f.r;ctx.globalAlpha=.75;ctx.fillStyle=f.color;ctx.beginPath();ctx.arc(f.x,f.y,rr,0,Math.PI*2);ctx.fill();}
     const sorted=wormGetSortedPlayers(state,now);
     for(const p of sorted){
         if(!p.segments?.length)continue;
         const seg=p.segments;
         ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();for(let i=0;i<seg.length;i++){const q=seg[i];if(i===0)ctx.moveTo(q.x,q.y);else ctx.lineTo(q.x,q.y);}
-        ctx.lineWidth=p.radius*2.55;ctx.strokeStyle=p.color;ctx.globalAlpha=.12;ctx.shadowBlur=25;ctx.shadowColor=p.color;ctx.stroke();ctx.globalAlpha=1;ctx.lineWidth=p.radius*1.95;ctx.shadowBlur=0;ctx.strokeStyle=p.color;ctx.stroke();
-        for(let i=seg.length-1;i>=0;i-=Math.max(3,Math.floor(seg.length/10))){const q=seg[i],k=1-i/seg.length;ctx.globalAlpha=.18+.24*k;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(q.x,q.y,p.radius*(.12+.1*k),0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
+        ctx.lineWidth=p.radius*2.12;ctx.strokeStyle=p.color;ctx.globalAlpha=.18;ctx.stroke();ctx.globalAlpha=1;ctx.lineWidth=p.radius*1.72;ctx.strokeStyle=p.color;ctx.stroke();
         const head=seg[0];ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(head.x,head.y,p.radius*1.08,0,Math.PI*2);ctx.fill();
         ctx.fillStyle='#fff';const px=-p.dirY*p.radius*.36,py=p.dirX*p.radius*.36;ctx.beginPath();ctx.arc(head.x+px,head.y+py,p.radius*.25,0,Math.PI*2);ctx.arc(head.x-px,head.y-py,p.radius*.25,0,Math.PI*2);ctx.fill();ctx.fillStyle='#07100c';ctx.beginPath();ctx.arc(head.x+px+p.dirX*p.radius*.07,head.y+py+p.dirY*p.radius*.07,p.radius*.105,0,Math.PI*2);ctx.arc(head.x-px+p.dirX*p.radius*.07,head.y-py+p.dirY*p.radius*.07,p.radius*.105,0,Math.PI*2);ctx.fill();
         const crownRank=sorted.indexOf(p);if(crownRank<3){ctx.font=`900 ${Math.max(18,p.radius*1.35)}px system-ui,sans-serif`;ctx.textAlign='center';ctx.fillStyle=['#ffd447','#dce5ef','#b9784e'][crownRank];ctx.shadowBlur=18;ctx.shadowColor=ctx.fillStyle;ctx.fillText('♛',head.x,head.y-p.radius*1.9);ctx.shadowBlur=0;}
         if(p.id===state.me){ctx.font=`800 ${Math.max(11,p.radius*1.05)}px system-ui,sans-serif`;ctx.textAlign='center';ctx.fillStyle='rgba(240,255,248,.96)';ctx.shadowBlur=10;ctx.shadowColor='#000';ctx.fillText(p.nickname,head.x,head.y-p.radius*2.15);ctx.shadowBlur=0;}
     }
     for(const q of wormParticles){ctx.globalAlpha=Math.max(0,q.life/q.max);ctx.fillStyle=q.color;ctx.beginPath();ctx.arc(q.x,q.y,q.size,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;ctx.restore();
-    wormDrawMinimap(state,me);
+    if(now-wormLastMinimapAt>100){wormLastMinimapAt=now;wormDrawMinimap(state,me);}
     // HUD
     if(wormMassEl)wormMassEl.textContent=Math.floor(me?.mass||0);
     if(me&&me.mass>wormBestMass){wormBestMass=me.mass;localStorage.setItem('comtime_worm_best_mass',String(Math.floor(wormBestMass)));}
     if(wormLengthEl)wormLengthEl.textContent=Math.floor(me?.length||0);
     if(wormOnlineCountEl){const humans=(state.players||[]).filter(p=>!p.isBot).length;wormOnlineCountEl.textContent=`${humans} ONLINE · ${state.players.length} IN ARENA`;}
-    if(wormLeaderboardEl && now-wormLeaderboardEl._renderedAt>250){wormLeaderboardEl._renderedAt=now;const top=sorted.slice(0,8);wormLeaderboardEl.innerHTML='<div class="worm-leader-title">TOP PLAYERS · BEST '+Math.floor(wormBestMass)+'</div>'+top.map((p,i)=>`<div class="worm-row rank-${i+1}"><span class="rank">${i<3?'♛':i+1}</span><span class="dot" style="background:${p.color}"></span><span class="name">${wormEscapeHtml(p.nickname)}</span><span class="mass">${Math.floor(p.mass)}</span></div>`).join('');}
+    if(wormLeaderboardEl && now-wormLeaderboardEl._renderedAt>500){wormLeaderboardEl._renderedAt=now;const top=sorted.slice(0,8);wormLeaderboardEl.innerHTML='<div class="worm-leader-title">TOP PLAYERS · BEST '+Math.floor(wormBestMass)+'</div>'+top.map((p,i)=>`<div class="worm-row rank-${i+1}"><span class="rank">${i<3?'♛':i+1}</span><span class="dot" style="background:${p.color}"></span><span class="name">${wormEscapeHtml(p.nickname)}</span><span class="mass">${Math.floor(p.mass)}</span></div>`).join('');}
     requestAnimationFrame(wormRender);
 }
 
