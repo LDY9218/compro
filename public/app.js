@@ -48,9 +48,7 @@ const currentTeacherEl =
 
 const nextSubjectEl =
     document.getElementById("nextSubject");
-
-const scheduleStatusEl =
-    document.getElementById("scheduleStatus");
+const weekendScheduleInfoEl = document.getElementById("weekendScheduleInfo");
 
 
 // ==================================================
@@ -937,54 +935,13 @@ function renderTimetable(
 // ==================================================
 
 const PERIODS = [
-
-    {
-        period: 1,
-        start: "08:40",
-        end: "09:25"
-    },
-
-    {
-        period: 2,
-        start: "09:35",
-        end: "10:20"
-    },
-
-    {
-        period: 3,
-        start: "10:30",
-        end: "11:15"
-    },
-
-    {
-        period: 4,
-        start: "11:25",
-        end: "12:10"
-    },
-
-    {
-        period: 5,
-        start: "13:10",
-        end: "13:55"
-    },
-
-    {
-        period: 6,
-        start: "14:05",
-        end: "14:50"
-    },
-
-    {
-        period: 7,
-        start: "15:00",
-        end: "15:45"
-    },
-
-    {
-        period: 8,
-        start: "15:55",
-        end: "16:40"
-    }
+    { period:1, start:"08:50", end:"09:35" },
+    { period:2, start:"09:45", end:"10:30" },
+    { period:3, start:"10:40", end:"11:25" },
+    { period:4, start:"11:35", end:"12:20" },
+    { period:5, start:"13:20", end:"14:05" },
+    { period:6, start:"14:15", end:"15:00" },
+    { period:7, start:"15:10", end:"15:55" },
 ];
 
 
@@ -1057,100 +1014,31 @@ function getCurrentMinutes() {
 // 현재 수업
 // ==================================================
 
-function getDayLabel(index) {
-    return ["월요일", "화요일", "수요일", "목요일", "금요일"][index] || "월요일";
+function getNextSchoolDayInfo(){
+    const now=new Date();
+    const day=now.getDay();
+    const labels=["일","월","화","수","목","금","토"];
+    let daysAhead=day===6?2:day===0?1:0;
+    if(daysAhead===0)return null;
+    const first=PERIODS[0];
+    const koreaNow=new Date(now.toLocaleString("en-US",{timeZone:"Asia/Seoul"}));
+    const target=new Date(koreaNow); target.setDate(target.getDate()+daysAhead);
+    const [hh,mm]=first.start.split(":").map(Number);
+    target.setHours(hh,mm,0,0);
+    const diff=Math.max(0,target-koreaNow);
+    const totalMinutes=Math.floor(diff/60000);
+    const days=Math.floor(totalMinutes/1440);
+    const hours=Math.floor((totalMinutes%1440)/60);
+    const mins=totalMinutes%60;
+    const parts=[]; if(days)parts.push(`${days}일`); if(hours)parts.push(`${hours}시간`); if(mins||!parts.length)parts.push(`${mins}분`);
+    return {day:labels[target.getDay()],start:first.start,remaining:parts.join(" ")};
 }
 
-function getItemsForDayIndex(dayIndex) {
-    if (!Array.isArray(currentTimetable) || dayIndex < 0 || dayIndex > 4) return [];
-    const dayData = currentTimetable[dayIndex];
-    if (Array.isArray(dayData?.items)) return dayData.items;
-    if (Array.isArray(dayData)) return dayData;
-    return [];
-}
-
-function getFirstPeriodForDay(dayIndex) {
-    const items = getItemsForDayIndex(dayIndex);
-    if (!items.length) return null;
-    const first = items[0] || {};
-    const periodNumber = Number(first.period ?? first.periodNo ?? first.time ?? 1);
-    return PERIODS.find(p => p.period === periodNumber) || PERIODS[0];
-}
-
-function formatCountdownMinutes(totalMinutes) {
-    const mins = Math.max(0, Math.ceil(totalMinutes));
-    if (mins < 60) return `${mins}분 뒤`;
-    const days = Math.floor(mins / 1440);
-    const hours = Math.floor((mins % 1440) / 60);
-    const rest = mins % 60;
-    if (days > 0) return `${days}일 ${hours}시간 ${rest}분 뒤`;
-    return `${hours}시간 ${rest}분 뒤`;
-}
-
-function getKoreaDateTimeParts() {
-    const now = new Date();
-    const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
-    }).formatToParts(now);
-    const get = type => Number(parts.find(p => p.type === type)?.value || 0);
-    return {year:get("year"),month:get("month"),day:get("day"),hour:get("hour"),minute:get("minute"),second:get("second")};
-}
-
-function getNextClassInfo() {
-    if (!Array.isArray(currentTimetable)) return null;
-    const now = getKoreaDateTimeParts();
-    const dayIndex = getKoreanDayIndex();
-    const nowMinutes = now.hour * 60 + now.minute + now.second / 60;
-    let offset = 0;
-    if (dayIndex >= 0 && dayIndex <= 4) {
-        const first = getFirstPeriodForDay(dayIndex);
-        if (!first || nowMinutes >= timeToMinutes(first.start)) offset = 1;
-    } else {
-        offset = 1;
-    }
-    for (let i=0; i<7; i++) {
-        const targetIndex = (dayIndex + offset + 7) % 7;
-        if (targetIndex >= 0 && targetIndex <= 4) {
-            const first = getFirstPeriodForDay(targetIndex);
-            if (first) {
-                const base = new Date(Date.UTC(now.year, now.month-1, now.day));
-                base.setUTCDate(base.getUTCDate() + offset);
-                const [h,m] = first.start.split(":").map(Number);
-                base.setUTCHours(h,m,0,0);
-                const currentUtc = new Date(Date.UTC(now.year, now.month-1, now.day, now.hour, now.minute, now.second));
-                return {dayIndex:targetIndex, first, minutesUntil:Math.max(0,(base-currentUtc)/60000)};
-            }
-        }
-        offset++;
-    }
-    return null;
-}
-
-function updateScheduleStatus() {
-    if (!scheduleStatusEl) return;
-    if (!selectedSchool || !currentTimetable) {
-        scheduleStatusEl.textContent = "학교를 선택하면 다음 수업 시작 시간을 알려드려요.";
-        return;
-    }
-    const dayIndex = getKoreanDayIndex();
-    const nowMinutes = getCurrentMinutes();
-    const todayItems = dayIndex >= 0 && dayIndex <= 4 ? getTodayItems() : [];
-    const next = getNextClassInfo();
-    if (dayIndex < 0 || dayIndex > 4) {
-        scheduleStatusEl.textContent = next ? `${getDayLabel(next.dayIndex)} ${next.first.start} 첫 수업 · ${formatCountdownMinutes(next.minutesUntil)} 시작` : "다음 수업 정보를 찾지 못했습니다.";
-        return;
-    }
-    if (!todayItems.length) {
-        scheduleStatusEl.textContent = next ? `오늘은 수업이 없습니다 · ${getDayLabel(next.dayIndex)} ${next.first.start} 첫 수업 · ${formatCountdownMinutes(next.minutesUntil)} 시작` : "오늘 시간표가 없습니다.";
-        return;
-    }
-    const nextPeriod = PERIODS.find(p => nowMinutes < timeToMinutes(p.start));
-    if (nextPeriod) {
-        scheduleStatusEl.textContent = `${nextPeriod.period}교시 ${nextPeriod.start} 시작 · ${formatCountdownMinutes(timeToMinutes(nextPeriod.start)-nowMinutes)}`;
-    } else {
-        scheduleStatusEl.textContent = next ? `오늘 수업 종료 · ${getDayLabel(next.dayIndex)} ${next.first.start} 첫 수업 · ${formatCountdownMinutes(next.minutesUntil)}` : "오늘 수업이 끝났습니다.";
-    }
+function renderWeekendInfo(){
+    if(!weekendScheduleInfoEl)return;
+    const info=getNextSchoolDayInfo();
+    if(!info){weekendScheduleInfoEl.innerHTML="";return;}
+    weekendScheduleInfoEl.innerHTML=`<span>다음 수업</span><strong>${info.day}요일 ${info.start} 첫 수업</strong><small>${escapeHtml(info.remaining)} 뒤 시작</small>`;
 }
 
 function updateCurrentClass() {
@@ -1177,7 +1065,6 @@ function updateCurrentClass() {
             nextSubjectEl.textContent =
                 "-";
         }
-        updateScheduleStatus();
 
         return;
     }
@@ -1190,18 +1077,14 @@ function updateCurrentClass() {
         dayIndex > 4
     ) {
 
-        currentSubjectEl.textContent =
-            "주말입니다";
-
-        currentTeacherEl.textContent =
-            "즐거운 주말 보내세요";
-
-        nextSubjectEl.textContent =
-            "월요일 수업";
-        updateScheduleStatus();
-
+        currentSubjectEl.textContent = "주말입니다";
+        currentTeacherEl.textContent = "즐거운 주말 보내세요";
+        nextSubjectEl.textContent = "다음 수업";
+        renderWeekendInfo();
         return;
     }
+
+    if(weekendScheduleInfoEl) weekendScheduleInfoEl.innerHTML="";
 
     const todayItems =
         getTodayItems();
@@ -1324,7 +1207,6 @@ function updateCurrentClass() {
             `;
         }
 
-        updateScheduleStatus();
         return;
     }
 
@@ -1369,7 +1251,6 @@ function updateCurrentClass() {
             `;
         }
 
-        updateScheduleStatus();
         return;
     }
 
@@ -1394,7 +1275,6 @@ function updateCurrentClass() {
             오늘 수업이 모두 끝났습니다.
         `;
     }
-    updateScheduleStatus();
 }
 
 
@@ -7858,6 +7738,8 @@ const settingsStatus = document.getElementById("settingsStatus");
 const THEME_KEY = "comtime_theme";
 const PROFILE_IMAGE_KEY = "comtime_profile_image";
 const GUEST_KEY = "comtime_guest_session";
+const PROFILE_FRAME_KEY = "comtime_profile_frame";
+const PROFILE_FRAMES = ["none","gold","silver","season"];
 
 const AUTH_THEME_VALUES = ["white","blue","purple","black","yellow"];
 function setTheme(theme, persist=true){
@@ -7867,21 +7749,24 @@ function setTheme(theme, persist=true){
     document.querySelectorAll(".theme-choice").forEach(btn=>btn.classList.toggle("active",btn.dataset.theme===value));
 }
 function getProfileImage(){ return localStorage.getItem(PROFILE_IMAGE_KEY) || currentUser?.profile?.profileImage || ""; }
+function getProfileFrame(){ const f=currentUser?.profile?.profileFrame || localStorage.getItem(PROFILE_FRAME_KEY) || "none"; return PROFILE_FRAMES.includes(f)?f:"none"; }
+function getSeasonFrame(){ const m=new Date().getMonth()+1; if(m>=3&&m<=5)return "spring"; if(m>=6&&m<=8)return "summer"; if(m>=9&&m<=11)return "autumn"; return "winter"; }
+function applyProfileFrame(el,frame=getProfileFrame()){
+    if(!el)return; el.dataset.frame=frame; el.dataset.season=frame==="season"?getSeasonFrame():"";
+}
 function renderProfileUI(){
     const name=String(currentUser?.displayName || currentUser?.username || "게스트").trim() || "게스트";
     const initial=Array.from(name)[0]?.toUpperCase() || "C";
-    const image=getProfileImage();
+    const image=getProfileImage(); const frame=getProfileFrame();
     if(headerProfileText){ headerProfileText.textContent=initial; headerProfileText.hidden=!!image; }
     if(headerProfileImage){ headerProfileImage.hidden=!image; if(image) headerProfileImage.src=image; }
+    applyProfileFrame(document.querySelector(".header-profile-btn"),frame);
     if(settingsProfileName) settingsProfileName.textContent=name;
     if(settingsProfileUsername) settingsProfileUsername.textContent=currentUser?.username || "guest";
     if(settingsDisplayName) settingsDisplayName.value=currentUser?.displayName || name;
     if(settingsUsername) settingsUsername.value=currentUser?.username || "";
-    if(settingsProfileAvatar){
-        settingsProfileAvatar.textContent=initial;
-        settingsProfileAvatar.classList.toggle("has-image",!!image);
-        settingsProfileAvatar.style.backgroundImage=image ? `url("${image.replace(/"/g,'\\"')}")` : "";
-    }
+    if(settingsProfileAvatar){ settingsProfileAvatar.textContent=initial; settingsProfileAvatar.classList.toggle("has-image",!!image); settingsProfileAvatar.style.backgroundImage=image ? `url("${image.replace(/"/g,'\\"')}")` : ""; applyProfileFrame(settingsProfileAvatar,frame); }
+    document.querySelectorAll(".profile-frame-choice").forEach(btn=>btn.classList.toggle("active",btn.dataset.frame===frame));
 }
 function saveGuestSession(){
     if(!currentUser || !localStorage.getItem(GUEST_KEY)) return;
@@ -7990,7 +7875,7 @@ function applyUserProfile(profile) {
     if (profile.grade && gradeSelect) gradeSelect.value = profile.grade;
     if (classSelect && profile.classNum) classSelect.value = profile.classNum;
     if(profile.theme) setTheme(profile.theme);
-    if(profile.profileImage){ localStorage.setItem(PROFILE_IMAGE_KEY,String(profile.profileImage)); }
+    if(profile.profileFrame){ localStorage.setItem(PROFILE_FRAME_KEY,String(profile.profileFrame)); }
     renderProfileUI();
 }
 
@@ -8006,7 +7891,8 @@ async function saveProfileToServer() {
                     grade: gradeSelect?.value || "",
                     classNum: classSelect?.value || "",
                     theme: document.documentElement.dataset.theme || "white",
-                    profileImage: getProfileImage()
+                    profileImage: getProfileImage(),
+                    profileFrame: getProfileFrame()
                 }
             })
         });
@@ -8091,7 +7977,7 @@ authGuestBtn?.addEventListener("click",()=>{
     const adjectives=["푸른","별빛","구름","달빛","바람","초록","노을","새벽","은하","번개","하얀","은빛"];
     const animals=["토끼","여우","고양이","독수리","판다","햄스터","수달","펭귄","지렁이","호랑이","다람쥐","곰"];
     const name=adjectives[Math.floor(Math.random()*adjectives.length)]+animals[Math.floor(Math.random()*animals.length)]+String(Math.floor(10+Math.random()*90));
-    currentUser={username:"guest",displayName:name,profile:{school:null,grade:"",classNum:"",theme:document.documentElement.dataset.theme||"white",profileImage:getProfileImage()},algorithm:{profile:null,history:[]}};
+    currentUser={username:"guest",displayName:name,profile:{school:null,grade:"",classNum:"",theme:document.documentElement.dataset.theme||"white",profileImage:getProfileImage(),profileFrame:getProfileFrame()},algorithm:{profile:null,history:[]}};
     authToken=""; localStorage.removeItem(AUTH_TOKEN_KEY); sessionStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.setItem(GUEST_KEY,JSON.stringify({displayName:name,profile:currentUser.profile}));
     setTheme(localStorage.getItem(THEME_KEY)||"white"); renderProfileUI(); setAuthAccountUI(); hideAuthModal();
@@ -8122,7 +8008,7 @@ profileImageInput?.addEventListener("change",()=>{
 
 saveProfileBtn?.addEventListener("click",async()=>{
     if(!currentUser)return; const name=String(settingsDisplayName?.value||"").trim(); if(!name){if(settingsStatus)settingsStatus.textContent="닉네임을 입력해주세요.";return;}
-    currentUser.displayName=name; currentUser.profile={...(currentUser.profile||{}),theme:document.documentElement.dataset.theme||"white",profileImage:getProfileImage()};
+    currentUser.displayName=name; currentUser.profile={...(currentUser.profile||{}),theme:document.documentElement.dataset.theme||"white",profileImage:getProfileImage(),profileFrame:getProfileFrame()};
     renderProfileUI();
     if(authToken){try{await saveProfileToServer(); const r=await authFetch("/api/me/account",{method:"PUT",body:JSON.stringify({displayName:name})}); const d=await r.json().catch(()=>({})); if(r.ok&&d.ok){setAuthToken(d.token);currentUser=d.user;applyUserProfile(currentUser.profile);renderProfileUI();}}catch{}} else saveGuestSession();
     if(settingsStatus)settingsStatus.textContent="프로필이 저장되었습니다.";
@@ -8140,13 +8026,20 @@ document.querySelectorAll(".theme-choice").forEach(btn=>btn.addEventListener("cl
     if(authToken){try{await saveProfileToServer();}catch{}} else saveGuestSession();
 }));
 
+document.querySelectorAll(".profile-frame-choice").forEach(btn=>btn.addEventListener("click",async()=>{
+    const frame=btn.dataset.frame; if(!PROFILE_FRAMES.includes(frame))return;
+    if(currentUser){currentUser.profile={...(currentUser.profile||{}),profileFrame:frame};}
+    localStorage.setItem(PROFILE_FRAME_KEY,frame); renderProfileUI();
+    if(authToken){try{await saveProfileToServer();}catch{}} else saveGuestSession();
+}));
+
 resetAllDataBtn?.addEventListener("click",async()=>{
     if(!currentUser)return; if(!confirm("아이디와 비밀번호를 제외한 모든 저장 데이터를 초기화할까요?"))return;
     try{
         if(authToken){const r=await authFetch("/api/me/reset-data",{method:"POST"});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.message||"초기화에 실패했습니다.");currentUser=d.user;}
-        localStorage.removeItem("comtime_selected_school"); localStorage.removeItem(PROFILE_IMAGE_KEY); localStorage.removeItem("comtime_shorts_history");
+        localStorage.removeItem("comtime_selected_school"); localStorage.removeItem(PROFILE_IMAGE_KEY); localStorage.removeItem(PROFILE_FRAME_KEY); localStorage.removeItem("comtime_shorts_history");
         selectedSchool=null; if(schoolNameEl)schoolNameEl.textContent="학교 미선택"; if(schoolInfoEl)schoolInfoEl.textContent="학교를 검색해 주세요.";
-        currentUser.profile={...(currentUser.profile||{}),school:null,grade:"",classNum:"",theme:"white",profileImage:""};
+        currentUser.profile={...(currentUser.profile||{}),school:null,grade:"",classNum:"",theme:"white",profileImage:"",profileFrame:"none"};
         setTheme("white");renderProfileUI();saveGuestSession();if(settingsStatus)settingsStatus.textContent="모든 기록을 초기화했습니다.";
     }catch(e){if(settingsStatus)settingsStatus.textContent=e.message;}
 });
@@ -8191,6 +8084,8 @@ logoutBtn?.addEventListener("click", async () => {
     closeMenuModal();
     showAuthModal("login", "로그아웃되었습니다.");
 });
+
+document.getElementById("settingsLogoutBtn")?.addEventListener("click",()=>logoutBtn?.click());
 
 // ==================================================
 // GEMINI ACCOUNT HISTORY OVERRIDE
