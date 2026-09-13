@@ -4931,7 +4931,6 @@ const survivalState = {
     bestScore: Number(localStorage.getItem("comtime_survival_best_score") || 0),
     bestTime: Number(localStorage.getItem("comtime_survival_best_time") || 0),
     developerCheat: false,
-    developerAuthorized: false,
     bossDashTimer: 0, bossDashTime: 0, bossDashVx: 0, bossDashVy: 0,
     fireBottleTimer: 0, laserTimer: 0, meteorTimer: 0, iceNovaTimer: 0, poisonTimer: 0, vortexTimer: 0, pulseTimer: 0, fanShotTimer: 0, stormTimer: 0, quakeTimer: 0, healingRainTimer: 0, vacuumTimer: 0, droneMissileTimer: 0, bladeWaveTimer: 0, railgunTimer: 0,
     emergencyHealReady: true,
@@ -5418,7 +5417,7 @@ function survivalTakeDamage(amount) {
 
 function survivalCollectXp(value) {
     // 모든 기술이 MAX이면 경험치를 받아도 레벨업/선택창을 절대 다시 열지 않는다.
-    if (survivalAllSkillsMaxed()) {
+    if (survivalEligibleUpgrades().length === 0) {
         survivalState.xp = survivalState.xpNeed;
         survivalState.pausedForLevel = false;
         survivalLevelUp?.classList.add("hidden");
@@ -5431,17 +5430,13 @@ function survivalCollectXp(value) {
         survivalState.xp -= survivalState.xpNeed;
         survivalState.level += 1;
         survivalState.xpNeed = Math.min(3200, Math.floor(survivalState.xpNeed * 1.14 + 6 + Math.min(18, survivalState.level * 0.12)));
-        if (survivalAllSkillsMaxed()) { survivalState.xp = survivalState.xpNeed; survivalState.pausedForLevel=false; survivalLevelUp?.classList.add("hidden"); break; }
+        if (survivalEligibleUpgrades().length === 0) { survivalState.xp = survivalState.xpNeed; survivalState.pausedForLevel=false; survivalLevelUp?.classList.add("hidden"); break; }
         if (survivalOpenLevelUp("LEVEL UP")) break;
     }
 }
 
 function survivalEligibleUpgrades() {
     return SURVIVAL_UPGRADES.filter((item) => (survivalState.upgradeLevels[item.key] || 0) < SURVIVAL_MAX_SKILL_LEVEL);
-}
-
-function survivalAllSkillsMaxed() {
-    return SURVIVAL_UPGRADES.every((item) => (survivalState.upgradeLevels[item.key] || 0) >= SURVIVAL_MAX_SKILL_LEVEL);
 }
 
 // 개발자 MAX는 단순히 UI의 Lv.8 표시만 바꾸는 것이 아니라,
@@ -5769,7 +5764,8 @@ function survivalUpdateHud() {
     if (survivalWaveEl) survivalWaveEl.textContent = String(survivalState.wave);
     if (survivalKillsEl) survivalKillsEl.textContent = String(survivalState.kills);
     const survivalScoreEl = document.getElementById("survivalScore");
-    if (survivalScoreEl) survivalScoreEl.textContent = String(Math.floor(survivalState.score));
+    if (!Number.isFinite(Number(survivalState.score))) survivalState.score = 0;
+    if (survivalScoreEl) survivalScoreEl.textContent = String(Math.max(0, Math.floor(Number(survivalState.score) || 0)));
     if (survivalHpBar && survivalState.player) survivalHpBar.style.width = `${survivalClamp(survivalState.player.hp / survivalState.player.maxHp, 0, 1) * 100}%`;
     if (survivalXpBar) survivalXpBar.style.width = `${survivalClamp(survivalState.xp / survivalState.xpNeed, 0, 1) * 100}%`;
     const boss = survivalState.enemies.find((enemy) => enemy.boss);
@@ -5807,9 +5803,8 @@ async function survivalDeveloperCheat(){
         const d=await r.json();
         if(!r.ok||!d.ok)throw new Error(d.message||"개발자 코드가 올바르지 않습니다.");
 
-        // 인증은 다음 게임 시작에도 유지한다.
-        // 따라서 인증 후 "게임 시작"을 눌러도 survivalReset() 때문에 MAX가 풀리지 않는다.
-        survivalState.developerAuthorized = true;
+        // 기존 방식처럼 Lv.8까지 반복해서 누적하는 대신,
+        // 모든 기술과 실제 전투 수치를 한 번에 MAX 상태로 확정한다.
         survivalForceMaxBuild();
 
         // MAX 상태에서는 XP가 꽉 차 있어도 어떤 선택창도 열리지 않는다.
@@ -6275,17 +6270,9 @@ function survivalLoop(now) {
 }
 
 function survivalStart() {
-    const keepDeveloperMode = survivalState.developerAuthorized === true;
     survivalReset();
-    survivalState.developerAuthorized = keepDeveloperMode;
     survivalState.keys.clear();
     survivalState.running = true;
-    if (keepDeveloperMode) {
-        survivalForceMaxBuild();
-        survivalState.xp = survivalState.xpNeed;
-        survivalState.pausedForLevel = false;
-        survivalLevelUp?.classList.add("hidden");
-    }
     survivalStartScreen?.classList.add("hidden");
     survivalEndScreen?.classList.add("hidden");
     survivalLevelUp?.classList.add("hidden");
@@ -6355,8 +6342,6 @@ function survivalResetJoystick() {
 if (survivalStartBtn) survivalStartBtn.addEventListener("click", survivalStart);
 if (survivalRestartBtn) survivalRestartBtn.addEventListener("click", survivalStart);
 if(survivalPauseBtn)survivalPauseBtn.addEventListener("click",survivalPause);if(survivalResumeBtn)survivalResumeBtn.addEventListener("click",survivalResume);if(survivalQuitBtn)survivalQuitBtn.addEventListener("click",survivalQuitRun);if(survivalDeveloperBtn)survivalDeveloperBtn.addEventListener("click",survivalDeveloperCheat);
-const survivalPauseDeveloperBtn=document.getElementById("survivalPauseDeveloperBtn");
-if(survivalPauseDeveloperBtn)survivalPauseDeveloperBtn.addEventListener("click",survivalDeveloperCheat);
 if (closeSurvivalBtn) closeSurvivalBtn.addEventListener("click", closeSurvivalGame);
 if (survivalBackdrop) survivalBackdrop.addEventListener("click", closeSurvivalGame);
 window.addEventListener("resize", survivalResize);
@@ -6433,6 +6418,12 @@ function initComtimeMap() {
         }).addTo(comtimeLeafletMap);
     }
     setTimeout(() => comtimeLeafletMap.invalidateSize(), 80);
+    if (comtimeLeafletMap) {
+        comtimeLeafletMap.on("zoomend moveend", () => {
+            mapMyLocationBtn?.classList.add("map-location-always-visible");
+        });
+    }
+    mapMyLocationBtn?.classList.add("map-location-always-visible");
     if (mapStatus) mapStatus.textContent = "무료 지도 준비 완료 · 내 위치를 누르면 위치 권한을 요청합니다.";
 }
 
@@ -7579,6 +7570,7 @@ async function loadMoreShorts(reset = false, forceFreshQuery = false) {
             const params = new URLSearchParams();
             if (nextToken) params.set("pageToken", nextToken);
             if (shortsSearchQuery) params.set("q", shortsSearchQuery);
+            params.set("fresh", "1");
 
             const queryString = params.toString();
             const response = await fetch(`/api/shorts${queryString ? `?${queryString}` : ""}`, {
@@ -7714,6 +7706,62 @@ window.addEventListener("beforeunload", () => {
 // ==================================================
 // ACCOUNT / PERSISTENCE / FRIEND CHAT
 // ==================================================
+const headerProfileBtn = document.getElementById("headerProfileBtn");
+const headerProfileText = document.getElementById("headerProfileText");
+const headerProfileImage = document.getElementById("headerProfileImage");
+const authGuestBtn = document.getElementById("authGuestBtn");
+const openSettingsBtn = document.getElementById("openSettingsBtn");
+const settingsModal = document.getElementById("settingsModal");
+const settingsBackdrop = document.getElementById("settingsBackdrop");
+const closeSettingsBtn = document.getElementById("closeSettingsBtn");
+const settingsProfileAvatar = document.getElementById("settingsProfileAvatar");
+const settingsProfileName = document.getElementById("settingsProfileName");
+const settingsProfileUsername = document.getElementById("settingsProfileUsername");
+const settingsDisplayName = document.getElementById("settingsDisplayName");
+const settingsUsername = document.getElementById("settingsUsername");
+const settingsNewPassword = document.getElementById("settingsNewPassword");
+const profileImageInput = document.getElementById("profileImageInput");
+const saveProfileBtn = document.getElementById("saveProfileBtn");
+const saveAccountBtn = document.getElementById("saveAccountBtn");
+const resetAllDataBtn = document.getElementById("resetAllDataBtn");
+const settingsStatus = document.getElementById("settingsStatus");
+
+const THEME_KEY = "comtime_theme";
+const PROFILE_IMAGE_KEY = "comtime_profile_image";
+const GUEST_KEY = "comtime_guest_mode";
+
+function randomGuestName(){
+    const a=["푸른","별빛","구름","달빛","바람","초록","노을","새벽","은하","번개"];
+    const b=["토끼","여우","고양이","독수리","판다","햄스터","수달","펭귄","지렁이","호랑이"];
+    return a[Math.floor(Math.random()*a.length)]+b[Math.floor(Math.random()*b.length)]+String(Math.floor(10+Math.random()*90));
+}
+function setTheme(theme){
+    const allowed=["blue","purple","black","yellow"];
+    const value=allowed.includes(theme)?theme:"blue";
+    document.documentElement.dataset.theme=value;
+    localStorage.setItem(THEME_KEY,value);
+    document.querySelectorAll(".theme-choice").forEach(b=>b.classList.toggle("active",b.dataset.theme===value));
+}
+function profileImage(){ return localStorage.getItem(PROFILE_IMAGE_KEY)||currentUser?.profile?.profileImage||""; }
+function renderHeaderProfile(){
+    const name=currentUser?.displayName || currentUser?.username || "게스트";
+    const img=profileImage();
+    if(headerProfileText) headerProfileText.textContent=String(name).trim().charAt(0).toUpperCase()||"C";
+    if(headerProfileImage){ headerProfileImage.hidden=!img; if(img) headerProfileImage.src=img; }
+    if(headerProfileText) headerProfileText.hidden=!!img;
+    if(settingsProfileAvatar){ settingsProfileAvatar.textContent=String(name).trim().charAt(0).toUpperCase()||"C"; settingsProfileAvatar.style.backgroundImage=img?`url(${JSON.stringify(img)})`:""; settingsProfileAvatar.classList.toggle("has-image",!!img); }
+    if(settingsProfileName) settingsProfileName.textContent=name;
+    if(settingsProfileUsername) settingsProfileUsername.textContent=currentUser?.username || "guest";
+    if(settingsDisplayName) settingsDisplayName.value=currentUser?.displayName || name;
+    if(settingsUsername) settingsUsername.value=currentUser?.username || "";
+}
+function openSettings(){
+    closeMenuModal();
+    renderHeaderProfile();
+    settingsModal?.classList.add("active"); settingsModal?.setAttribute("aria-hidden","false"); lockPageScroll();
+}
+function closeSettings(){ settingsModal?.classList.remove("active"); settingsModal?.setAttribute("aria-hidden","true"); unlockPageScroll(); }
+
 const authModal = document.getElementById("authModal");
 const loginForm = document.getElementById("loginForm");
 const registerForm = document.getElementById("registerForm");
@@ -7802,6 +7850,7 @@ function applyUserProfile(profile) {
     }
     if (profile.grade && gradeSelect) gradeSelect.value = profile.grade;
     if (classSelect && profile.classNum) classSelect.value = profile.classNum;
+    renderHeaderProfile();
 }
 
 async function saveProfileToServer() {
@@ -7811,9 +7860,12 @@ async function saveProfileToServer() {
             method: "PUT",
             body: JSON.stringify({
                 profile: {
+                    ...(currentUser?.profile || {}),
                     school: selectedSchool,
                     grade: gradeSelect?.value || "",
-                    classNum: classSelect?.value || ""
+                    classNum: classSelect?.value || "",
+                    theme: document.documentElement.dataset.theme || "blue",
+                    profileImage: profileImage()
                 }
             })
         });
@@ -7843,12 +7895,14 @@ async function loginOrRegister(endpoint, payload) {
 
 async function finishAccountLogin() {
     applyUserProfile(currentUser?.profile);
-    if (currentUser?.algorithm) console.log("[저장된 알고리즘]", currentUser.algorithm);
+    if (currentUser?.profile?.theme) setTheme(currentUser.profile.theme);
+    if (currentUser?.profile?.profileImage) localStorage.setItem(PROFILE_IMAGE_KEY,currentUser.profile.profileImage);
+    renderHeaderProfile();
     await saveProfileToServer();
     await checkAdminMode();
     startChatSocket();
     await loadGeminiHistoryFromServer();
-    await syncShortsHistoryNow();
+    // 쇼츠 알고리즘은 서버에 저장하지 않습니다. 현재 기기의 최근 시청 기록만 추천 요청에 사용합니다.
     await loadFriends();
     try { await restoreSchool(); } catch (_) {}
 }
@@ -7878,6 +7932,15 @@ function appendClientLog(type, payload = {}) {
     console.log(`[사용자 활동] ${type}`, payload);
 }
 
+authGuestBtn?.addEventListener("click", () => {
+    const name=randomGuestName();
+    currentUser={username:`guest_${Date.now()}`,displayName:name,profile:{school:null,grade:"",classNum:""},algorithm:{profile:null,history:[]}};
+    localStorage.setItem(GUEST_KEY,"1");
+    authToken="";
+    authModal?.classList.remove("active"); authModal?.setAttribute("aria-hidden","true");
+    renderHeaderProfile();
+});
+
 loginForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     authStatus.textContent = "로그인 중...";
@@ -7905,6 +7968,53 @@ registerForm?.addEventListener("submit", async (event) => {
 });
 
 authSwitchBtn?.addEventListener("click", () => showAuthModal(authMode === "login" ? "register" : "login"));
+
+headerProfileBtn?.addEventListener("click", openSettings);
+openSettingsBtn?.addEventListener("click", openSettings);
+closeSettingsBtn?.addEventListener("click", closeSettings);
+settingsBackdrop?.addEventListener("click", closeSettings);
+document.querySelectorAll(".theme-choice").forEach(btn=>btn.addEventListener("click", async()=>{
+    setTheme(btn.dataset.theme);
+    if(currentUser && authToken){
+        try{ await authFetch("/api/me/profile",{method:"PUT",body:JSON.stringify({profile:{...(currentUser.profile||{}),theme:btn.dataset.theme,profileImage:profileImage()}})}); }catch{}
+    }
+}));
+profileImageInput?.addEventListener("change",()=>{
+    const file=profileImageInput.files?.[0]; if(!file) return;
+    if(file.size>2*1024*1024){ if(settingsStatus) settingsStatus.textContent="프로필 사진은 2MB 이하로 선택해주세요."; return; }
+    const reader=new FileReader(); reader.onload=()=>{ localStorage.setItem(PROFILE_IMAGE_KEY,String(reader.result||"")); renderHeaderProfile(); }; reader.readAsDataURL(file);
+});
+saveProfileBtn?.addEventListener("click",async()=>{
+    const name=String(settingsDisplayName?.value||currentUser?.displayName||"").trim();
+    const image=profileImage();
+    if(!name) return;
+    if(currentUser && authToken){
+        try{
+            const r=await authFetch("/api/me/profile",{method:"PUT",body:JSON.stringify({profile:{...(currentUser.profile||{}),profileImage:image,theme:document.documentElement.dataset.theme||"blue"}})});
+            const d=await r.json(); if(!r.ok) throw new Error(d.message);
+            const ar=await authFetch("/api/me/account",{method:"PUT",body:JSON.stringify({displayName:name})});
+            const ad=await ar.json(); if(!ar.ok) throw new Error(ad.message);
+            currentUser=ad.user; authToken=ad.token; localStorage.setItem(AUTH_TOKEN_KEY,authToken); currentUser.profile=d.profile||currentUser.profile; renderHeaderProfile(); if(settingsStatus) settingsStatus.textContent="프로필을 저장했습니다.";
+        }catch(e){ if(settingsStatus) settingsStatus.textContent=e.message||"저장 실패"; }
+    }else{ currentUser.displayName=name; renderHeaderProfile(); if(settingsStatus) settingsStatus.textContent="게스트 프로필은 이 기기에서만 유지됩니다."; }
+});
+saveAccountBtn?.addEventListener("click",async()=>{
+    if(!authToken || !currentUser) return;
+    const username=String(settingsUsername?.value||"").trim().toLowerCase(); const password=String(settingsNewPassword?.value||"");
+    try{ const r=await authFetch("/api/me/account",{method:"PUT",body:JSON.stringify({username,password})}); const d=await r.json(); if(!r.ok) throw new Error(d.message); currentUser=d.user; authToken=d.token; localStorage.setItem(AUTH_TOKEN_KEY,authToken); settingsNewPassword.value=""; renderHeaderProfile(); if(settingsStatus) settingsStatus.textContent="계정을 변경했습니다."; }catch(e){ if(settingsStatus) settingsStatus.textContent=e.message||"계정 변경 실패"; }
+});
+resetAllDataBtn?.addEventListener("click",async()=>{
+    if(!confirm("아이디와 비밀번호를 제외한 저장 기록을 모두 초기화할까요?")) return;
+    const keepToken=localStorage.getItem(AUTH_TOKEN_KEY);
+    localStorage.clear();
+    if(keepToken) localStorage.setItem(AUTH_TOKEN_KEY,keepToken);
+    localStorage.removeItem(PROFILE_IMAGE_KEY);
+    setTheme("blue");
+    if(authToken){ try{ await authFetch("/api/me/reset-data",{method:"POST"}); }catch{} }
+    currentUser=currentUser?{...currentUser,profile:{school:null,grade:"",classNum:"",theme:document.documentElement.dataset.theme,profileImage:""},algorithm:{profile:null,history:[]}}:currentUser;
+    renderHeaderProfile(); if(settingsStatus) settingsStatus.textContent="아이디와 비밀번호를 제외한 기록을 초기화했습니다.";
+});
+setTheme(localStorage.getItem(THEME_KEY)||"blue");
 
 logoutBtn?.addEventListener("click", async () => {
     try { await authFetch("/api/auth/logout", { method: "POST" }); } catch (_) {}
@@ -8103,7 +8213,7 @@ recordShortHistory = function(video, watchSeconds, action = "view") {
     shortsSyncTimer = setTimeout(async () => {
         if (!currentUser) return;
         try {
-            await authFetch("/api/shorts/history", { method:"POST", body:JSON.stringify({ history:getShortsHistory().slice(-20) }) });
+            // 추천 기록은 서버에 저장하지 않습니다.
         } catch (error) { console.warn("[쇼츠 기록 서버 저장 실패]", error); }
     }, 1200);
 };
