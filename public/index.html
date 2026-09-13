@@ -132,8 +132,7 @@
 
         <div id="authStatus" class="auth-status"></div>
         <button id="authGuestBtn" class="auth-guest-btn" type="button">게스트로 들어가기</button>
-        <button id="authSwitchBtn" class="auth-switch-btn" type="button">계정이 없나요? 회원가입</button>
-    </div>
+            </div>
 </div>
 
 <!-- ==================================================
@@ -258,6 +257,7 @@
             <section class="settings-section">
                 <h3>테마</h3>
                 <div class="theme-grid">
+                    <button class="theme-choice" data-theme="white" type="button"><i></i>흰색</button>
                     <button class="theme-choice" data-theme="blue" type="button"><i></i>파란색</button>
                     <button class="theme-choice" data-theme="purple" type="button"><i></i>보라색</button>
                     <button class="theme-choice" data-theme="black" type="button"><i></i>검은색</button>
@@ -338,8 +338,8 @@
         <div class="worm-topbar">
             <div class="worm-brand"><span class="worm-logo">🪱</span><div><strong>WORM ARENA</strong><small>REALTIME MULTIPLAYER</small></div></div>
             <div class="worm-status"><span id="wormOnlineCount">0 ONLINE</span><span id="wormPing">●</span></div>
-            <button id="closeWormGameBtn" class="game-close-btn" type="button" aria-label="Worm Arena 닫기">×</button>
         </div>
+        <button id="closeWormGameBtn" class="worm-floating-close" type="button" aria-label="Worm Arena 닫기">×</button>
         <div class="worm-stage">
             <canvas id="wormGameCanvas"></canvas>
             <div class="worm-hud-left">
