@@ -49,6 +49,9 @@ const currentTeacherEl =
 const nextSubjectEl =
     document.getElementById("nextSubject");
 
+const scheduleStatusEl =
+    document.getElementById("scheduleStatus");
+
 
 // ==================================================
 // GAME HUB / EXISTING GAMES
@@ -1054,6 +1057,102 @@ function getCurrentMinutes() {
 // 현재 수업
 // ==================================================
 
+function getDayLabel(index) {
+    return ["월요일", "화요일", "수요일", "목요일", "금요일"][index] || "월요일";
+}
+
+function getItemsForDayIndex(dayIndex) {
+    if (!Array.isArray(currentTimetable) || dayIndex < 0 || dayIndex > 4) return [];
+    const dayData = currentTimetable[dayIndex];
+    if (Array.isArray(dayData?.items)) return dayData.items;
+    if (Array.isArray(dayData)) return dayData;
+    return [];
+}
+
+function getFirstPeriodForDay(dayIndex) {
+    const items = getItemsForDayIndex(dayIndex);
+    if (!items.length) return null;
+    const first = items[0] || {};
+    const periodNumber = Number(first.period ?? first.periodNo ?? first.time ?? 1);
+    return PERIODS.find(p => p.period === periodNumber) || PERIODS[0];
+}
+
+function formatCountdownMinutes(totalMinutes) {
+    const mins = Math.max(0, Math.ceil(totalMinutes));
+    if (mins < 60) return `${mins}분 뒤`;
+    const days = Math.floor(mins / 1440);
+    const hours = Math.floor((mins % 1440) / 60);
+    const rest = mins % 60;
+    if (days > 0) return `${days}일 ${hours}시간 ${rest}분 뒤`;
+    return `${hours}시간 ${rest}분 뒤`;
+}
+
+function getKoreaDateTimeParts() {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+    }).formatToParts(now);
+    const get = type => Number(parts.find(p => p.type === type)?.value || 0);
+    return {year:get("year"),month:get("month"),day:get("day"),hour:get("hour"),minute:get("minute"),second:get("second")};
+}
+
+function getNextClassInfo() {
+    if (!Array.isArray(currentTimetable)) return null;
+    const now = getKoreaDateTimeParts();
+    const dayIndex = getKoreanDayIndex();
+    const nowMinutes = now.hour * 60 + now.minute + now.second / 60;
+    let offset = 0;
+    if (dayIndex >= 0 && dayIndex <= 4) {
+        const first = getFirstPeriodForDay(dayIndex);
+        if (!first || nowMinutes >= timeToMinutes(first.start)) offset = 1;
+    } else {
+        offset = 1;
+    }
+    for (let i=0; i<7; i++) {
+        const targetIndex = (dayIndex + offset + 7) % 7;
+        if (targetIndex >= 0 && targetIndex <= 4) {
+            const first = getFirstPeriodForDay(targetIndex);
+            if (first) {
+                const base = new Date(Date.UTC(now.year, now.month-1, now.day));
+                base.setUTCDate(base.getUTCDate() + offset);
+                const [h,m] = first.start.split(":").map(Number);
+                base.setUTCHours(h,m,0,0);
+                const currentUtc = new Date(Date.UTC(now.year, now.month-1, now.day, now.hour, now.minute, now.second));
+                return {dayIndex:targetIndex, first, minutesUntil:Math.max(0,(base-currentUtc)/60000)};
+            }
+        }
+        offset++;
+    }
+    return null;
+}
+
+function updateScheduleStatus() {
+    if (!scheduleStatusEl) return;
+    if (!selectedSchool || !currentTimetable) {
+        scheduleStatusEl.textContent = "학교를 선택하면 다음 수업 시작 시간을 알려드려요.";
+        return;
+    }
+    const dayIndex = getKoreanDayIndex();
+    const nowMinutes = getCurrentMinutes();
+    const todayItems = dayIndex >= 0 && dayIndex <= 4 ? getTodayItems() : [];
+    const next = getNextClassInfo();
+    if (dayIndex < 0 || dayIndex > 4) {
+        scheduleStatusEl.textContent = next ? `${getDayLabel(next.dayIndex)} ${next.first.start} 첫 수업 · ${formatCountdownMinutes(next.minutesUntil)} 시작` : "다음 수업 정보를 찾지 못했습니다.";
+        return;
+    }
+    if (!todayItems.length) {
+        scheduleStatusEl.textContent = next ? `오늘은 수업이 없습니다 · ${getDayLabel(next.dayIndex)} ${next.first.start} 첫 수업 · ${formatCountdownMinutes(next.minutesUntil)} 시작` : "오늘 시간표가 없습니다.";
+        return;
+    }
+    const nextPeriod = PERIODS.find(p => nowMinutes < timeToMinutes(p.start));
+    if (nextPeriod) {
+        scheduleStatusEl.textContent = `${nextPeriod.period}교시 ${nextPeriod.start} 시작 · ${formatCountdownMinutes(timeToMinutes(nextPeriod.start)-nowMinutes)}`;
+    } else {
+        scheduleStatusEl.textContent = next ? `오늘 수업 종료 · ${getDayLabel(next.dayIndex)} ${next.first.start} 첫 수업 · ${formatCountdownMinutes(next.minutesUntil)}` : "오늘 수업이 끝났습니다.";
+    }
+}
+
 function updateCurrentClass() {
 
     if (
@@ -1078,6 +1177,7 @@ function updateCurrentClass() {
             nextSubjectEl.textContent =
                 "-";
         }
+        updateScheduleStatus();
 
         return;
     }
@@ -1098,6 +1198,7 @@ function updateCurrentClass() {
 
         nextSubjectEl.textContent =
             "월요일 수업";
+        updateScheduleStatus();
 
         return;
     }
@@ -1223,6 +1324,7 @@ function updateCurrentClass() {
             `;
         }
 
+        updateScheduleStatus();
         return;
     }
 
@@ -1267,6 +1369,7 @@ function updateCurrentClass() {
             `;
         }
 
+        updateScheduleStatus();
         return;
     }
 
@@ -1291,6 +1394,7 @@ function updateCurrentClass() {
             오늘 수업이 모두 끝났습니다.
         `;
     }
+    updateScheduleStatus();
 }
 
 
