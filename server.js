@@ -95,7 +95,7 @@ function publicUser(user) {
         displayName: user.displayName || user.username,
         createdAt: user.createdAt,
         profile: user.profile || { school: null, grade: "", classNum: "" },
-        algorithm: user.algorithm || { profile: null, history: [], updatedAt: null }
+        algorithm: { profile: null, history: [], updatedAt: null }
     };
 }
 
@@ -127,7 +127,7 @@ function sanitizeProfile(profile) {
         school,
         grade: String(profile?.grade || "").slice(0, 10),
         classNum: String(profile?.classNum || "").slice(0, 10),
-        theme: ["blue","purple","black","yellow"].includes(String(profile?.theme)) ? String(profile.theme) : "blue",
+        theme: ["white","blue","purple","black","yellow"].includes(String(profile?.theme)) ? String(profile.theme) : "white",
         profileImage: String(profile?.profileImage || "").slice(0, 2_800_000)
     };
 }
@@ -257,7 +257,7 @@ app.put("/api/me/account", requireAuth, (req, res) => {
 });
 
 app.post("/api/me/reset-data", requireAuth, (req,res)=>{
-    req.comtimeUser.profile={school:null,grade:"",classNum:"",theme:req.comtimeUser.profile?.theme||"blue",profileImage:req.comtimeUser.profile?.profileImage||""};
+    req.comtimeUser.profile={school:null,grade:"",classNum:"",theme:"white",profileImage:""};
     req.comtimeUser.algorithm={profile:null,history:[],updatedAt:null};
     req.comtimeUser.geminiConversations=[];
     req.comtimeUser.friends=[];
@@ -268,9 +268,9 @@ app.post("/api/me/reset-data", requireAuth, (req,res)=>{
 });
 
 app.put("/api/me/algorithm", requireAuth, (req, res) => {
-    req.comtimeUser.algorithm = sanitizeAlgorithm(req.body?.algorithm || {});
+    // 쇼츠 추천 알고리즘은 계정/서버에 저장하지 않습니다.
+    req.comtimeUser.algorithm = { profile: null, history: [], updatedAt: null };
     saveUser(req.comtimeUser);
-    appendActivityLog("algorithm_update", { user: req.comtimeUser.username, algorithm: req.comtimeUser.algorithm });
     res.json({ ok: true, algorithm: req.comtimeUser.algorithm });
 });
 
@@ -1096,9 +1096,9 @@ app.post("/api/shorts/history", requireAuth, (req, res) => {
 
 app.post("/api/shorts/recommendation-profile", requireAuth, async (req, res) => {
     const supplied = Array.isArray(req.body?.history) ? req.body.history : [];
-    const stored = Array.isArray(req.comtimeUser.algorithm?.history) ? req.comtimeUser.algorithm.history : [];
+    const stored = [];
     const seen = new Set();
-    const history = [...stored, ...supplied].filter((item) => {
+    const history = supplied.filter((item) => {
         const key = `${item?.id || ""}|${item?.viewedAt || ""}|${item?.action || ""}`;
         if (seen.has(key)) return false;
         seen.add(key);
@@ -1498,17 +1498,25 @@ function wormTurnToward(p){
     p.dirY=Math.sin(desired);
 }
 function wormDropMass(p){
-    const drops=Math.min(65,Math.max(8,Math.floor(p.mass/2)));
+    // 죽은 지렁이의 몸통 모양을 따라 질량을 먹이로 분산시켜, 죽은 자리의 몸통 흔적처럼 보이게 합니다.
+    const trail=Array.isArray(p.trail)&&p.trail.length?p.trail:[{x:p.x,y:p.y}];
+    const drops=Math.min(90,Math.max(10,Math.floor(p.mass/1.8)));
+    const total=Math.max(1,Math.floor(p.mass));
+    const base=Math.max(2,Math.floor(total/drops));
     for(let i=0;i<drops;i++){
-        const a=Math.random()*Math.PI*2, r=Math.random()*Math.max(20,p.radius*7);
-        wormSpawnFood(p.x+Math.cos(a)*r,p.y+Math.sin(a)*r,Math.max(2,Math.floor(p.mass/drops)),p.color);
+        const point=trail[Math.min(trail.length-1,Math.floor(i/(drops-1||1)*(trail.length-1)))];
+        const jitter=Math.min(18,Math.max(5,p.radius*.45));
+        const x=Math.max(30,Math.min(WORM_WORLD-30,point.x+(Math.random()-.5)*jitter));
+        const y=Math.max(30,Math.min(WORM_WORLD-30,point.y+(Math.random()-.5)*jitter));
+        const value=Math.max(2,Math.min(12,base+(i%4===0?1:0)));
+        wormSpawnFood(x,y,value,p.color);
     }
 }
 function wormKill(victim,killerName){
     if(!victim || !victim.alive)return;
     victim.alive=false; wormDropMass(victim);
     const sock=io.sockets.sockets.get(victim.id);
-    if(sock) sock.emit("worm:died",{mass:victim.mass,killer:killerName||null});
+    if(sock) sock.emit("worm:died",{mass:victim.mass,killer:killerName||null,dropCount:Math.min(90,Math.max(10,Math.floor(victim.mass/1.8)))});
     if(victim.isBot){
         setTimeout(()=>{
             if(!wormPlayers.has(victim.id)) return;
