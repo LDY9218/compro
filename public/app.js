@@ -4885,7 +4885,6 @@ const survivalPauseOverlay=document.getElementById("survivalPauseOverlay");
 const survivalResumeBtn=document.getElementById("survivalResumeBtn");
 const survivalQuitBtn=document.getElementById("survivalQuitBtn");
 const survivalDeveloperBtn=document.getElementById("survivalDeveloperBtn");
-const survivalPauseDeveloperBtn=document.getElementById("survivalPauseDeveloperBtn");
 
 const survivalCtx = survivalCanvas?.getContext("2d");
 
@@ -5150,6 +5149,12 @@ function survivalReset() {
     survivalState.joystick.active = false;
     if (survivalJoystickKnob) survivalJoystickKnob.style.transform = "translate(-50%, -50%)";
     survivalResize();
+    if (survivalState.developerAuthorized) {
+        survivalForceMaxBuild();
+        survivalState.xp = survivalState.xpNeed;
+        survivalState.pausedForLevel = false;
+        survivalLevelUp?.classList.add("hidden");
+    }
     survivalUpdateHud();
 }
 
@@ -5382,8 +5387,7 @@ function survivalKillEnemy(index) {
     const e = survivalState.enemies[index];
     if (!e) return;
     survivalState.kills += 1;
-    if (!Number.isFinite(Number(survivalState.score))) survivalState.score = 0;
-    survivalState.score += Number.isFinite(Number(e.boss ? 250 : 10)) ? (e.boss ? 250 : 10) : 0;
+    survivalState.score += e.boss ? 250 : 10;
     if (!e.boss && survivalState.upgrades.focus > 0 && survivalState.focusTargetId === e.id) {
         survivalState.focusStacks = Math.min(8, survivalState.focusStacks + 1);
     }
@@ -5420,7 +5424,7 @@ function survivalTakeDamage(amount) {
 
 function survivalCollectXp(value) {
     // 모든 기술이 MAX이면 경험치를 받아도 레벨업/선택창을 절대 다시 열지 않는다.
-    if (survivalEligibleUpgrades().length === 0) {
+    if (survivalAllSkillsMaxed()) {
         survivalState.xp = survivalState.xpNeed;
         survivalState.pausedForLevel = false;
         survivalLevelUp?.classList.add("hidden");
@@ -5433,7 +5437,7 @@ function survivalCollectXp(value) {
         survivalState.xp -= survivalState.xpNeed;
         survivalState.level += 1;
         survivalState.xpNeed = Math.min(3200, Math.floor(survivalState.xpNeed * 1.14 + 6 + Math.min(18, survivalState.level * 0.12)));
-        if (survivalEligibleUpgrades().length === 0) { survivalState.xp = survivalState.xpNeed; survivalState.pausedForLevel=false; survivalLevelUp?.classList.add("hidden"); break; }
+        if (survivalAllSkillsMaxed()) { survivalState.xp = survivalState.xpNeed; survivalState.pausedForLevel=false; survivalLevelUp?.classList.add("hidden"); break; }
         if (survivalOpenLevelUp("LEVEL UP")) break;
     }
 }
@@ -5443,7 +5447,7 @@ function survivalEligibleUpgrades() {
 }
 
 function survivalAllSkillsMaxed() {
-    return SURVIVAL_UPGRADES.length > 0 && SURVIVAL_UPGRADES.every((item) => Number(survivalState.upgradeLevels[item.key] || 0) >= SURVIVAL_MAX_SKILL_LEVEL);
+    return SURVIVAL_UPGRADES.every((item) => (survivalState.upgradeLevels[item.key] || 0) >= SURVIVAL_MAX_SKILL_LEVEL);
 }
 
 // 개발자 MAX는 단순히 UI의 Lv.8 표시만 바꾸는 것이 아니라,
@@ -5453,11 +5457,14 @@ function survivalForceMaxBuild() {
     const maxLevel = SURVIVAL_MAX_SKILL_LEVEL;
 
     // 100개 기술의 레벨을 예외 없이 실제 MAX(Lv.8)으로 만든다.
-    for (const item of SURVIVAL_UPGRADES) survivalState.upgradeLevels[item.key] = maxLevel;
+    for (const item of SURVIVAL_UPGRADES) {
+        survivalState.upgradeLevels[item.key] = maxLevel;
+        if (!Number.isFinite(Number(u[item.key]))) u[item.key] = maxLevel;
+    }
 
     // 수치형/확률형 기술의 실제 최대 전투값.
     Object.assign(u, {
-        damage: 18, fireRate: 18, moveSpeed: 3.2, maxHp: 18, magnet: 18, projectile: 16,
+        damage: 18, fireRate: 18, moveSpeed: 3.2, magnet: 18, projectile: 16,
         crit: 0.92, bulletSpeed: 18, pierce: 24, area: 18, armor: 24, regen: 24,
         frost: 24, orbital: 12, lightning: 24, bomb: 24, drone: 8, lifesteal: 24,
         xpBoost: 18, range: 18, bulletSize: 18, damageBoss: 18, eliteDamage: 18,
@@ -5477,8 +5484,6 @@ function survivalForceMaxBuild() {
         giantSlayer: 8, bossBreaker: 8, adrenaline: 8, secondWind: 8, phaseShift: 8,
         healingRain: 8, vacuum: 8, precision: 8, greed: 8,
     });
-
-    u.momentum = 18;
 
     const p = survivalState.player || (survivalState.player = {
         x: 0, y: 0, radius: 17, hp: 100, maxHp: 100, invuln: 0, facing: 0,
@@ -5610,7 +5615,7 @@ function survivalApplyUpgrade(key) {
 
 function survivalCollectBossXp(gem) {
     if (!gem || !gem.bossGem) return;
-    survivalState.score += Math.round(gem.value * 3 * (1 + survivalState.upgrades.greed * 0.08));
+    survivalState.score=(Number.isFinite(Number(survivalState.score))?Number(survivalState.score):0)+Math.round((Number(gem.value)||0)*3*(1+(Number(survivalState.upgrades.greed)||0)*0.08));
     // 황금 경험치는 실제 경험치에도 크게 반영하되, 보스 보상 UI와 일반 레벨업 UI가 겹치지 않도록 즉시 레벨만 계산합니다.
     survivalState.xp += gem.value;
     let bossLevelSafety = 0;
@@ -5773,8 +5778,8 @@ function survivalUpdateHud() {
     if (survivalWaveEl) survivalWaveEl.textContent = String(survivalState.wave);
     if (survivalKillsEl) survivalKillsEl.textContent = String(survivalState.kills);
     const survivalScoreEl = document.getElementById("survivalScore");
-    if (!Number.isFinite(Number(survivalState.score))) survivalState.score = 0;
-    if (survivalScoreEl) survivalScoreEl.textContent = String(Math.max(0, Math.floor(Number(survivalState.score) || 0)));
+    if (!Number.isFinite(Number(survivalState.score))) survivalState.score=0;
+    if (survivalScoreEl) survivalScoreEl.textContent = String(Math.max(0,Math.floor(Number(survivalState.score)||0)));
     if (survivalHpBar && survivalState.player) survivalHpBar.style.width = `${survivalClamp(survivalState.player.hp / survivalState.player.maxHp, 0, 1) * 100}%`;
     if (survivalXpBar) survivalXpBar.style.width = `${survivalClamp(survivalState.xp / survivalState.xpNeed, 0, 1) * 100}%`;
     const boss = survivalState.enemies.find((enemy) => enemy.boss);
@@ -5812,8 +5817,8 @@ async function survivalDeveloperCheat(){
         const d=await r.json();
         if(!r.ok||!d.ok)throw new Error(d.message||"개발자 코드가 올바르지 않습니다.");
 
-        // 기존 방식처럼 Lv.8까지 반복해서 누적하는 대신,
-        // 모든 기술과 실제 전투 수치를 한 번에 MAX 상태로 확정한다.
+        // 인증은 다음 게임 시작에도 유지한다.
+        // 따라서 인증 후 "게임 시작"을 눌러도 survivalReset() 때문에 MAX가 풀리지 않는다.
         survivalState.developerAuthorized = true;
         survivalForceMaxBuild();
 
@@ -5831,7 +5836,6 @@ function survivalResume(){survivalState.pauseMenuOpen=false;survivalState.paused
 function survivalQuitRun(){survivalState.pauseMenuOpen=false;survivalPauseOverlay?.classList.add("hidden");survivalEnd(false);}
 
 function survivalUpdate(dt) {
-    if (survivalState.developerAuthorized && !survivalAllSkillsMaxed()) survivalForceMaxBuild();
     const p = survivalState.player;
     const u = survivalState.upgrades;
     if (!p || !survivalState.running || survivalState.pausedForLevel || survivalState.won) return;
@@ -6281,12 +6285,17 @@ function survivalLoop(now) {
 }
 
 function survivalStart() {
-    const keepDeveloperMax = !!survivalState.developerAuthorized;
+    const keepDeveloperMode = survivalState.developerAuthorized === true;
     survivalReset();
-    survivalState.developerAuthorized = keepDeveloperMax;
-    if (keepDeveloperMax) survivalForceMaxBuild();
+    survivalState.developerAuthorized = keepDeveloperMode;
     survivalState.keys.clear();
     survivalState.running = true;
+    if (keepDeveloperMode) {
+        survivalForceMaxBuild();
+        survivalState.xp = survivalState.xpNeed;
+        survivalState.pausedForLevel = false;
+        survivalLevelUp?.classList.add("hidden");
+    }
     survivalStartScreen?.classList.add("hidden");
     survivalEndScreen?.classList.add("hidden");
     survivalLevelUp?.classList.add("hidden");
@@ -6300,6 +6309,7 @@ function survivalStart() {
 function survivalEnd(won) {
     if (!survivalState.running) return;
     survivalState.running = false;
+    if(!Number.isFinite(Number(survivalState.score))) survivalState.score=0;
     if(survivalState.score>survivalState.bestScore){survivalState.bestScore=survivalState.score;localStorage.setItem("comtime_survival_best_score",String(survivalState.bestScore));}
     if(survivalState.elapsed>survivalState.bestTime){survivalState.bestTime=survivalState.elapsed;localStorage.setItem("comtime_survival_best_time",String(survivalState.bestTime));}
     survivalState.won = won;
@@ -6355,7 +6365,9 @@ function survivalResetJoystick() {
 
 if (survivalStartBtn) survivalStartBtn.addEventListener("click", survivalStart);
 if (survivalRestartBtn) survivalRestartBtn.addEventListener("click", survivalStart);
-if(survivalPauseBtn)survivalPauseBtn.addEventListener("click",survivalPause);if(survivalResumeBtn)survivalResumeBtn.addEventListener("click",survivalResume);if(survivalPauseDeveloperBtn)survivalPauseDeveloperBtn.addEventListener("click",survivalDeveloperCheat);if(survivalQuitBtn)survivalQuitBtn.addEventListener("click",survivalQuitRun);if(survivalDeveloperBtn)survivalDeveloperBtn.addEventListener("click",survivalDeveloperCheat);
+if(survivalPauseBtn)survivalPauseBtn.addEventListener("click",survivalPause);if(survivalResumeBtn)survivalResumeBtn.addEventListener("click",survivalResume);if(survivalQuitBtn)survivalQuitBtn.addEventListener("click",survivalQuitRun);if(survivalDeveloperBtn)survivalDeveloperBtn.addEventListener("click",survivalDeveloperCheat);
+const survivalPauseDeveloperBtn=document.getElementById("survivalPauseDeveloperBtn");
+if(survivalPauseDeveloperBtn)survivalPauseDeveloperBtn.addEventListener("click",survivalDeveloperCheat);
 if (closeSurvivalBtn) closeSurvivalBtn.addEventListener("click", closeSurvivalGame);
 if (survivalBackdrop) survivalBackdrop.addEventListener("click", closeSurvivalGame);
 window.addEventListener("resize", survivalResize);
@@ -6432,12 +6444,6 @@ function initComtimeMap() {
         }).addTo(comtimeLeafletMap);
     }
     setTimeout(() => comtimeLeafletMap.invalidateSize(), 80);
-    if (comtimeLeafletMap) {
-        comtimeLeafletMap.on("zoomend moveend", () => {
-            mapMyLocationBtn?.classList.add("map-location-always-visible");
-        });
-    }
-    mapMyLocationBtn?.classList.add("map-location-always-visible");
     if (mapStatus) mapStatus.textContent = "무료 지도 준비 완료 · 내 위치를 누르면 위치 권한을 요청합니다.";
 }
 
@@ -6874,6 +6880,13 @@ async function sendGeminiMessage() {
 if (menuBtn) {
     menuBtn.addEventListener("click", openMenuModal);
 }
+
+const appLogo=document.querySelector(".logo");
+const appBrand=document.querySelector(".brand-area");
+function reloadComtime(){ window.location.reload(); }
+appLogo?.addEventListener("click",reloadComtime);
+appBrand?.addEventListener("click",reloadComtime);
+
 
 if (menuBackdrop) {
     menuBackdrop.addEventListener("click", closeMenuModal);
@@ -7584,7 +7597,7 @@ async function loadMoreShorts(reset = false, forceFreshQuery = false) {
             const params = new URLSearchParams();
             if (nextToken) params.set("pageToken", nextToken);
             if (shortsSearchQuery) params.set("q", shortsSearchQuery);
-            params.set("fresh", "1");
+            if (reset || forceFreshQuery) params.set("fresh", "1");
 
             const queryString = params.toString();
             const response = await fetch(`/api/shorts${queryString ? `?${queryString}` : ""}`, {
@@ -7724,13 +7737,10 @@ const headerProfileBtn = document.getElementById("headerProfileBtn");
 const headerProfileText = document.getElementById("headerProfileText");
 const headerProfileImage = document.getElementById("headerProfileImage");
 const authGuestBtn = document.getElementById("authGuestBtn");
-const openSettingsBtn = document.getElementById("openSettingsBtn");
 const settingsModal = document.getElementById("settingsModal");
 const settingsBackdrop = document.getElementById("settingsBackdrop");
 const closeSettingsBtn = document.getElementById("closeSettingsBtn");
 const settingsProfileAvatar = document.getElementById("settingsProfileAvatar");
-const settingsProfileAvatarText = document.getElementById("settingsProfileAvatarText");
-const settingsProfileImage = document.getElementById("settingsProfileImage");
 const settingsProfileName = document.getElementById("settingsProfileName");
 const settingsProfileUsername = document.getElementById("settingsProfileUsername");
 const settingsDisplayName = document.getElementById("settingsDisplayName");
@@ -7741,47 +7751,46 @@ const saveProfileBtn = document.getElementById("saveProfileBtn");
 const saveAccountBtn = document.getElementById("saveAccountBtn");
 const resetAllDataBtn = document.getElementById("resetAllDataBtn");
 const settingsStatus = document.getElementById("settingsStatus");
-
 const THEME_KEY = "comtime_theme";
 const PROFILE_IMAGE_KEY = "comtime_profile_image";
-const GUEST_KEY = "comtime_guest_mode";
+const GUEST_KEY = "comtime_guest_session";
 
-function randomGuestName(){
-    const a=["푸른","별빛","구름","달빛","바람","초록","노을","새벽","은하","번개"];
-    const b=["토끼","여우","고양이","독수리","판다","햄스터","수달","펭귄","지렁이","호랑이"];
-    return a[Math.floor(Math.random()*a.length)]+b[Math.floor(Math.random()*b.length)]+String(Math.floor(10+Math.random()*90));
-}
-function setTheme(theme){
-    const allowed=["white","blue","purple","black","yellow"];
-    const value=allowed.includes(theme)?theme:"white";
+const AUTH_THEME_VALUES = ["white","blue","purple","black","yellow"];
+function setTheme(theme, persist=true){
+    const value=AUTH_THEME_VALUES.includes(String(theme)) ? String(theme) : "white";
     document.documentElement.dataset.theme=value;
-    localStorage.setItem(THEME_KEY,value);
-    document.querySelectorAll(".theme-choice").forEach(b=>b.classList.toggle("active",b.dataset.theme===value));
+    if(persist) localStorage.setItem(THEME_KEY,value);
+    document.querySelectorAll(".theme-choice").forEach(btn=>btn.classList.toggle("active",btn.dataset.theme===value));
 }
-function profileImage(){ return localStorage.getItem(PROFILE_IMAGE_KEY)||currentUser?.profile?.profileImage||""; }
-function renderHeaderProfile(){
-    const name=currentUser?.displayName || currentUser?.username || "게스트";
-    const img=profileImage();
-    const initial=String(name).trim().charAt(0).toUpperCase()||"C";
-    if(headerProfileText){ headerProfileText.textContent=initial; headerProfileText.hidden=!!img; }
-    if(headerProfileImage){ headerProfileImage.hidden=!img; if(img) headerProfileImage.src=img; }
-    if(settingsProfileAvatar){
-        if(settingsProfileAvatarText) settingsProfileAvatarText.textContent=initial;
-        if(settingsProfileImage){
-            settingsProfileImage.hidden=!img;
-            if(img) settingsProfileImage.src=img;
-        }
-        settingsProfileAvatar.classList.toggle("has-image",!!img);
-    }
+function getProfileImage(){ return localStorage.getItem(PROFILE_IMAGE_KEY) || currentUser?.profile?.profileImage || ""; }
+function renderProfileUI(){
+    const name=String(currentUser?.displayName || currentUser?.username || "게스트").trim() || "게스트";
+    const initial=Array.from(name)[0]?.toUpperCase() || "C";
+    const image=getProfileImage();
+    if(headerProfileText){ headerProfileText.textContent=initial; headerProfileText.hidden=!!image; }
+    if(headerProfileImage){ headerProfileImage.hidden=!image; if(image) headerProfileImage.src=image; }
     if(settingsProfileName) settingsProfileName.textContent=name;
     if(settingsProfileUsername) settingsProfileUsername.textContent=currentUser?.username || "guest";
     if(settingsDisplayName) settingsDisplayName.value=currentUser?.displayName || name;
     if(settingsUsername) settingsUsername.value=currentUser?.username || "";
+    if(settingsProfileAvatar){
+        settingsProfileAvatar.textContent=initial;
+        settingsProfileAvatar.classList.toggle("has-image",!!image);
+        settingsProfileAvatar.style.backgroundImage=image ? `url("${image.replace(/"/g,'\\"')}")` : "";
+    }
 }
-
+function saveGuestSession(){
+    if(!currentUser || !localStorage.getItem(GUEST_KEY)) return;
+    localStorage.setItem(GUEST_KEY,JSON.stringify({displayName:currentUser.displayName,profile:currentUser.profile||{}}));
+}
+function loadGuestSession(){
+    try{ const raw=localStorage.getItem(GUEST_KEY); if(!raw || raw==="1") return false; const data=JSON.parse(raw); if(!data?.displayName)return false; currentUser={username:"guest",displayName:String(data.displayName).slice(0,40),profile:data.profile||{school:null,grade:"",classNum:""},algorithm:{profile:null,history:[]}}; return true; }catch{return false;}
+}
 function openSettings(){
-    closeMenuModal();
-    renderHeaderProfile();
+    closeMenuModal(); renderProfileUI();
+    const guest=localStorage.getItem(GUEST_KEY);
+    if(saveAccountBtn){saveAccountBtn.disabled=!!guest;saveAccountBtn.title=guest?"게스트 모드에서는 계정 변경을 사용할 수 없습니다.":"";}
+    if(settingsNewPassword) settingsNewPassword.disabled=!!guest;
     settingsModal?.classList.add("active"); settingsModal?.setAttribute("aria-hidden","false"); lockPageScroll();
 }
 function closeSettings(){ settingsModal?.classList.remove("active"); settingsModal?.setAttribute("aria-hidden","true"); unlockPageScroll(); }
@@ -7791,6 +7800,7 @@ const loginForm = document.getElementById("loginForm");
 const registerForm = document.getElementById("registerForm");
 const authTitle = document.getElementById("authTitle");
 const authDescription = document.getElementById("authDescription");
+const authSwitchBtn = document.getElementById("authSwitchBtn");
 const authStatus = document.getElementById("authStatus");
 const menuAccountName = document.getElementById("menuAccountName");
 const logoutBtn = document.getElementById("logoutBtn");
@@ -7813,8 +7823,7 @@ const chatInput = document.getElementById("chatInput");
 
 const AUTH_TOKEN_KEY = "comtime_auth_token";
 let currentUser = null;
-let authToken = localStorage.getItem(AUTH_TOKEN_KEY) || sessionStorage.getItem(AUTH_TOKEN_KEY) || "";
-if (authToken) { localStorage.setItem(AUTH_TOKEN_KEY, authToken); sessionStorage.setItem(AUTH_TOKEN_KEY, authToken); }
+let authToken = getStoredAuthToken();
 let authMode = "login";
 let selectedChatFriend = null;
 let chatSocket = null;
@@ -7829,6 +7838,7 @@ function setAuthToken(token) {
     if (authToken) { localStorage.setItem(AUTH_TOKEN_KEY, authToken); sessionStorage.setItem(AUTH_TOKEN_KEY, authToken); }
     else { localStorage.removeItem(AUTH_TOKEN_KEY); sessionStorage.removeItem(AUTH_TOKEN_KEY); }
 }
+function getStoredAuthToken(){ return localStorage.getItem(AUTH_TOKEN_KEY) || sessionStorage.getItem(AUTH_TOKEN_KEY) || ""; }
 
 async function authFetch(url, options = {}) {
     const headers = new Headers(options.headers || {});
@@ -7851,6 +7861,8 @@ function showAuthModal(mode = "login", status = "") {
     authDescription.textContent = mode === "login"
         ? "계정에 로그인하면 학교, 반, 추천 알고리즘, Gemini 대화 기록을 저장할 수 있습니다."
         : "COMTIME PRO 계정을 만들면 내 설정과 대화, 추천 기록이 계정에 저장됩니다.";
+    authSwitchBtn.textContent = mode === "login" ? "계정으로 회원가입" : "이미 계정이 있나요? 로그인";
+    authSwitchBtn.hidden = mode === "login";
     authStatus.textContent = status || "";
     authModal?.classList.add("active");
     authModal?.setAttribute("aria-hidden", "false");
@@ -7865,8 +7877,6 @@ function hideAuthModal() {
 
 function applyUserProfile(profile) {
     if (!profile) return;
-    if (profile.theme) setTheme(profile.theme);
-    if (profile.profileImage) localStorage.setItem(PROFILE_IMAGE_KEY, profile.profileImage);
     if (profile.school?.code) {
         selectedSchool = profile.school;
         localStorage.setItem("comtime_selected_school", JSON.stringify(selectedSchool));
@@ -7875,7 +7885,9 @@ function applyUserProfile(profile) {
     }
     if (profile.grade && gradeSelect) gradeSelect.value = profile.grade;
     if (classSelect && profile.classNum) classSelect.value = profile.classNum;
-    renderHeaderProfile();
+    if(profile.theme) setTheme(profile.theme);
+    if(profile.profileImage){ localStorage.setItem(PROFILE_IMAGE_KEY,String(profile.profileImage)); }
+    renderProfileUI();
 }
 
 async function saveProfileToServer() {
@@ -7889,8 +7901,8 @@ async function saveProfileToServer() {
                     school: selectedSchool,
                     grade: gradeSelect?.value || "",
                     classNum: classSelect?.value || "",
-                    theme: document.documentElement.dataset.theme || "blue",
-                    profileImage: profileImage()
+                    theme: document.documentElement.dataset.theme || "white",
+                    profileImage: getProfileImage()
                 }
             })
         });
@@ -7911,6 +7923,7 @@ async function loginOrRegister(endpoint, payload) {
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.ok) throw new Error(data.message || "요청에 실패했습니다.");
     setAuthToken(data.token);
+    localStorage.removeItem(GUEST_KEY);
     currentUser = data.user;
     setAuthAccountUI();
     hideAuthModal();
@@ -7921,65 +7934,117 @@ async function loginOrRegister(endpoint, payload) {
 async function finishAccountLogin() {
     applyUserProfile(currentUser?.profile);
     if (currentUser?.profile?.theme) setTheme(currentUser.profile.theme);
-    if (currentUser?.profile?.profileImage) localStorage.setItem(PROFILE_IMAGE_KEY,currentUser.profile.profileImage);
-    renderHeaderProfile();
+    renderProfileUI();
     await saveProfileToServer();
     await checkAdminMode();
     startChatSocket();
     await loadGeminiHistoryFromServer();
-    // 쇼츠 알고리즘은 서버에 저장하지 않습니다. 현재 기기의 최근 시청 기록만 추천 요청에 사용합니다.
+    // 추천 알고리즘/쇼츠 시청 기록은 서버 계정에 저장하지 않습니다.
     await loadFriends();
     try { await restoreSchool(); } catch (_) {}
 }
 
 async function initAuth() {
-    const savedGuest=localStorage.getItem(GUEST_KEY)==="1";
-    const savedGuestName=localStorage.getItem("comtime_guest_name");
-    if (!authToken && savedGuest) {
-        currentUser={username:"guest",displayName:savedGuestName||"게스트",profile:{school:null,grade:"",classNum:"",theme:localStorage.getItem(THEME_KEY)||"white",profileImage:localStorage.getItem(PROFILE_IMAGE_KEY)||""},algorithm:{profile:null,history:[]}};
+    // 실제 계정 토큰이 있으면 게스트 세션보다 항상 우선합니다.
+    if (authToken) {
+        try {
+            const response = await authFetch("/api/me");
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.message || "세션이 만료되었습니다.");
+            localStorage.removeItem(GUEST_KEY);
+            currentUser = data.user;
+            setAuthAccountUI();
+            await finishAccountLogin();
+            return;
+        } catch (error) {
+            setAuthToken("");
+            currentUser = null;
+        }
+    }
+    if (loadGuestSession()) {
         setAuthAccountUI();
-        renderHeaderProfile();
+        setTheme(localStorage.getItem(THEME_KEY) || currentUser?.profile?.theme || "white");
+        applyUserProfile(currentUser.profile);
+        renderProfileUI();
+        hideAuthModal();
         return;
     }
     if (!authToken) {
         setAuthAccountUI();
+        setTheme(localStorage.getItem(THEME_KEY) || "white");
         showAuthModal("login");
         return;
     }
-    try {
-        const response = await authFetch("/api/me");
-        const data = await response.json();
-        if (!response.ok || !data.ok) throw new Error(data.message || "세션이 만료되었습니다.");
-        currentUser = data.user;
-        setAuthAccountUI();
-        await finishAccountLogin();
-    } catch (error) {
-        // 네트워크/서버가 잠시 불안정한 경우에는 로컬 토큰을 즉시 삭제하지 않습니다.
-        // 실제 401이 확인될 때만 authFetch가 토큰을 폐기합니다.
-        if (error?.message === "로그인이 만료되었거나 유효하지 않습니다.") {
-            setAuthToken("");
-            currentUser = null;
-            setAuthAccountUI();
-            showAuthModal("login", error.message);
-        } else {
-            setAuthAccountUI();
-            renderHeaderProfile();
-        }
-    }
+    setAuthAccountUI();
+    showAuthModal("login", "로그인이 필요합니다.");
 }
 
 function appendClientLog(type, payload = {}) {
     console.log(`[사용자 활동] ${type}`, payload);
 }
 
-authGuestBtn?.addEventListener("click", () => {
-    const name=randomGuestName();
-    currentUser={username:`guest_${Date.now()}`,displayName:name,profile:{school:null,grade:"",classNum:""},algorithm:{profile:null,history:[]}};
-    localStorage.setItem(GUEST_KEY,"1");
-    localStorage.setItem("comtime_guest_name",name);
-    authToken="";
-    authModal?.classList.remove("active"); authModal?.setAttribute("aria-hidden","true");
-    renderHeaderProfile();
+authGuestBtn?.addEventListener("click",()=>{
+    const adjectives=["푸른","별빛","구름","달빛","바람","초록","노을","새벽","은하","번개","하얀","은빛"];
+    const animals=["토끼","여우","고양이","독수리","판다","햄스터","수달","펭귄","지렁이","호랑이","다람쥐","곰"];
+    const name=adjectives[Math.floor(Math.random()*adjectives.length)]+animals[Math.floor(Math.random()*animals.length)]+String(Math.floor(10+Math.random()*90));
+    currentUser={username:"guest",displayName:name,profile:{school:null,grade:"",classNum:"",theme:document.documentElement.dataset.theme||"white",profileImage:getProfileImage()},algorithm:{profile:null,history:[]}};
+    authToken=""; localStorage.removeItem(AUTH_TOKEN_KEY); sessionStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.setItem(GUEST_KEY,JSON.stringify({displayName:name,profile:currentUser.profile}));
+    setTheme(localStorage.getItem(THEME_KEY)||"white"); renderProfileUI(); setAuthAccountUI(); hideAuthModal();
+});
+
+headerProfileBtn?.addEventListener("click",openSettings);
+document.getElementById("openSettingsBtn")?.addEventListener("click",openSettings);
+closeSettingsBtn?.addEventListener("click",closeSettings);
+settingsBackdrop?.addEventListener("click",closeSettings);
+
+profileImageInput?.addEventListener("change",()=>{
+    const file=profileImageInput.files?.[0]; if(!file)return;
+    if(file.size>8*1024*1024){ if(settingsStatus)settingsStatus.textContent="8MB 이하의 사진을 선택해주세요."; return; }
+    const reader=new FileReader();
+    reader.onload=()=>{
+        const src=String(reader.result||""); const img=new Image();
+        img.onload=()=>{
+            const max=320, scale=Math.min(1,max/Math.max(img.width,img.height));
+            const c=document.createElement("canvas"); c.width=Math.max(1,Math.round(img.width*scale)); c.height=Math.max(1,Math.round(img.height*scale));
+            c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+            const data=c.toDataURL("image/jpeg",.86); localStorage.setItem(PROFILE_IMAGE_KEY,data);
+            currentUser=currentUser||{username:"guest",displayName:"게스트",profile:{}}; currentUser.profile={...(currentUser.profile||{}),profileImage:data};
+            renderProfileUI(); if(settingsStatus)settingsStatus.textContent="프로필 사진이 적용되었습니다.";
+            if(authToken) saveProfileToServer(); else saveGuestSession();
+        }; img.src=src;
+    }; reader.readAsDataURL(file);
+});
+
+saveProfileBtn?.addEventListener("click",async()=>{
+    if(!currentUser)return; const name=String(settingsDisplayName?.value||"").trim(); if(!name){if(settingsStatus)settingsStatus.textContent="닉네임을 입력해주세요.";return;}
+    currentUser.displayName=name; currentUser.profile={...(currentUser.profile||{}),theme:document.documentElement.dataset.theme||"white",profileImage:getProfileImage()};
+    renderProfileUI();
+    if(authToken){try{await saveProfileToServer(); const r=await authFetch("/api/me/account",{method:"PUT",body:JSON.stringify({displayName:name})}); const d=await r.json().catch(()=>({})); if(r.ok&&d.ok){setAuthToken(d.token);currentUser=d.user;applyUserProfile(currentUser.profile);renderProfileUI();}}catch{}} else saveGuestSession();
+    if(settingsStatus)settingsStatus.textContent="프로필이 저장되었습니다.";
+});
+
+saveAccountBtn?.addEventListener("click",async()=>{
+    if(!authToken){if(settingsStatus)settingsStatus.textContent="게스트 모드에서는 계정 정보를 변경할 수 없습니다.";return;}
+    const username=String(settingsUsername?.value||"").trim(); const password=String(settingsNewPassword?.value||"");
+    try{const r=await authFetch("/api/me/account",{method:"PUT",body:JSON.stringify({username,password:password||undefined})}); const d=await r.json().catch(()=>({})); if(!r.ok||!d.ok)throw new Error(d.message||"계정 변경에 실패했습니다."); setAuthToken(d.token);currentUser=d.user;settingsNewPassword.value="";setAuthAccountUI();renderProfileUI();if(settingsStatus)settingsStatus.textContent="계정 정보가 변경되었습니다.";}catch(e){if(settingsStatus)settingsStatus.textContent=e.message; }
+});
+
+document.querySelectorAll(".theme-choice").forEach(btn=>btn.addEventListener("click",async()=>{
+    setTheme(btn.dataset.theme);
+    if(currentUser){currentUser.profile={...(currentUser.profile||{}),theme:btn.dataset.theme};}
+    if(authToken){try{await saveProfileToServer();}catch{}} else saveGuestSession();
+}));
+
+resetAllDataBtn?.addEventListener("click",async()=>{
+    if(!currentUser)return; if(!confirm("아이디와 비밀번호를 제외한 모든 저장 데이터를 초기화할까요?"))return;
+    try{
+        if(authToken){const r=await authFetch("/api/me/reset-data",{method:"POST"});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok)throw new Error(d.message||"초기화에 실패했습니다.");currentUser=d.user;}
+        localStorage.removeItem("comtime_selected_school"); localStorage.removeItem(PROFILE_IMAGE_KEY); localStorage.removeItem("comtime_shorts_history");
+        selectedSchool=null; if(schoolNameEl)schoolNameEl.textContent="학교 미선택"; if(schoolInfoEl)schoolInfoEl.textContent="학교를 검색해 주세요.";
+        currentUser.profile={...(currentUser.profile||{}),school:null,grade:"",classNum:"",theme:"white",profileImage:""};
+        setTheme("white");renderProfileUI();saveGuestSession();if(settingsStatus)settingsStatus.textContent="모든 기록을 초기화했습니다.";
+    }catch(e){if(settingsStatus)settingsStatus.textContent=e.message;}
 });
 
 loginForm?.addEventListener("submit", async (event) => {
@@ -8008,95 +8073,12 @@ registerForm?.addEventListener("submit", async (event) => {
     } catch (error) { authStatus.textContent = error.message; }
 });
 
-headerProfileBtn?.addEventListener("click", openSettings);
-document.querySelector(".logo")?.addEventListener("click",()=>window.location.reload());
-document.querySelector(".brand-area")?.addEventListener("click",()=>window.location.reload());
-openSettingsBtn?.addEventListener("click", openSettings);
-closeSettingsBtn?.addEventListener("click", closeSettings);
-settingsBackdrop?.addEventListener("click", closeSettings);
-document.querySelectorAll(".theme-choice").forEach(btn=>btn.addEventListener("click", async()=>{
-    setTheme(btn.dataset.theme);
-    if(currentUser && authToken){
-        try{ await authFetch("/api/me/profile",{method:"PUT",body:JSON.stringify({profile:{...(currentUser.profile||{}),theme:btn.dataset.theme,profileImage:profileImage()}})}); }catch{}
-    }
-}));
-profileImageInput?.addEventListener("change",()=>{
-    const file=profileImageInput.files?.[0]; if(!file) return;
-    if(file.size>8*1024*1024){ if(settingsStatus) settingsStatus.textContent="프로필 사진은 8MB 이하로 선택해주세요."; return; }
-    const reader=new FileReader();
-    reader.onload=()=>{
-        const source=String(reader.result||"");
-        const img=new Image();
-        img.onload=async()=>{
-            const max=256, scale=Math.min(1,max/Math.max(img.width,img.height));
-            const canvas=document.createElement("canvas");
-            canvas.width=Math.max(1,Math.round(img.width*scale));
-            canvas.height=Math.max(1,Math.round(img.height*scale));
-            const ctx=canvas.getContext("2d",{alpha:false});
-            if(!ctx) throw new Error("이미지 처리에 실패했습니다.");
-            ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height);
-            ctx.drawImage(img,0,0,canvas.width,canvas.height);
-            let compressed=canvas.toDataURL("image/webp",0.78);
-            if(!compressed || compressed.length>650000) compressed=canvas.toDataURL("image/jpeg",0.76);
-            localStorage.setItem(PROFILE_IMAGE_KEY,compressed);
-            if(currentUser){ currentUser.profile={...(currentUser.profile||{}),profileImage:compressed}; }
-            renderHeaderProfile();
-            if(currentUser && authToken){
-                try{
-                    const r=await authFetch("/api/me/profile",{method:"PUT",body:JSON.stringify({profile:{...(currentUser.profile||{}),profileImage:compressed,theme:document.documentElement.dataset.theme||"white"}})});
-                    const d=await r.json();
-                    if(!r.ok) throw new Error(d.message||"프로필 사진 저장 실패");
-                    currentUser.profile=d.profile||currentUser.profile;
-                    renderHeaderProfile();
-                    if(settingsStatus) settingsStatus.textContent="프로필 사진을 저장했습니다.";
-                }catch(e){ if(settingsStatus) settingsStatus.textContent=e.message||"프로필 사진 저장 실패"; }
-            }else if(settingsStatus){
-                settingsStatus.textContent="프로필 사진을 적용했습니다.";
-            }
-            profileImageInput.value="";
-        };
-        img.onerror=()=>{if(settingsStatus) settingsStatus.textContent="이미지를 불러오지 못했습니다.";};
-        img.src=source;
-    };
-    reader.readAsDataURL(file);
-});
-saveProfileBtn?.addEventListener("click",async()=>{
-    const name=String(settingsDisplayName?.value||currentUser?.displayName||"").trim();
-    const image=profileImage();
-    if(!name) return;
-    if(currentUser && authToken){
-        try{
-            const r=await authFetch("/api/me/profile",{method:"PUT",body:JSON.stringify({profile:{...(currentUser.profile||{}),profileImage:image,theme:document.documentElement.dataset.theme||"blue"}})});
-            const d=await r.json(); if(!r.ok) throw new Error(d.message);
-            const ar=await authFetch("/api/me/account",{method:"PUT",body:JSON.stringify({displayName:name})});
-            const ad=await ar.json(); if(!ar.ok) throw new Error(ad.message);
-            currentUser=ad.user; authToken=ad.token; localStorage.setItem(AUTH_TOKEN_KEY,authToken); sessionStorage.setItem(AUTH_TOKEN_KEY,authToken); currentUser.profile=d.profile||currentUser.profile; renderHeaderProfile(); if(settingsStatus) settingsStatus.textContent="프로필을 저장했습니다.";
-        }catch(e){ if(settingsStatus) settingsStatus.textContent=e.message||"저장 실패"; }
-    }else{ currentUser.displayName=name; localStorage.setItem("comtime_guest_name",name); currentUser.profile={...(currentUser.profile||{}),profileImage:image,theme:document.documentElement.dataset.theme||"white"}; renderHeaderProfile(); if(settingsStatus) settingsStatus.textContent="게스트 프로필은 이 기기에서만 유지됩니다."; }
-});
-saveAccountBtn?.addEventListener("click",async()=>{
-    if(!authToken || !currentUser) return;
-    const username=String(settingsUsername?.value||"").trim().toLowerCase(); const password=String(settingsNewPassword?.value||"");
-    try{ const r=await authFetch("/api/me/account",{method:"PUT",body:JSON.stringify({username,password})}); const d=await r.json(); if(!r.ok) throw new Error(d.message); currentUser=d.user; authToken=d.token; localStorage.setItem(AUTH_TOKEN_KEY,authToken); sessionStorage.setItem(AUTH_TOKEN_KEY,authToken); settingsNewPassword.value=""; renderHeaderProfile(); if(settingsStatus) settingsStatus.textContent="계정을 변경했습니다."; }catch(e){ if(settingsStatus) settingsStatus.textContent=e.message||"계정 변경 실패"; }
-});
-resetAllDataBtn?.addEventListener("click",async()=>{
-    if(!confirm("아이디와 비밀번호를 제외한 저장 기록을 모두 초기화할까요?")) return;
-    const keepToken=localStorage.getItem(AUTH_TOKEN_KEY);
-    localStorage.clear();
-    if(keepToken) localStorage.setItem(AUTH_TOKEN_KEY,keepToken);
-    localStorage.removeItem(PROFILE_IMAGE_KEY);
-    setTheme("white");
-    localStorage.setItem(GUEST_KEY, currentUser?.username === "guest" ? "1" : "");
-    if(currentUser?.username === "guest") localStorage.setItem("comtime_guest_name",currentUser.displayName||"게스트");
-    if(authToken){ try{ await authFetch("/api/me/reset-data",{method:"POST"}); }catch{} }
-    currentUser=currentUser?{...currentUser,profile:{school:null,grade:"",classNum:"",theme:document.documentElement.dataset.theme,profileImage:""},algorithm:{profile:null,history:[]}}:currentUser;
-    renderHeaderProfile(); if(settingsStatus) settingsStatus.textContent="아이디와 비밀번호를 제외한 기록을 초기화했습니다.";
-});
-setTheme(localStorage.getItem(THEME_KEY)||"white");
+authSwitchBtn?.addEventListener("click", () => showAuthModal(authMode === "login" ? "register" : "login"));
 
 logoutBtn?.addEventListener("click", async () => {
     try { await authFetch("/api/auth/logout", { method: "POST" }); } catch (_) {}
     setAuthToken("");
+    localStorage.removeItem(GUEST_KEY);
     currentUser = null;
     chatSocket?.disconnect();
     chatSocket = null;
@@ -8282,19 +8264,9 @@ chatPollTimer = setInterval(() => {
 }, 5000);
 
 // ==================================================
-// SHORTS SERVER-SIDE PERSISTENCE
+// SHORTS — LOCAL ONLY HISTORY
 // ==================================================
-const originalRecordShortHistory = recordShortHistory;
-recordShortHistory = function(video, watchSeconds, action = "view") {
-    originalRecordShortHistory(video, watchSeconds, action);
-    clearTimeout(shortsSyncTimer);
-    shortsSyncTimer = setTimeout(async () => {
-        if (!currentUser) return;
-        try {
-            // 추천 기록은 서버에 저장하지 않습니다.
-        } catch (error) { console.warn("[쇼츠 기록 서버 저장 실패]", error); }
-    }, 1200);
-};
+// 쇼츠 시청 기록은 서버 계정에 저장하지 않습니다.
 
 // 기존 학교/학년/반 선택 이벤트에 계정 저장을 추가합니다.
 const originalSelectSchool = selectSchool;
@@ -8307,6 +8279,7 @@ gradeSelect?.addEventListener("change", () => { if (currentUser) saveProfileToSe
 classSelect?.addEventListener("change", () => { if (currentUser) saveProfileToServer(); });
 
 // 인증된 상태에서는 서버 저장 데이터를 최우선으로 사용합니다.
+setTheme(localStorage.getItem(THEME_KEY) || "white", false);
 initAuth();
 
 
