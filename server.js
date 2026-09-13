@@ -123,7 +123,13 @@ function sanitizeProfile(profile) {
         officeCode: profile.school.officeCode ? String(profile.school.officeCode).slice(0, 30) : null,
         neisSchoolCode: profile.school.neisSchoolCode ? String(profile.school.neisSchoolCode).slice(0, 30) : null
     } : null;
-    return { school, grade: String(profile?.grade || "").slice(0, 10), classNum: String(profile?.classNum || "").slice(0, 10) };
+    return {
+        school,
+        grade: String(profile?.grade || "").slice(0, 10),
+        classNum: String(profile?.classNum || "").slice(0, 10),
+        theme: ["blue","purple","black","yellow"].includes(String(profile?.theme)) ? String(profile.theme) : "blue",
+        profileImage: String(profile?.profileImage || "").slice(0, 2_800_000)
+    };
 }
 
 function sanitizeAlgorithm(profile) {
@@ -231,6 +237,34 @@ app.put("/api/me/profile", requireAuth, (req, res) => {
     saveUser(req.comtimeUser);
     appendActivityLog("profile_update", { user: req.comtimeUser.username, profile: req.comtimeUser.profile });
     res.json({ ok: true, profile: req.comtimeUser.profile });
+});
+
+app.put("/api/me/account", requireAuth, (req, res) => {
+    const nextUsername = normalizeUsername(req.body?.username);
+    const nextPassword = String(req.body?.password || "");
+    const nextDisplayName = String(req.body?.displayName || req.comtimeUser.displayName || req.comtimeUser.username).trim().slice(0,40);
+    if (nextUsername && !/^[a-z0-9가-힣_]{3,24}$/.test(nextUsername)) return res.status(400).json({ok:false,message:"아이디는 3~24자의 영문 소문자, 숫자, 한글, _만 사용할 수 있습니다."});
+    const users = readJsonFile(USER_FILE, []);
+    if (nextUsername && nextUsername !== req.comtimeUser.username && users.some(u=>u.username===nextUsername)) return res.status(409).json({ok:false,message:"이미 사용 중인 아이디입니다."});
+    if (nextPassword && (nextPassword.length < 6 || nextPassword.length > 128)) return res.status(400).json({ok:false,message:"비밀번호는 6~128자로 입력해주세요."});
+    const oldUsername=req.comtimeUser.username;
+    req.comtimeUser.displayName = nextDisplayName || req.comtimeUser.username;
+    if(nextUsername && nextUsername!==oldUsername) req.comtimeUser.username=nextUsername;
+    if(nextPassword){ const p=hashPassword(nextPassword); req.comtimeUser.passwordHash=p.hash; req.comtimeUser.passwordSalt=p.salt; }
+    saveUser(req.comtimeUser);
+    const token=createSessionToken(); req.comtimeUser.sessions=Array.isArray(req.comtimeUser.sessions)?req.comtimeUser.sessions:[]; req.comtimeUser.sessions.push({hash:tokenHash(token),createdAt:new Date().toISOString()}); req.comtimeUser.sessions=req.comtimeUser.sessions.slice(-5); saveUser(req.comtimeUser);
+    return res.json({ok:true,token,user:publicUser(req.comtimeUser)});
+});
+
+app.post("/api/me/reset-data", requireAuth, (req,res)=>{
+    req.comtimeUser.profile={school:null,grade:"",classNum:"",theme:req.comtimeUser.profile?.theme||"blue",profileImage:req.comtimeUser.profile?.profileImage||""};
+    req.comtimeUser.algorithm={profile:null,history:[],updatedAt:null};
+    req.comtimeUser.geminiConversations=[];
+    req.comtimeUser.friends=[];
+    const messages=readJsonFile(MESSAGE_FILE,[]).filter(m=>m.from!==req.comtimeUser.username && m.to!==req.comtimeUser.username);
+    writeJsonFile(MESSAGE_FILE,messages);
+    saveUser(req.comtimeUser);
+    return res.json({ok:true});
 });
 
 app.put("/api/me/algorithm", requireAuth, (req, res) => {
@@ -1056,28 +1090,8 @@ ${JSON.stringify(compactHistory, null, 2)}
 }
 
 app.post("/api/shorts/history", requireAuth, (req, res) => {
-    const items = Array.isArray(req.body?.history) ? req.body.history : [];
-    const clean = items.slice(-30).map((item) => ({
-        id: String(item?.id || "").slice(0, 80),
-        title: String(item?.title || "").slice(0, 160),
-        channelTitle: String(item?.channelTitle || "").slice(0, 80),
-        watchSeconds: Math.max(0, Math.min(180, Number(item?.watchSeconds) || 0)),
-        action: String(item?.action || "view").slice(0, 20),
-        viewedAt: String(item?.viewedAt || new Date().toISOString())
-    })).filter((item) => item.id);
-    const previous = Array.isArray(req.comtimeUser.algorithm?.history) ? req.comtimeUser.algorithm.history : [];
-    const seen = new Set();
-    const merged = [...previous, ...clean].filter((item) => {
-        const key = `${item.id}|${item.viewedAt}|${item.action}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    }).slice(-100);
-    clean.forEach((item) => appendActivityLog("shorts_item", { user: req.comtimeUser.username, videoId: item.id, title: item.title, channelTitle: item.channelTitle, action: item.action, watchSeconds: item.watchSeconds, viewedAt: item.viewedAt }));
-    req.comtimeUser.algorithm = sanitizeAlgorithm({ profile: req.comtimeUser.algorithm?.profile || null, history: merged, updatedAt: new Date().toISOString() });
-    saveUser(req.comtimeUser);
-    appendActivityLog("shorts_history", { user: req.comtimeUser.username, count: clean.length, totalStored: merged.length });
-    res.json({ ok: true, count: merged.length });
+    // 추천 알고리즘/시청 기록은 서버 계정에 저장하지 않습니다.
+    return res.json({ok:true,stored:false});
 });
 
 app.post("/api/shorts/recommendation-profile", requireAuth, async (req, res) => {
@@ -1092,12 +1106,7 @@ app.post("/api/shorts/recommendation-profile", requireAuth, async (req, res) => 
     }).slice(-100);
     const profile = await askGeminiForShortsProfile(history);
 
-    req.comtimeUser.algorithm = sanitizeAlgorithm({
-        profile: { ...profile, summary: profile.summary || "최근 시청 기록 기반 추천" }, history,
-        history,
-        updatedAt: new Date().toISOString()
-    });
-    saveUser(req.comtimeUser);
+    // 추천 분석 결과와 시청 기록은 서버 계정에 저장하지 않습니다.
 
     console.log(`[Shorts 알고리즘] user=${req.comtimeUser.username}`);
     console.log(`  관심 알고리즘: ${profile.summary || "분석 중"}`);
@@ -1128,7 +1137,7 @@ app.get("/api/shorts", async (req, res) => {
         type: "video",
         videoDuration: "short",
         maxResults: "12",
-        order: "relevance",
+        order: "date",
         regionCode: "KR",
         relevanceLanguage: "ko",
         safeSearch: "moderate",
@@ -1136,6 +1145,9 @@ app.get("/api/shorts", async (req, res) => {
         key: apiKey
     });
     if (pageToken) params.set("pageToken", pageToken);
+    if (String(req.query.fresh || "") === "1") {
+        params.set("publishedAfter", new Date(Date.now() - 30*24*60*60*1000).toISOString());
+    }
 
     try {
         const response = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`);
