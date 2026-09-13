@@ -20,14 +20,8 @@ const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = process.env.COMTIME_DATA_DIR ? path.resolve(process.env.COMTIME_DATA_DIR) : path.join(__dirname, "data");
 
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static(path.join(__dirname, "public"), {
-    index: "index.html",
-    extensions: ["html"]
-}));
-app.get("/", (req, res) => {
-    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    res.sendFile(path.join(__dirname, "public", "index.html"));
-});
+app.use(express.static(path.join(__dirname, "public"), { index: "index.html", extensions: ["html"] }));
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
 // ==================================================
 // AUTH / USER DATA / DETAILED LOGGING
@@ -101,8 +95,8 @@ function publicUser(user) {
         username: user.username,
         displayName: user.displayName || user.username,
         createdAt: user.createdAt,
-        profile: user.profile || { school: null, grade: "", classNum: "", theme: "white", profileImage: "" },
-        algorithm: { profile: null, history: [], updatedAt: null }
+        profile: user.profile || { school: null, grade: "", classNum: "" },
+        algorithm: user.algorithm || { profile: null, history: [], updatedAt: null }
     };
 }
 
@@ -130,12 +124,13 @@ function sanitizeProfile(profile) {
         officeCode: profile.school.officeCode ? String(profile.school.officeCode).slice(0, 30) : null,
         neisSchoolCode: profile.school.neisSchoolCode ? String(profile.school.neisSchoolCode).slice(0, 30) : null
     } : null;
+    const themes=["white","blue","purple","black","yellow"];
     return {
         school,
         grade: String(profile?.grade || "").slice(0, 10),
         classNum: String(profile?.classNum || "").slice(0, 10),
-        theme: ["white","blue","purple","black","yellow"].includes(String(profile?.theme)) ? String(profile.theme) : "white",
-        profileImage: String(profile?.profileImage || "").slice(0, 2_800_000)
+        theme: themes.includes(String(profile?.theme)) ? String(profile.theme) : "white",
+        profileImage: String(profile?.profileImage || "").slice(0, 900000)
     };
 }
 
@@ -197,7 +192,7 @@ app.post("/api/auth/register", (req, res) => {
     const user = {
         username, displayName, passwordHash: passwordData.hash, passwordSalt: passwordData.salt,
         createdAt: now, lastLoginAt: null, sessions: [],
-        profile: { school: null, grade: "", classNum: "", theme: "white", profileImage: "" },
+        profile: { school: null, grade: "", classNum: "" },
         algorithm: { profile: null, history: [], updatedAt: null },
         geminiConversations: [],
         friends: []
@@ -247,37 +242,44 @@ app.put("/api/me/profile", requireAuth, (req, res) => {
 });
 
 app.put("/api/me/account", requireAuth, (req, res) => {
-    const nextUsername = normalizeUsername(req.body?.username);
-    const nextPassword = String(req.body?.password || "");
-    const nextDisplayName = String(req.body?.displayName || req.comtimeUser.displayName || req.comtimeUser.username).trim().slice(0,40);
-    if (nextUsername && !/^[a-z0-9가-힣_]{3,24}$/.test(nextUsername)) return res.status(400).json({ok:false,message:"아이디는 3~24자의 영문 소문자, 숫자, 한글, _만 사용할 수 있습니다."});
-    const users = readJsonFile(USER_FILE, []);
-    if (nextUsername && nextUsername !== req.comtimeUser.username && users.some(u=>u.username===nextUsername)) return res.status(409).json({ok:false,message:"이미 사용 중인 아이디입니다."});
-    if (nextPassword && (nextPassword.length < 6 || nextPassword.length > 128)) return res.status(400).json({ok:false,message:"비밀번호는 6~128자로 입력해주세요."});
+    const nextUsername = normalizeUsername(req.body?.username ?? req.comtimeUser.username);
+    const displayName = String(req.body?.displayName ?? req.comtimeUser.displayName ?? nextUsername).trim().slice(0,40) || nextUsername;
+    const password = req.body?.password === undefined ? "" : String(req.body.password);
+    if (!/^[a-z0-9가-힣_]{3,24}$/.test(nextUsername)) return res.status(400).json({ok:false,message:"아이디는 3~24자의 영문 소문자, 숫자, 한글, _만 사용할 수 있습니다."});
+    if (password && (password.length<6 || password.length>128)) return res.status(400).json({ok:false,message:"비밀번호는 6~128자로 입력해주세요."});
+    const users=readJsonFile(USER_FILE,[]);
+    if(nextUsername!==req.comtimeUser.username && users.some(u=>u.username===nextUsername)) return res.status(409).json({ok:false,message:"이미 사용 중인 아이디입니다."});
     const oldUsername=req.comtimeUser.username;
-    req.comtimeUser.displayName = nextDisplayName || req.comtimeUser.username;
-    if(nextUsername && nextUsername!==oldUsername) req.comtimeUser.username=nextUsername;
-    if(nextPassword){ const p=hashPassword(nextPassword); req.comtimeUser.passwordHash=p.hash; req.comtimeUser.passwordSalt=p.salt; }
-    saveUser(req.comtimeUser);
-    const token=createSessionToken(); req.comtimeUser.sessions=Array.isArray(req.comtimeUser.sessions)?req.comtimeUser.sessions:[]; req.comtimeUser.sessions.push({hash:tokenHash(token),createdAt:new Date().toISOString()}); req.comtimeUser.sessions=req.comtimeUser.sessions.slice(-5); saveUser(req.comtimeUser);
-    return res.json({ok:true,token,user:publicUser(req.comtimeUser)});
+    req.comtimeUser.username=nextUsername; req.comtimeUser.displayName=displayName;
+    if(password){const pd=hashPassword(password);req.comtimeUser.passwordHash=pd.hash;req.comtimeUser.passwordSalt=pd.salt;}
+    const newToken=createSessionToken(); req.comtimeUser.sessions=Array.isArray(req.comtimeUser.sessions)?req.comtimeUser.sessions:[];
+    req.comtimeUser.sessions.push({hash:tokenHash(newToken),createdAt:new Date().toISOString()});
+    if(nextUsername!==oldUsername){
+        req.comtimeUser.friends=(req.comtimeUser.friends||[]).map(x=>x===oldUsername?nextUsername:x);
+        for(const u of users){u.friends=(u.friends||[]).map(x=>x===oldUsername?nextUsername:x);}
+    }
+    const idx=users.findIndex(u=>u.username===oldUsername);
+    if(idx>=0)users[idx]=req.comtimeUser; else users.push(req.comtimeUser);
+    writeJsonFile(USER_FILE,users);
+    appendActivityLog("account_update",{user:nextUsername,previousUsername:oldUsername});
+    res.json({ok:true,token:newToken,user:publicUser(req.comtimeUser)});
 });
 
 app.post("/api/me/reset-data", requireAuth, (req,res)=>{
-    req.comtimeUser.profile={school:null,grade:"",classNum:"",theme:"white",profileImage:""};
-    req.comtimeUser.algorithm={profile:null,history:[],updatedAt:null};
-    req.comtimeUser.geminiConversations=[];
-    req.comtimeUser.friends=[];
-    const messages=readJsonFile(MESSAGE_FILE,[]).filter(m=>m.from!==req.comtimeUser.username && m.to!==req.comtimeUser.username);
-    writeJsonFile(MESSAGE_FILE,messages);
-    saveUser(req.comtimeUser);
-    return res.json({ok:true});
+    const u=req.comtimeUser;
+    u.profile={school:null,grade:"",classNum:"",theme:"white",profileImage:""};
+    u.algorithm={profile:null,history:[],updatedAt:null};
+    u.geminiConversations=[]; u.friends=[];
+    const messages=readJsonFile(MESSAGE_FILE,[]).filter(m=>m.from!==u.username&&m.to!==u.username); writeJsonFile(MESSAGE_FILE,messages);
+    saveUser(u);
+    appendActivityLog("data_reset",{user:u.username});
+    res.json({ok:true,user:publicUser(u)});
 });
 
 app.put("/api/me/algorithm", requireAuth, (req, res) => {
-    // 쇼츠 추천 알고리즘은 계정/서버에 저장하지 않습니다.
-    req.comtimeUser.algorithm = { profile: null, history: [], updatedAt: null };
+    req.comtimeUser.algorithm = sanitizeAlgorithm(req.body?.algorithm || {});
     saveUser(req.comtimeUser);
+    appendActivityLog("algorithm_update", { user: req.comtimeUser.username, algorithm: req.comtimeUser.algorithm });
     res.json({ ok: true, algorithm: req.comtimeUser.algorithm });
 });
 
@@ -1096,34 +1098,16 @@ ${JSON.stringify(compactHistory, null, 2)}
     }
 }
 
-app.post("/api/shorts/history", requireAuth, (req, res) => {
-    // 추천 알고리즘/시청 기록은 서버 계정에 저장하지 않습니다.
-    return res.json({ok:true,stored:false});
-});
+app.post("/api/shorts/history", requireAuth, (req,res)=>res.json({ok:true,saved:false}));
 
-app.post("/api/shorts/recommendation-profile", requireAuth, async (req, res) => {
+app.post("/api/shorts/recommendation-profile", async (req, res) => {
     const supplied = Array.isArray(req.body?.history) ? req.body.history : [];
-    const stored = [];
-    const seen = new Set();
-    const history = supplied.filter((item) => {
-        const key = `${item?.id || ""}|${item?.viewedAt || ""}|${item?.action || ""}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return Boolean(item?.id);
-    }).slice(-100);
+    const history = supplied.filter(item => item && item.id).slice(-100);
     const profile = await askGeminiForShortsProfile(history);
-
-    // 추천 분석 결과와 시청 기록은 서버 계정에 저장하지 않습니다.
-
-    console.log(`[Shorts 알고리즘] user=${req.comtimeUser.username}`);
-    console.log(`  관심 알고리즘: ${profile.summary || "분석 중"}`);
-    console.log(`  선호 키워드: ${(profile.keywords || []).join(", ")}`);
-    console.log(`  추천 검색어: ${profile.query}`);
-    console.log(`  한국어 우선도: ${Math.round(Number(profile.koreanPriority || 0) * 100)}%`);
-    console.log(`  분석 기록 수: ${history.length}`);
-    appendActivityLog("algorithm_analysis", { user: req.comtimeUser.username, query: profile.query, keywords: profile.keywords, koreanPriority: profile.koreanPriority, summary: profile.summary || "", historyCount: history.length });
-
-    return res.json({ ok: true, profile });
+    const shortsUser= req.comtimeUser?.username || "guest";
+    console.log(`[Shorts 알고리즘] user=${shortsUser} · 저장하지 않음`);
+    appendActivityLog("algorithm_analysis", { user: shortsUser, query: profile.query, keywords: profile.keywords, koreanPriority: profile.koreanPriority, summary: profile.summary || "", historyCount: history.length, persisted:false });
+    return res.json({ ok:true, profile });
 });
 
 app.get("/api/shorts", async (req, res) => {
@@ -1153,7 +1137,7 @@ app.get("/api/shorts", async (req, res) => {
     });
     if (pageToken) params.set("pageToken", pageToken);
     if (String(req.query.fresh || "") === "1") {
-        params.set("publishedAfter", new Date(Date.now() - 30*24*60*60*1000).toISOString());
+        params.set("publishedAfter", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
     }
 
     try {
@@ -1505,25 +1489,28 @@ function wormTurnToward(p){
     p.dirY=Math.sin(desired);
 }
 function wormDropMass(p){
-    // 죽은 지렁이의 몸통 모양을 따라 질량을 먹이로 분산시켜, 죽은 자리의 몸통 흔적처럼 보이게 합니다.
-    const trail=Array.isArray(p.trail)&&p.trail.length?p.trail:[{x:p.x,y:p.y}];
-    const drops=Math.min(90,Math.max(10,Math.floor(p.mass/1.8)));
-    const total=Math.max(1,Math.floor(p.mass));
-    const base=Math.max(2,Math.floor(total/drops));
-    for(let i=0;i<drops;i++){
-        const point=trail[Math.min(trail.length-1,Math.floor(i/(drops-1||1)*(trail.length-1)))];
-        const jitter=Math.min(18,Math.max(5,p.radius*.45));
-        const x=Math.max(30,Math.min(WORM_WORLD-30,point.x+(Math.random()-.5)*jitter));
-        const y=Math.max(30,Math.min(WORM_WORLD-30,point.y+(Math.random()-.5)*jitter));
-        const value=Math.max(2,Math.min(12,base+(i%4===0?1:0)));
-        wormSpawnFood(x,y,value,p.color);
+    const path=wormPlayerSegments(p);
+    const total=Math.max(2,Math.floor(Number(p.mass)||0));
+    const drops=Math.min(140,Math.max(10,Math.floor(total/1.6)));
+    const value=Math.max(1,Math.floor(total/drops));
+    if(path.length){
+        for(let i=0;i<drops;i++){
+            const index=Math.floor((i/Math.max(1,drops-1))*(path.length-1));
+            const q=path[index]||{x:p.x,y:p.y};
+            const prev=path[Math.max(0,index-1)]||q; const next=path[Math.min(path.length-1,index+1)]||q;
+            const a=Math.atan2(next.y-prev.y,next.x-prev.x)+(Math.random()-.5)*1.8;
+            const offset=(Math.random()-.5)*Math.max(10,p.radius*1.4);
+            wormSpawnFood(q.x+Math.cos(a+Math.PI/2)*offset,q.y+Math.sin(a+Math.PI/2)*offset, value, p.color);
+        }
+    } else {
+        for(let i=0;i<drops;i++){const a=Math.random()*Math.PI*2,r=Math.random()*40;wormSpawnFood(p.x+Math.cos(a)*r,p.y+Math.sin(a)*r,value,p.color);}
     }
 }
 function wormKill(victim,killerName){
     if(!victim || !victim.alive)return;
     victim.alive=false; wormDropMass(victim);
     const sock=io.sockets.sockets.get(victim.id);
-    if(sock) sock.emit("worm:died",{mass:victim.mass,killer:killerName||null,dropCount:Math.min(90,Math.max(10,Math.floor(victim.mass/1.8)))});
+    if(sock) sock.emit("worm:died",{mass:victim.mass,killer:killerName||null});
     if(victim.isBot){
         setTimeout(()=>{
             if(!wormPlayers.has(victim.id)) return;
