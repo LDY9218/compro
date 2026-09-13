@@ -4885,6 +4885,7 @@ const survivalPauseOverlay=document.getElementById("survivalPauseOverlay");
 const survivalResumeBtn=document.getElementById("survivalResumeBtn");
 const survivalQuitBtn=document.getElementById("survivalQuitBtn");
 const survivalDeveloperBtn=document.getElementById("survivalDeveloperBtn");
+const survivalPauseDeveloperBtn=document.getElementById("survivalPauseDeveloperBtn");
 
 const survivalCtx = survivalCanvas?.getContext("2d");
 
@@ -4931,6 +4932,7 @@ const survivalState = {
     bestScore: Number(localStorage.getItem("comtime_survival_best_score") || 0),
     bestTime: Number(localStorage.getItem("comtime_survival_best_time") || 0),
     developerCheat: false,
+    developerAuthorized: false,
     bossDashTimer: 0, bossDashTime: 0, bossDashVx: 0, bossDashVy: 0,
     fireBottleTimer: 0, laserTimer: 0, meteorTimer: 0, iceNovaTimer: 0, poisonTimer: 0, vortexTimer: 0, pulseTimer: 0, fanShotTimer: 0, stormTimer: 0, quakeTimer: 0, healingRainTimer: 0, vacuumTimer: 0, droneMissileTimer: 0, bladeWaveTimer: 0, railgunTimer: 0,
     emergencyHealReady: true,
@@ -5380,7 +5382,8 @@ function survivalKillEnemy(index) {
     const e = survivalState.enemies[index];
     if (!e) return;
     survivalState.kills += 1;
-    survivalState.score += e.boss ? 250 : 10;
+    if (!Number.isFinite(Number(survivalState.score))) survivalState.score = 0;
+    survivalState.score += Number.isFinite(Number(e.boss ? 250 : 10)) ? (e.boss ? 250 : 10) : 0;
     if (!e.boss && survivalState.upgrades.focus > 0 && survivalState.focusTargetId === e.id) {
         survivalState.focusStacks = Math.min(8, survivalState.focusStacks + 1);
     }
@@ -5439,6 +5442,10 @@ function survivalEligibleUpgrades() {
     return SURVIVAL_UPGRADES.filter((item) => (survivalState.upgradeLevels[item.key] || 0) < SURVIVAL_MAX_SKILL_LEVEL);
 }
 
+function survivalAllSkillsMaxed() {
+    return SURVIVAL_UPGRADES.length > 0 && SURVIVAL_UPGRADES.every((item) => Number(survivalState.upgradeLevels[item.key] || 0) >= SURVIVAL_MAX_SKILL_LEVEL);
+}
+
 // 개발자 MAX는 단순히 UI의 Lv.8 표시만 바꾸는 것이 아니라,
 // 실제 전투에 사용되는 모든 수치를 최대 상태로 직접 보정한다.
 function survivalForceMaxBuild() {
@@ -5450,7 +5457,7 @@ function survivalForceMaxBuild() {
 
     // 수치형/확률형 기술의 실제 최대 전투값.
     Object.assign(u, {
-        damage: 18, fireRate: 18, moveSpeed: 3.2, magnet: 18, projectile: 16,
+        damage: 18, fireRate: 18, moveSpeed: 3.2, maxHp: 18, magnet: 18, projectile: 16,
         crit: 0.92, bulletSpeed: 18, pierce: 24, area: 18, armor: 24, regen: 24,
         frost: 24, orbital: 12, lightning: 24, bomb: 24, drone: 8, lifesteal: 24,
         xpBoost: 18, range: 18, bulletSize: 18, damageBoss: 18, eliteDamage: 18,
@@ -5470,6 +5477,8 @@ function survivalForceMaxBuild() {
         giantSlayer: 8, bossBreaker: 8, adrenaline: 8, secondWind: 8, phaseShift: 8,
         healingRain: 8, vacuum: 8, precision: 8, greed: 8,
     });
+
+    u.momentum = 18;
 
     const p = survivalState.player || (survivalState.player = {
         x: 0, y: 0, radius: 17, hp: 100, maxHp: 100, invuln: 0, facing: 0,
@@ -5805,6 +5814,7 @@ async function survivalDeveloperCheat(){
 
         // 기존 방식처럼 Lv.8까지 반복해서 누적하는 대신,
         // 모든 기술과 실제 전투 수치를 한 번에 MAX 상태로 확정한다.
+        survivalState.developerAuthorized = true;
         survivalForceMaxBuild();
 
         // MAX 상태에서는 XP가 꽉 차 있어도 어떤 선택창도 열리지 않는다.
@@ -5821,6 +5831,7 @@ function survivalResume(){survivalState.pauseMenuOpen=false;survivalState.paused
 function survivalQuitRun(){survivalState.pauseMenuOpen=false;survivalPauseOverlay?.classList.add("hidden");survivalEnd(false);}
 
 function survivalUpdate(dt) {
+    if (survivalState.developerAuthorized && !survivalAllSkillsMaxed()) survivalForceMaxBuild();
     const p = survivalState.player;
     const u = survivalState.upgrades;
     if (!p || !survivalState.running || survivalState.pausedForLevel || survivalState.won) return;
@@ -6270,7 +6281,10 @@ function survivalLoop(now) {
 }
 
 function survivalStart() {
+    const keepDeveloperMax = !!survivalState.developerAuthorized;
     survivalReset();
+    survivalState.developerAuthorized = keepDeveloperMax;
+    if (keepDeveloperMax) survivalForceMaxBuild();
     survivalState.keys.clear();
     survivalState.running = true;
     survivalStartScreen?.classList.add("hidden");
@@ -6341,7 +6355,7 @@ function survivalResetJoystick() {
 
 if (survivalStartBtn) survivalStartBtn.addEventListener("click", survivalStart);
 if (survivalRestartBtn) survivalRestartBtn.addEventListener("click", survivalStart);
-if(survivalPauseBtn)survivalPauseBtn.addEventListener("click",survivalPause);if(survivalResumeBtn)survivalResumeBtn.addEventListener("click",survivalResume);if(survivalQuitBtn)survivalQuitBtn.addEventListener("click",survivalQuitRun);if(survivalDeveloperBtn)survivalDeveloperBtn.addEventListener("click",survivalDeveloperCheat);
+if(survivalPauseBtn)survivalPauseBtn.addEventListener("click",survivalPause);if(survivalResumeBtn)survivalResumeBtn.addEventListener("click",survivalResume);if(survivalPauseDeveloperBtn)survivalPauseDeveloperBtn.addEventListener("click",survivalDeveloperCheat);if(survivalQuitBtn)survivalQuitBtn.addEventListener("click",survivalQuitRun);if(survivalDeveloperBtn)survivalDeveloperBtn.addEventListener("click",survivalDeveloperCheat);
 if (closeSurvivalBtn) closeSurvivalBtn.addEventListener("click", closeSurvivalGame);
 if (survivalBackdrop) survivalBackdrop.addEventListener("click", closeSurvivalGame);
 window.addEventListener("resize", survivalResize);
@@ -7715,6 +7729,8 @@ const settingsModal = document.getElementById("settingsModal");
 const settingsBackdrop = document.getElementById("settingsBackdrop");
 const closeSettingsBtn = document.getElementById("closeSettingsBtn");
 const settingsProfileAvatar = document.getElementById("settingsProfileAvatar");
+const settingsProfileAvatarText = document.getElementById("settingsProfileAvatarText");
+const settingsProfileImage = document.getElementById("settingsProfileImage");
 const settingsProfileName = document.getElementById("settingsProfileName");
 const settingsProfileUsername = document.getElementById("settingsProfileUsername");
 const settingsDisplayName = document.getElementById("settingsDisplayName");
@@ -7746,12 +7762,15 @@ function profileImage(){ return localStorage.getItem(PROFILE_IMAGE_KEY)||current
 function renderHeaderProfile(){
     const name=currentUser?.displayName || currentUser?.username || "게스트";
     const img=profileImage();
-    if(headerProfileText) headerProfileText.textContent=String(name).trim().charAt(0).toUpperCase()||"C";
+    const initial=String(name).trim().charAt(0).toUpperCase()||"C";
+    if(headerProfileText){ headerProfileText.textContent=initial; headerProfileText.hidden=!!img; }
     if(headerProfileImage){ headerProfileImage.hidden=!img; if(img) headerProfileImage.src=img; }
-    if(headerProfileText) headerProfileText.hidden=!!img;
     if(settingsProfileAvatar){
-        settingsProfileAvatar.textContent=String(name).trim().charAt(0).toUpperCase()||"C";
-        settingsProfileAvatar.style.backgroundImage=img?`url("${String(img).replace(/"/g,'\\"')}")`:"";
+        if(settingsProfileAvatarText) settingsProfileAvatarText.textContent=initial;
+        if(settingsProfileImage){
+            settingsProfileImage.hidden=!img;
+            if(img) settingsProfileImage.src=img;
+        }
         settingsProfileAvatar.classList.toggle("has-image",!!img);
     }
     if(settingsProfileName) settingsProfileName.textContent=name;
@@ -7759,6 +7778,7 @@ function renderHeaderProfile(){
     if(settingsDisplayName) settingsDisplayName.value=currentUser?.displayName || name;
     if(settingsUsername) settingsUsername.value=currentUser?.username || "";
 }
+
 function openSettings(){
     closeMenuModal();
     renderHeaderProfile();
@@ -8008,13 +8028,16 @@ profileImageInput?.addEventListener("change",()=>{
         const source=String(reader.result||"");
         const img=new Image();
         img.onload=async()=>{
-            const max=320, scale=Math.min(1,max/Math.max(img.width,img.height));
+            const max=256, scale=Math.min(1,max/Math.max(img.width,img.height));
             const canvas=document.createElement("canvas");
             canvas.width=Math.max(1,Math.round(img.width*scale));
             canvas.height=Math.max(1,Math.round(img.height*scale));
-            const ctx=canvas.getContext("2d");
+            const ctx=canvas.getContext("2d",{alpha:false});
+            if(!ctx) throw new Error("이미지 처리에 실패했습니다.");
+            ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height);
             ctx.drawImage(img,0,0,canvas.width,canvas.height);
-            const compressed=canvas.toDataURL("image/webp",0.84);
+            let compressed=canvas.toDataURL("image/webp",0.78);
+            if(!compressed || compressed.length>650000) compressed=canvas.toDataURL("image/jpeg",0.76);
             localStorage.setItem(PROFILE_IMAGE_KEY,compressed);
             if(currentUser){ currentUser.profile={...(currentUser.profile||{}),profileImage:compressed}; }
             renderHeaderProfile();
