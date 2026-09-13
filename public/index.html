@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#667dff">
     <title>COMTIME PRO</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="/style.css?v=19">
+    <link rel="stylesheet" href="/style.css?v=20">
 </head>
 <body>
 
@@ -50,10 +50,12 @@
             <span>현재 수업</span>
             <h2 id="currentSubject">학교를 선택해주세요.</h2>
             <p id="currentTeacher">-</p>
+            <div id="scheduleStatus" class="schedule-status" aria-live="polite">수업 정보를 준비하고 있습니다.</div>
             <div class="next">다음 수업 <strong id="nextSubject">-</strong></div>
         </div>
 
         <div class="school-selected">
+            <small class="school-selected-label">선택한 학교</small>
             <strong id="schoolName">학교 미선택</strong>
             <span id="schoolInfo">학교를 검색해서 선택하세요.</span>
         </div>
@@ -213,6 +215,15 @@
                 </span>
                 <span class="menu-arrow">›</span>
             </button>
+
+            <button id="openSettingsBtn" class="menu-item settings-menu-item" type="button">
+                <span class="menu-item-icon">⚙</span>
+                <span>
+                    <strong>설정</strong>
+                    <small>프로필 · 계정 · 테마 · 기록</small>
+                </span>
+                <span class="menu-arrow">›</span>
+            </button>
         </div>
     </div>
 </div>
@@ -267,11 +278,6 @@
                     <small>실시간으로 다른 플레이어와 경쟁하며 먹고, 성장하고, 1위를 차지하세요.</small>
                 </div>
                 <span class="game-card-arrow">›</span>
-            </button>
-            <button id="openSettingsBtn" class="menu-item settings-menu-item" type="button">
-                <span class="menu-item-icon">⚙</span>
-                <span><strong>설정</strong><small>프로필 · 계정 · 테마 · 기록</small></span>
-                <span class="menu-arrow">›</span>
             </button>
         </div>
     </div>
@@ -763,7 +769,7 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="/app.js?v=19"></script>
-<script src="/multiplayer.js?v=19"></script>
+<script src="/app.js?v=20"></script>
+<script src="/multiplayer.js?v=20"></script>
 </body>
 </html>
