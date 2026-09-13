@@ -3321,3 +3321,147 @@ body:not(:has(.game-modal.active)):not(:has(.game-hub-modal.active)):not(:has(.w
 .settings-logout-btn:hover{background:color-mix(in srgb,#ef4444 13%,var(--theme-surface))!important;transform:translateY(-1px);box-shadow:0 8px 20px rgba(190,55,55,.12)}
 
 @media(max-width:560px){.profile-frame-grid{grid-template-columns:repeat(2,1fr)}.weekend-schedule-info{gap:6px}.weekend-schedule-info strong{font-size:10px}.day-column{border-radius:15px!important}}
+
+
+/* =========================================================
+   COMTIME PRO V22 — PROFILE FRAME + TABBAR + TIMETABLE HOVER
+   ========================================================= */
+
+/* Top tab/header: every control follows the selected theme. */
+header .bird-game-btn,
+header .menu-btn,
+header .clock,
+header .header-profile-btn{
+  border-color:var(--theme-border)!important;
+}
+header .bird-game-btn,
+header .menu-btn{
+  background:var(--theme-surface)!important;
+  color:var(--theme-text)!important;
+  box-shadow:0 5px 18px var(--theme-shadow)!important;
+}
+header .bird-game-btn:hover,
+header .menu-btn:hover{
+  border-color:var(--theme-a)!important;
+  box-shadow:0 9px 24px var(--theme-shadow),0 0 0 2px color-mix(in srgb,var(--theme-a) 10%,transparent)!important;
+}
+header .clock strong,
+header .clock span{color:var(--theme-text)!important}
+
+/* Timetable: cards visually merge into the timetable until hovered. */
+.timetable .day-column{
+  background:var(--theme-surface)!important;
+  border-color:transparent!important;
+  box-shadow:none!important;
+}
+.timetable .day-title{
+  background:var(--theme-surface)!important;
+  color:var(--theme-text)!important;
+  border-bottom:1px solid transparent!important;
+}
+.timetable .lesson-card{
+  background:var(--theme-surface)!important;
+  border:1px solid transparent!important;
+  box-shadow:none!important;
+  transform:none!important;
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease,background .18s ease!important;
+}
+.timetable .lesson-card::before{opacity:0!important;transition:opacity .18s ease!important}
+.timetable .lesson-card:hover{
+  background:var(--theme-surface)!important;
+  border-color:transparent!important;
+  box-shadow:0 12px 30px var(--theme-shadow),0 0 0 2px color-mix(in srgb,var(--theme-a) 75%,transparent)!important;
+  transform:translateY(-3px) scale(1.018)!important;
+}
+.timetable .lesson-card:hover::before{opacity:1!important}
+.timetable .lesson-card strong,
+.timetable .lesson-card .period,
+.timetable .lesson-card small{color:var(--theme-text)!important}
+.timetable .lesson-card .period,
+.timetable .lesson-card small{opacity:.62}
+
+/* Menu popup sits higher and remains independently scrollable. */
+.menu-modal{padding-top:64px!important;z-index:200000!important}
+.menu-window{z-index:200001!important;max-height:calc(100dvh - 80px)!important;display:flex;flex-direction:column}
+.menu-list{flex:1 1 auto;min-height:0;max-height:none!important;overflow-y:auto!important;overscroll-behavior:contain!important;padding-right:3px}
+
+/* Remove any fallback/missing-image visual from the main profile button. */
+.header-profile-btn{overflow:visible!important;background:var(--theme-gradient)!important}
+.header-profile-btn #headerProfileText[hidden]{display:none!important}
+.header-profile-btn img[hidden]{display:none!important}
+.header-profile-btn img{background:transparent!important}
+
+/* Settings avatar: image and initial are clipped to the same rounded shape. */
+.settings-profile-avatar{overflow:visible!important;border-radius:50%!important;background-clip:border-box!important;isolation:isolate}
+.settings-profile-avatar.has-image{background-color:transparent!important;background-repeat:no-repeat!important;background-size:cover!important;background-position:center!important}
+
+/* Modern metallic gold: less flat, more premium. */
+.frame-gold{
+  border:4px solid transparent!important;
+  background:
+    linear-gradient(var(--theme-gradient),var(--theme-gradient)) padding-box,
+    linear-gradient(135deg,#fff3a6 0%,#e6b63f 18%,#fff1a0 34%,#b87912 53%,#ffe77a 72%,#c98b18 100%) border-box!important;
+  box-shadow:0 0 0 2px rgba(255,220,105,.32),0 5px 18px rgba(152,103,11,.24),inset 0 0 8px rgba(255,255,255,.18)!important;
+}
+.header-profile-btn[data-frame="gold"]::before,
+.settings-profile-avatar[data-frame="gold"]::before{
+  content:"";position:absolute;inset:-5px;border-radius:50%;border:4px solid transparent;
+  background:linear-gradient(transparent,transparent) padding-box,
+    linear-gradient(135deg,#fff5b5,#d69b20 20%,#fff0a0 38%,#9c650e 58%,#ffd968 76%,#b87912) border-box;
+  box-shadow:0 0 0 2px rgba(255,224,116,.25),0 6px 22px rgba(133,88,7,.25),inset 0 0 7px rgba(255,255,255,.35);
+  z-index:4;pointer-events:none;
+}
+
+/* Metallic silver. */
+.header-profile-btn[data-frame="silver"]::before,
+.settings-profile-avatar[data-frame="silver"]::before{
+  content:"";position:absolute;inset:-5px;border-radius:50%;border:4px solid transparent;
+  background:linear-gradient(transparent,transparent) padding-box,
+    linear-gradient(135deg,#ffffff,#9da7b4 22%,#f8fbff 40%,#707b89 58%,#ffffff 76%,#9ca7b4) border-box;
+  box-shadow:0 0 0 2px rgba(255,255,255,.35),0 6px 22px rgba(75,85,99,.24),inset 0 0 7px rgba(255,255,255,.35);
+  z-index:4;pointer-events:none;
+}
+
+/* Seasonal frame is transparent in the middle: the actual photo/initial stays visible. */
+.header-profile-btn[data-frame="season"]::before,
+.settings-profile-avatar[data-frame="season"]::before{
+  content:"";position:absolute;inset:-6px;border-radius:50%;border:5px solid transparent;
+  background:linear-gradient(transparent,transparent) padding-box,
+    linear-gradient(135deg,#7edc9a,#ffd45c,#e76b65,#79b9ff) border-box;
+  box-shadow:0 0 0 2px rgba(255,255,255,.22),0 7px 25px var(--theme-shadow);
+  z-index:4;pointer-events:none;
+}
+
+/* Lots of seasonal particles around the avatar. */
+.header-profile-btn[data-frame="season"]::after,
+.settings-profile-avatar[data-frame="season"]::after{
+  position:absolute;inset:-20px;display:block;pointer-events:none;z-index:5;
+  border-radius:50%;font-size:11px;line-height:1;white-space:pre-wrap;text-align:center;
+  padding-top:0;box-sizing:border-box;
+}
+.header-profile-btn[data-frame="season"][data-season="spring"]::after,
+.settings-profile-avatar[data-frame="season"][data-season="spring"]::after{
+  content:"🌸   ·  🌸\A ·   🌸    ·   🌸\A🌸   ·     ·   🌸\A  · 🌸      🌸 ·";
+  color:#f58bb0;text-shadow:0 1px 4px rgba(255,120,170,.3);
+}
+.header-profile-btn[data-frame="season"][data-season="summer"]::after,
+.settings-profile-avatar[data-frame="season"][data-season="summer"]::after{
+  content:"🍃   ·   🍃\A ·  🍃    ·  🍃\A🍃   ·     ·   🍃\A  · 🍃      🍃 ·";
+  color:#48ad69;text-shadow:0 1px 4px rgba(40,150,80,.25);
+}
+.header-profile-btn[data-frame="season"][data-season="autumn"]::after,
+.settings-profile-avatar[data-frame="season"][data-season="autumn"]::after{
+  content:"🍁   ·   🍂\A ·  🍁    ·  🍂\A🍂   ·     ·   🍁\A  · 🍁      🍂 ·";
+  color:#d97832;text-shadow:0 1px 4px rgba(170,80,20,.28);
+}
+.header-profile-btn[data-frame="season"][data-season="winter"]::after,
+.settings-profile-avatar[data-frame="season"][data-season="winter"]::after{
+  content:"❄   ·   ❄   ·\A ·  ❄     ·  ❄\A❄   ·     ·   ❄\A  ·   ❄     ❄ ·";
+  color:#9bd5ff;text-shadow:0 1px 5px rgba(100,180,255,.35);
+}
+
+/* Frame preview gets the same transparent seasonal treatment. */
+.frame-season{border:4px solid transparent!important;background:linear-gradient(var(--theme-gradient),var(--theme-gradient)) padding-box,linear-gradient(135deg,#7edc9a,#ffd45c,#e76b65,#79b9ff) border-box!important}
+
+/* The tab bar is visually above content and keeps theme surfaces consistent. */
+header{position:sticky!important;top:0!important;z-index:150000!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
