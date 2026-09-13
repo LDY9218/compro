@@ -20,7 +20,14 @@ const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = process.env.COMTIME_DATA_DIR ? path.resolve(process.env.COMTIME_DATA_DIR) : path.join(__dirname, "data");
 
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public"), {
+    index: "index.html",
+    extensions: ["html"]
+}));
+app.get("/", (req, res) => {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
 // ==================================================
 // AUTH / USER DATA / DETAILED LOGGING
@@ -94,7 +101,7 @@ function publicUser(user) {
         username: user.username,
         displayName: user.displayName || user.username,
         createdAt: user.createdAt,
-        profile: user.profile || { school: null, grade: "", classNum: "" },
+        profile: user.profile || { school: null, grade: "", classNum: "", theme: "white", profileImage: "" },
         algorithm: { profile: null, history: [], updatedAt: null }
     };
 }
@@ -190,7 +197,7 @@ app.post("/api/auth/register", (req, res) => {
     const user = {
         username, displayName, passwordHash: passwordData.hash, passwordSalt: passwordData.salt,
         createdAt: now, lastLoginAt: null, sessions: [],
-        profile: { school: null, grade: "", classNum: "" },
+        profile: { school: null, grade: "", classNum: "", theme: "white", profileImage: "" },
         algorithm: { profile: null, history: [], updatedAt: null },
         geminiConversations: [],
         friends: []
