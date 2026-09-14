@@ -1481,17 +1481,16 @@ function wormSpawnFood(x=wormRand(180,WORM_WORLD-180), y=wormRand(180,WORM_WORLD
     wormFood.push({id:wormFoodId++,x,y,r:value>=8?8:value>=3?6:4,value,color:color||["#70ffb0","#ffe56b","#72c7ff","#ff79bd"][Math.floor(Math.random()*4)]});
 }
 function wormFillFood(){ while(wormFood.length<WORM_FOOD_TARGET) wormSpawnFood(); }
-function wormUniqueNickname(rawName,id){
-    const cleaned=String(rawName||"Player").replace(/[^\p{L}\p{N}_ -]/gu,"").trim().slice(0,14)||"Player";
-    const used=new Set([...wormPlayers.values()].filter(p=>p.alive&&p.id!==id).map(p=>p.nickname));
-    if(!used.has(cleaned))return cleaned;
-    for(let n=2;n<100;n++){
+function wormUniqueNickname(rawName, excludeId=null){
+    const base=String(rawName||"Player").replace(/[^\p{L}\p{N}_ -]/gu,"").trim().slice(0,14)||"Player";
+    const used=new Set([...wormPlayers.values()].filter(p=>p.id!==excludeId && p.alive).map(p=>p.nickname));
+    if(!used.has(base))return base;
+    for(let n=2;n<=99;n++){
         const suffix=` (${n})`;
-        const base=cleaned.slice(0,Math.max(1,14-suffix.length));
-        const candidate=base+suffix;
+        const candidate=base.slice(0,Math.max(1,14-suffix.length))+suffix;
         if(!used.has(candidate))return candidate;
     }
-    return `${cleaned.slice(0,12)}_${String(Math.floor(Math.random()*90)+10)}`.slice(0,14);
+    return `Player ${Math.floor(Math.random()*9000)+1000}`.slice(0,14);
 }
 function wormMakePlayer(id,nickname, isBot=false){
     const angle=Math.random()*Math.PI*2;
@@ -1532,7 +1531,7 @@ function wormBotThink(p, now){
 function wormPlayerSegments(p){
     // Keep the network/render representation compact. The full trail remains server-side,
     // while only a visually sufficient sample is sent to clients.
-    const wanted=Math.max(14,Math.min(64,Math.floor(12+p.mass*0.36)));
+    const wanted=Math.max(16,Math.min(72,Math.floor(14+p.mass*0.42)));
     const out=[]; const spacing=13; let carry=0; let prev=p.trail?.[0];
     if(!prev) return out;
     out.push({x:prev.x,y:prev.y});
@@ -1554,26 +1553,27 @@ function wormTurnToward(p){
     p.dirY=Math.sin(desired);
 }
 function wormDropMass(p){
+    // 죽기 직전의 전체 질량을 정확히 보존하되, 오브젝트 수는 최대 64개로 제한합니다.
     const path=p.segments?.length ? p.segments : wormPlayerSegments(p);
     const total=Math.max(0,Math.floor(Number(p.mass)||0));
     if(total<=0)return;
-    // 죽은 지렁이가 먹은 경험치 총량을 단 하나도 버리지 않고 유지한다.
-    // 네트워크/서버 부담을 막기 위해 64개의 시각적 스택으로 분산하며,
-    // 각 스택의 value 합계가 정확히 사망 당시 mass와 같다.
-    const drops=Math.min(64,total,Math.max(12,Math.ceil(total/12)));
-    const base=Math.floor(total/drops), remainder=total-base*drops;
+    const drops=Math.min(64,Math.max(1,Math.ceil(total/8)));
+    const base=Math.floor(total/drops);
+    const remainder=total-base*drops;
     for(let i=0;i<drops;i++){
         const value=base+(i<remainder?1:0);
-        const index=Math.floor((i/Math.max(1,drops-1))*(Math.max(0,path.length-1)));
+        const index=Math.floor((i/Math.max(1,drops-1))*Math.max(0,path.length-1));
         const q=path[index]||{x:p.x,y:p.y};
         const prev=path[Math.max(0,index-1)]||q;
         const next=path[Math.min(path.length-1,index+1)]||q;
-        const a=Math.atan2(next.y-prev.y,next.x-prev.x);
-        const side=(i%3-1)*Math.max(6,p.radius*.55);
-        const forward=((i%2)*2-1)*Math.min(10,p.radius*.35);
-        wormSpawnFood(q.x+Math.cos(a+Math.PI/2)*side+Math.cos(a)*forward,q.y+Math.sin(a+Math.PI/2)*side+Math.sin(a)*forward,value,p.color);
+        const a=Math.atan2(next.y-prev.y,next.x-prev.x)+(Math.random()-.5)*0.45;
+        const offset=(Math.random()-.5)*Math.max(8,p.radius*0.8);
+        wormSpawnFood(q.x+Math.cos(a+Math.PI/2)*offset,q.y+Math.sin(a+Math.PI/2)*offset,value,p.color);
     }
+    // 죽은 지렁이의 경험치가 기존 맵을 압도하지 않도록 서버 보관량만 제한합니다.
+    if(wormFood.length>420)wormFood.splice(0,wormFood.length-420);
 }
+
 function wormKill(victim,killerName){
     if(!victim || !victim.alive)return;
     victim.alive=false; wormDropMass(victim);
@@ -1596,7 +1596,7 @@ function wormPublicState(){
         id:p.id,nickname:p.nickname,x:Math.round(p.x*10)/10,y:Math.round(p.y*10)/10,
         mass:Math.round(p.mass),length:Math.round(p.length),radius:p.radius,
         color:p.color,dirX:Math.round(p.dirX*1000)/1000,dirY:Math.round(p.dirY*1000)/1000,
-        isBot:!!p.isBot,segments:(p.segments||[]).map(q=>({x:Math.round(q.x*2)/2,y:Math.round(q.y*2)/2}))
+        isBot:!!p.isBot,segments:p.segments||[]
     }));
     wormCachedState={world:WORM_WORLD,me:null,players,food:wormFood.slice(0,WORM_FOOD_TARGET)};
     wormCachedStateAt=now;
@@ -1607,11 +1607,11 @@ function wormEmitState(){
     if(now-wormLastStateAt<WORM_STATE_MS)return;
     wormLastStateAt=now;
     const baseState=wormPublicState();
-    // 게임에 들어오기 전에도 현재 생존자 목록/리더보드를 볼 수 있게 한다.
-    // 실제 플레이어만 me로 지정하므로 관전자에게 플레이 권한이나 상태를 만들지 않는다.
-    for(const sock of io.sockets.sockets.values()){
-        const p=wormPlayers.get(sock.id);
-        sock.emit("worm:state",{...baseState,me:p?.alive?sock.id:null});
+    for(const p of wormPlayers.values()){
+        if(!p.alive)continue;
+        const sock=io.sockets.sockets.get(p.id);
+        if(!sock)continue;
+        sock.emit("worm:state",{...baseState,me:p.id});
     }
 }
 
@@ -1746,7 +1746,7 @@ io.on("connection", (socket) => {
         const p=wormPlayers.get(socket.id); if(!p||!p.alive)return;
         const len=Math.hypot(Number(x),Number(y))||1; p.dirX=Math.max(-1,Math.min(1,Number(x)/len)); p.dirY=Math.max(-1,Math.min(1,Number(y)/len)); p.targetAngle=Math.atan2(p.dirY,p.dirX); p.boost=!!boost; p.lastInput=Date.now();
     });
-    socket.on("worm:leave",()=>{ const p=wormPlayers.get(socket.id); if(p){wormPlayers.delete(socket.id); if(p.alive)wormDropMass(p); wormEmitState();} });
+    socket.on("worm:leave",()=>{ const p=wormPlayers.get(socket.id); if(p){wormPlayers.delete(socket.id); if(p.alive)wormDropMass(p);} });
     const wormPingTimer=setInterval(()=>{ if(socket.connected) socket.emit("worm:ping",{ms:0}); else clearInterval(wormPingTimer); },3000);
 
     socket.on("car:create-room", () => {
