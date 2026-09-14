@@ -6,7 +6,23 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
+// Always load the project-local .env first. This keeps developer/API codes working
+// even when the process was started from a different working directory.
+dotenv.config({ path: path.join(__dirname, ".env") });
 dotenv.config();
+
+function envValue(name) {
+    return String(process.env[name] ?? "").replace(/^\uFEFF/, "").trim();
+}
+
+const ENV_DEV_CODE = envValue("DEV_CODE") || envValue("ADMIN_CODE");
+const ENV_ADMIN_CODE = envValue("ADMIN_CODE");
+
+console.log(`[ENV] NEIS_API_KEY=${envValue("NEIS_API_KEY") ? "loaded" : "missing"}`);
+console.log(`[ENV] GEMINI_API_KEY=${envValue("GEMINI_API_KEY") ? "loaded" : "missing"}`);
+console.log(`[ENV] YOUTUBE_API_KEY=${envValue("YOUTUBE_API_KEY") ? "loaded" : "missing"}`);
+console.log(`[ENV] ADMIN_CODE=${ENV_ADMIN_CODE ? "loaded" : "missing"}`);
+console.log(`[ENV] DEV_CODE=${ENV_DEV_CODE ? "loaded" : "missing"}`);
 
 const app = express();
 const server = http.createServer(app);
@@ -76,10 +92,30 @@ function createSessionToken() { return crypto.randomBytes(32).toString("hex"); }
 function tokenHash(token) { return crypto.createHash("sha256").update(String(token)).digest("hex"); }
 function normalizeUsername(value) { return String(value || "").trim().toLowerCase(); }
 
+function parseCookies(req) {
+    const raw=String(req.headers.cookie||"");
+    const out={};
+    raw.split(";").forEach(part=>{
+        const i=part.indexOf("=");
+        if(i<0)return;
+        const k=part.slice(0,i).trim();
+        const v=part.slice(i+1).trim();
+        if(k) out[k]=decodeURIComponent(v);
+    });
+    return out;
+}
 function getAuthToken(req) {
     const header = String(req.headers.authorization || "");
     if (header.startsWith("Bearer ")) return header.slice(7).trim();
-    return String(req.headers["x-comtime-auth-token"] || "").trim();
+    const legacy=String(req.headers["x-comtime-auth-token"] || "").trim();
+    if(legacy) return legacy;
+    return String(parseCookies(req).comtime_auth || "").trim();
+}
+function setAuthCookie(res, token) {
+    res.setHeader("Set-Cookie", `comtime_auth=${encodeURIComponent(String(token||""))}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax`);
+}
+function clearAuthCookie(res) {
+    res.setHeader("Set-Cookie", "comtime_auth=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
 }
 
 function findUserByToken(token) {
@@ -130,7 +166,8 @@ function sanitizeProfile(profile) {
         grade: String(profile?.grade || "").slice(0, 10),
         classNum: String(profile?.classNum || "").slice(0, 10),
         theme: themes.includes(String(profile?.theme)) ? String(profile.theme) : "white",
-        profileImage: String(profile?.profileImage || "").slice(0, 900000)
+        profileImage: String(profile?.profileImage || "").slice(0, 900000),
+        profileFrame: ["none","gold","silver","season"].includes(String(profile?.profileFrame)) ? String(profile.profileFrame) : "none"
     };
 }
 
@@ -202,6 +239,7 @@ app.post("/api/auth/register", (req, res) => {
     users.push(user);
     writeJsonFile(USER_FILE, users);
     appendActivityLog("register", { user: username, displayName });
+    setAuthCookie(res, token);
     return res.json({ ok: true, token, user: publicUser(user) });
 });
 
@@ -221,6 +259,7 @@ app.post("/api/auth/login", (req, res) => {
     user.lastLoginAt = new Date().toISOString();
     saveUser(user);
     appendActivityLog("login", { user: username });
+    setAuthCookie(res, token);
     return res.json({ ok: true, token, user: publicUser(user) });
 });
 
@@ -228,6 +267,7 @@ app.post("/api/auth/logout", requireAuth, (req, res) => {
     const tokenHashValue = tokenHash(getAuthToken(req));
     req.comtimeUser.sessions = (req.comtimeUser.sessions || []).filter((session) => session.hash !== tokenHashValue);
     saveUser(req.comtimeUser);
+    clearAuthCookie(res);
     appendActivityLog("logout", { user: req.comtimeUser.username });
     res.json({ ok: true });
 });
@@ -262,15 +302,21 @@ app.put("/api/me/account", requireAuth, (req, res) => {
     if(idx>=0)users[idx]=req.comtimeUser; else users.push(req.comtimeUser);
     writeJsonFile(USER_FILE,users);
     appendActivityLog("account_update",{user:nextUsername,previousUsername:oldUsername});
+    setAuthCookie(res,newToken);
     res.json({ok:true,token:newToken,user:publicUser(req.comtimeUser)});
 });
 
 app.post("/api/me/reset-data", requireAuth, (req,res)=>{
     const u=req.comtimeUser;
-    u.profile={school:null,grade:"",classNum:"",theme:"white",profileImage:""};
+    /* Credentials and active login sessions are intentionally preserved. */
+    u.profile={school:null,grade:"",classNum:"",theme:"white",profileImage:"",profileFrame:"none"};
     u.algorithm={profile:null,history:[],updatedAt:null};
-    u.geminiConversations=[]; u.friends=[];
-    const messages=readJsonFile(MESSAGE_FILE,[]).filter(m=>m.from!==u.username&&m.to!==u.username); writeJsonFile(MESSAGE_FILE,messages);
+    u.geminiConversations=[];
+    u.friends=[];
+    u.shortsHistory=[];
+    u.messages=[];
+    const messages=readJsonFile(MESSAGE_FILE,[]).filter(m=>m.from!==u.username&&m.to!==u.username);
+    writeJsonFile(MESSAGE_FILE,messages);
     saveUser(u);
     appendActivityLog("data_reset",{user:u.username});
     res.json({ok:true,user:publicUser(u)});
@@ -381,7 +427,7 @@ function broadcastNotices() {
 }
 
 function isAdmin(req) {
-    const adminCode = String(process.env.ADMIN_CODE || "").trim();
+    const adminCode = ENV_ADMIN_CODE;
     const authenticatedUser = findUserByToken(getAuthToken(req));
     const userId = String(
         authenticatedUser?.username ||
@@ -401,7 +447,7 @@ app.get("/api/notices", (req, res) => {
 app.get("/api/admin/check", (req, res) => {
     res.json({ ok: true, isAdmin: isAdmin(req) });
 });
-app.post("/api/developer/verify",(req,res)=>{const configured=String(process.env.DEV_CODE||process.env.ADMIN_CODE||"").trim();const supplied=String(req.body?.code||"").trim();if(!configured||!supplied||supplied!==configured)return res.status(403).json({ok:false,message:"개발자 코드가 올바르지 않습니다."});res.json({ok:true});});
+app.post("/api/developer/verify",(req,res)=>{const configured=ENV_DEV_CODE;const supplied=String(req.body?.code||"").trim();if(!configured||!supplied||supplied!==configured)return res.status(403).json({ok:false,message:"개발자 코드가 올바르지 않습니다."});res.json({ok:true});});
 
 app.post("/api/notices", (req, res) => {
     if (!isAdmin(req)) return res.status(403).json({ ok: false, message: "관리자 권한이 없습니다." });
@@ -553,7 +599,7 @@ app.get("/api/neis-school", async (req, res) => {
         });
     }
 
-    const apiKey = process.env.NEIS_API_KEY;
+    const apiKey = envValue("NEIS_API_KEY");
 
     if (!apiKey) {
         return res.status(500).json({
@@ -604,7 +650,7 @@ app.get("/api/meal", async (req, res) => {
     const officeCode = String(req.query.officeCode || "").trim();
     const schoolCode = String(req.query.schoolCode || "").trim();
     const date = String(req.query.date || "").trim();
-    const apiKey = process.env.NEIS_API_KEY;
+    const apiKey = envValue("NEIS_API_KEY");
 
     if (!apiKey) {
         return res.status(500).json({
@@ -689,7 +735,7 @@ app.post("/api/gemini", requireAuth, async (req, res) => {
     conversation.updatedAt = new Date().toISOString();
     appendActivityLog("gemini_user_message", { user: req.comtimeUser.username, conversationId: conversation.id, length: message.length });
     saveUser(req.comtimeUser);
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = envValue("GEMINI_API_KEY");
 
     if (!message) {
         return res.status(400).json({
@@ -986,7 +1032,7 @@ function shortLanguageScore(video) {
 }
 
 async function askGeminiForShortsProfile(history) {
-    const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
+    const apiKey = envValue("GEMINI_API_KEY");
     if (!apiKey || !Array.isArray(history) || history.length === 0) {
         return {
             query: "한국어 쇼츠 재미있는 영상",
@@ -1111,7 +1157,7 @@ app.post("/api/shorts/recommendation-profile", async (req, res) => {
 });
 
 app.get("/api/shorts", async (req, res) => {
-    const apiKey = String(process.env.YOUTUBE_API_KEY || "").trim();
+    const apiKey = envValue("YOUTUBE_API_KEY");
     if (!apiKey) {
         return res.status(500).json({
             ok: false,
@@ -1418,9 +1464,10 @@ startCarGameLoop();
 // =========================================================
 const WORM_WORLD = 5200;
 const WORM_TICK_MS = 33;
+const WORM_STATE_MS = 90;
 const WORM_MAX_PLAYERS = 24;
 const WORM_BOT_COUNT = 0;
-const WORM_FOOD_TARGET = 360;
+const WORM_FOOD_TARGET = 240;
 const WORM_ROOM = "public";
 const wormPlayers = new Map();
 const wormFood = [];
@@ -1439,7 +1486,9 @@ function wormMakePlayer(id,nickname, isBot=false){
     const x=wormRand(650,WORM_WORLD-650), y=wormRand(650,WORM_WORLD-650);
     const color=WORM_COLORS[Math.floor(Math.random()*WORM_COLORS.length)];
     const trail=[]; for(let i=0;i<80;i++) trail.push({x:x-Math.cos(angle)*i*5,y:y-Math.sin(angle)*i*5});
-    return {id,nickname:String(nickname||"Player").replace(/[^\p{L}\p{N}_ -]/gu,"").slice(0,14)||"Player",x,y,angle,targetAngle:angle,dirX:Math.cos(angle),dirY:Math.sin(angle),boost:false,mass:isBot?18:12,length:10,radius:12,speed:isBot?178:185,trail,color,alive:true,lastInput:Date.now(),spawnShieldUntil:Date.now()+3000,isBot};
+    const player={id,nickname:String(nickname||"Player").replace(/[^\p{L}\p{N}_ -]/gu,"").slice(0,14)||"Player",x,y,angle,targetAngle:angle,dirX:Math.cos(angle),dirY:Math.sin(angle),boost:false,mass:isBot?18:12,length:10,radius:12,speed:isBot?178:185,trail,color,alive:true,lastInput:Date.now(),spawnShieldUntil:Date.now()+3000,isBot,segments:[]};
+    player.segments=wormPlayerSegments(player);
+    return player;
 }
 function wormEnsureBots(){
     let bots=[...wormPlayers.values()].filter(p=>p.isBot);
@@ -1469,17 +1518,21 @@ function wormBotThink(p, now){
     }
 }
 function wormPlayerSegments(p){
-    const wanted=Math.max(28,Math.min(180,Math.floor(18+p.mass*0.85)));
-    const out=[]; const spacing=7; let carry=0; let prev=p.trail[0];
+    // Keep the network/render representation compact. The full trail remains server-side,
+    // while only a visually sufficient sample is sent to clients.
+    const wanted=Math.max(16,Math.min(72,Math.floor(14+p.mass*0.42)));
+    const out=[]; const spacing=11; let carry=0; let prev=p.trail?.[0];
     if(!prev) return out;
     out.push({x:prev.x,y:prev.y});
     for(let i=1;i<p.trail.length && out.length<wanted;i++){
-        const q=p.trail[i]; const d=Math.hypot(q.x-prev.x,q.y-prev.y); carry+=d;
+        const q=p.trail[i]; const dx=q.x-prev.x,dy=q.y-prev.y;
+        const d=Math.sqrt(dx*dx+dy*dy); carry+=d;
         if(carry>=spacing){out.push({x:q.x,y:q.y});carry=0;}
         prev=q;
     }
     return out;
 }
+
 function wormTurnToward(p){
     // 커서 방향을 다음 서버 틱에서 즉시 적용한다.
     // 자기 몸과의 충돌 검사는 애초에 하지 않으므로 작은 반경으로도 자유롭게 꺾을 수 있다.
@@ -1489,7 +1542,7 @@ function wormTurnToward(p){
     p.dirY=Math.sin(desired);
 }
 function wormDropMass(p){
-    const path=wormPlayerSegments(p);
+    const path=p.segments?.length ? p.segments : wormPlayerSegments(p);
     const total=Math.max(2,Math.floor(Number(p.mass)||0));
     const drops=Math.min(140,Math.max(10,Math.floor(total/1.6)));
     const value=Math.max(1,Math.floor(total/drops));
@@ -1519,26 +1572,67 @@ function wormKill(victim,killerName){
         },1800);
     }
 }
+let wormCachedState=null;
+let wormCachedStateAt=0;
 function wormPublicState(){
+    const now=Date.now();
+    if(wormCachedState && now-wormCachedStateAt<80) return wormCachedState;
     const players=[...wormPlayers.values()].filter(p=>p.alive).map(p=>({
-        id:p.id,nickname:p.nickname,x:p.x,y:p.y,mass:Math.round(p.mass),length:Math.round(p.length),radius:p.radius,color:p.color,dirX:p.dirX,dirY:p.dirY,isBot:!!p.isBot,segments:wormPlayerSegments(p)
+        id:p.id,nickname:p.nickname,x:Math.round(p.x*10)/10,y:Math.round(p.y*10)/10,
+        mass:Math.round(p.mass),length:Math.round(p.length),radius:p.radius,
+        color:p.color,dirX:Math.round(p.dirX*1000)/1000,dirY:Math.round(p.dirY*1000)/1000,
+        isBot:!!p.isBot,segments:p.segments||[]
     }));
-    return {world:WORM_WORLD,me:null,players,food:wormFood.slice(0,450)};
+    wormCachedState={world:WORM_WORLD,me:null,players,food:wormFood.slice(0,WORM_FOOD_TARGET)};
+    wormCachedStateAt=now;
+    return wormCachedState;
 }
 function wormEmitState(){
     const now=Date.now();
-    if(now-wormLastStateAt<33)return; wormLastStateAt=now;
+    if(now-wormLastStateAt<WORM_STATE_MS)return;
+    wormLastStateAt=now;
+    const baseState=wormPublicState();
     for(const p of wormPlayers.values()){
         if(!p.alive)continue;
-        const sock=io.sockets.sockets.get(p.id); if(!sock)continue;
-        const state=wormPublicState(); state.me=p.id; sock.emit("worm:state",state);
+        const sock=io.sockets.sockets.get(p.id);
+        if(!sock)continue;
+        sock.emit("worm:state",{...baseState,me:p.id});
     }
 }
+
+function wormCellKey(x,y,cell){ return `${Math.floor(x/cell)},${Math.floor(y/cell)}`; }
+function wormBuildGrid(cell){
+    const grid=new Map();
+    for(const p of wormPlayers.values()){
+        if(!p.alive)continue;
+        const seg=p.segments||[];
+        for(let i=4;i<seg.length;i+=2){
+            const q=seg[i];
+            const key=wormCellKey(q.x,q.y,cell);
+            let bucket=grid.get(key);
+            if(!bucket){bucket=[];grid.set(key,bucket);}
+            bucket.push({p,q});
+        }
+    }
+    return grid;
+}
+function wormNearbySegments(grid,x,y,cell){
+    const cx=Math.floor(x/cell),cy=Math.floor(y/cell);
+    const result=[];
+    for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){
+        const bucket=grid.get(`${cx+ox},${cy+oy}`);
+        if(bucket) result.push(...bucket);
+    }
+    return result;
+}
+
 function wormTick(){
     const dt=WORM_TICK_MS/1000;
     const now=Date.now();
     wormEnsureBots();
     wormFillFood();
+    wormCachedState=null;
+    wormCachedStateAt=0;
     for(const p of wormPlayers.values()){
         if(!p.alive)continue;
         wormBotThink(p, now);
@@ -1549,30 +1643,63 @@ function wormTick(){
         p.x+=p.dirX*speed*dt; p.y+=p.dirY*speed*dt;
         if(p.x<20||p.x>WORM_WORLD-20||p.y<20||p.y>WORM_WORLD-20){ wormKill(p,"경계"); continue; }
         p.trail.unshift({x:p.x,y:p.y});
-        const keep=Math.min(260,Math.max(80,Math.floor(40+p.mass*1.8)));
+        const keep=Math.min(180,Math.max(72,Math.floor(40+p.mass*1.15)));
         if(p.trail.length>keep)p.trail.length=keep;
         p.radius=Math.min(25,10+Math.sqrt(p.mass)*0.7);
         p.length=Math.floor(7+p.mass*0.72);
-        // food pickup
-        for(let i=wormFood.length-1;i>=0;i--){
-            const f=wormFood[i]; const rr=p.radius+f.r+5;
-            if(wormDist2(p.x,p.y,f.x,f.y)<=rr*rr){
-                p.mass+=f.value; wormFood.splice(i,1);
+        p.segments=wormPlayerSegments(p);
+        // Food collision is handled with a spatial hash instead of scanning every pellet.
+        // The hash is rebuilt once below for all players.
+
+    }
+    // Spatial hashing keeps 10+ player games close to O(players + nearby objects) instead
+    // of O(players * allFood + players² * allSegments).
+    const FOOD_CELL=120;
+    const foodGrid=new Map();
+    for(let i=0;i<wormFood.length;i++){
+        const f=wormFood[i];
+        const key=wormCellKey(f.x,f.y,FOOD_CELL);
+        let bucket=foodGrid.get(key);
+        if(!bucket){bucket=[];foodGrid.set(key,bucket);}
+        bucket.push(i);
+    }
+    const eaten=new Set();
+    for(const p of wormPlayers.values()){
+        if(!p.alive)continue;
+        const cx=Math.floor(p.x/FOOD_CELL),cy=Math.floor(p.y/FOOD_CELL);
+        const rr=p.radius+13;
+        for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){
+            const bucket=foodGrid.get(`${cx+ox},${cy+oy}`);
+            if(!bucket)continue;
+            for(const index of bucket){
+                if(eaten.has(index))continue;
+                const f=wormFood[index];
+                if(!f)continue;
+                const reach=rr+f.r;
+                if(wormDist2(p.x,p.y,f.x,f.y)<=reach*reach){
+                    p.mass+=f.value; eaten.add(index);
+                }
             }
         }
     }
+    if(eaten.size){
+        const next=[];
+        for(let i=0;i<wormFood.length;i++) if(!eaten.has(i)) next.push(wormFood[i]);
+        wormFood.length=0; wormFood.push(...next);
+    }
+
     const alive=[...wormPlayers.values()].filter(p=>p.alive);
+    const SEG_CELL=90;
+    const segmentGrid=wormBuildGrid(SEG_CELL);
     for(const p of alive){
         if(Date.now()<p.spawnShieldUntil)continue;
         const headR=p.radius*.78;
-        for(const q of alive){
+        const nearby=wormNearbySegments(segmentGrid,p.x,p.y,SEG_CELL);
+        for(const hit of nearby){
+            const q=hit.p;
             if(q.id===p.id)continue;
-            const seg=wormPlayerSegments(q);
-            for(let i=4;i<seg.length;i+=2){
-                const r=headR+q.radius*.78;
-                if(wormDist2(p.x,p.y,seg[i].x,seg[i].y)<r*r){ wormKill(p,q.nickname); break; }
-            }
-            if(!p.alive)break;
+            const r=headR+q.radius*.78;
+            if(wormDist2(p.x,p.y,hit.q.x,hit.q.y)<r*r){ wormKill(p,q.nickname); break; }
         }
     }
     wormEmitState();
