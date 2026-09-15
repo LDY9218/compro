@@ -3898,3 +3898,13 @@ body:has(.wordchain-modal.active) header{display:none!important;}
   .wordchain-room-item{padding:11px}
   .wordchain-room-name-label{max-width:150px}
 }
+
+/* WordChain V5: 준비 단계에서 불필요한 안내 영역을 숨기고 실제 게임에서만 표시 */
+.wordchain-word-board[hidden],
+.wordchain-live-typing[hidden],
+.wordchain-turn-banner[hidden]{display:none!important}
+
+/* WORDCHAIN V6: compact game surface; no overlay turn banner */
+.wordchain-turn-banner{display:none!important}
+.wordchain-word-board:empty{display:none}
+.wordchain-word-board strong:empty,.wordchain-word-board small:empty{display:none}
