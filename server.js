@@ -1714,30 +1714,60 @@ function wordChainExtractApiWords(payload){
     const list=Array.isArray(payload)?payload:(Array.isArray(payload?.data)?payload.data:[]);
     return list.map(x=>({word:wordChainNormalizeWord(x?.word||x),nextWordCount:Number(x?.nextWordCount||0)})).filter(x=>x.word.length>=2);
 }
-async function wordChainKkukoSearch(q,{limit=1000,duem=true}={}){
-    // Kkuko Open API의 kor-start 모드는 "시작 글자" 검색입니다.
-    // 이전 버전처럼 제출한 전체 단어(예: 라듐)를 q로 보내면 정상 단어여도
-    // 검색 조건이 잘못되어 0건이 나올 수 있습니다. 반드시 첫 음절만 검색하고
-    // 반환된 JSON에서 실제 단어를 정확히 비교합니다.
+async function wordChainKkukoSearch(q,{limit=100,duem=true,mode="kor-start"}={}){
+    // Kkuko Utils Open API: https://kkuko-utils.vercel.app/openapi/word
+    // 중요: 이 API는 결과 수가 지나치게 크면 서버/프록시에서 실패할 수 있으므로
+    // 게임 판정에서는 100개 단위로 요청합니다. 끄투사전의 '매너'와 두음법칙을
+    // 동일하게 요청하고, 반환 JSON에서 정확한 단어를 찾습니다.
     const query=wordChainNormalizeWord(q).slice(0,1);
     if(!query)return {ok:false,words:[],message:"검색어가 없습니다."};
-    const url=`${WORD_CHAIN_KKUKO_API}?mode=kor-start&q=${encodeURIComponent(query)}&manner=man&limit=${Math.min(1000,Math.max(50,limit))}&sortBy=abc&duem=${duem ? "true" : "false"}&minLength=2&maxLength=100`;
-    try{
-        const response=await fetch(url,{
-            headers:{
-                "accept":"application/json",
-                "user-agent":"COMTIME-PRO-WordChain/5.0"
-            },
-            signal:AbortSignal.timeout(12000)
-        });
-        if(!response.ok)throw new Error(`HTTP ${response.status}`);
-        const payload=await response.json();
-        const words=wordChainExtractApiWords(payload);
-        return {ok:true,words,message:"끄코 오픈DB 확인 완료 · 두음법칙 적용"};
-    }catch(error){
-        console.error(`[끝말잇기 사전] ${query} 검색 실패:`,error?.message||error);
-        return {ok:false,words:[],message:`사전 API 연결 실패: ${error?.message||"network"}`};
+    const safeLimit=Math.min(100,Math.max(20,Number(limit)||100));
+    const params=new URLSearchParams({
+        mode,
+        q:query,
+        manner:"man",
+        limit:String(safeLimit),
+        sortBy:"abc",
+        duem:duem ? "true" : "false",
+        minLength:"2",
+        maxLength:"100",
+        ingjung:"true"
+    });
+    const target=`https://kkuko-utils.vercel.app/api/words/search?${params.toString()}`;
+    const targets=[
+        {url:target,label:"Kkuko OpenDB"},
+        // Render에서 Vercel 서버로 직접 outbound 요청이 막히는 경우를 위한
+        // 읽기 전용 HTTP 프록시. 원본은 동일한 Kkuko OpenDB API입니다.
+        {url:`https://r.jina.ai/${target}`,label:"Kkuko OpenDB proxy"}
+    ];
+    let lastError="network";
+    for(const endpoint of targets){
+        try{
+            const response=await fetch(endpoint.url,{
+                headers:{
+                    "accept":"application/json,text/plain;q=0.9,*/*;q=0.8",
+                    "user-agent":"COMTIME-PRO-WordChain/6.0"
+                },
+                signal:AbortSignal.timeout(endpoint.label.includes("proxy") ? 15000 : 9000)
+            });
+            const text=await response.text();
+            if(!response.ok)throw new Error(`HTTP ${response.status}`);
+            let payload;
+            try{ payload=JSON.parse(text); }
+            catch{
+                // Jina가 JSON을 markdown code fence로 감싼 경우도 안전하게 처리
+                const match=text.match(/\[[\s\S]*\]/);
+                if(!match)throw new Error("JSON 응답 형식 오류");
+                payload=JSON.parse(match[0]);
+            }
+            const words=wordChainExtractApiWords(payload);
+            return {ok:true,words,message:`끄투 계열 OpenDB 확인 완료 · 두음법칙 ${duem ? "ON" : "OFF"}`,via:endpoint.label};
+        }catch(error){
+            lastError=`${endpoint.label}: ${error?.message||error}`;
+            console.error(`[끝말잇기 사전] ${query} ${lastError}`);
+        }
     }
+    return {ok:false,words:[],message:`사전 서버에 연결하지 못했습니다. (${lastError})`};
 }
 async function wordChainDictionaryCheck(word){
     const normalized=wordChainNormalizeWord(word);
@@ -1745,23 +1775,29 @@ async function wordChainDictionaryCheck(word){
     const cached=wordChainDictionaryCache.get(normalized);
     if(cached && Date.now()-cached.at<WORD_CHAIN_DICT_TTL_MS)return cached.result;
 
-    const result=await wordChainKkukoSearch(normalized,{limit:1000,duem:true});
-    if(result.ok){
-        const exists=result.words.some(x=>x.word===normalized);
-        const finalResult=exists
-            ? {ok:true,source:"kkutu",message:"끄투 계열 오픈DB 확인 완료 · 두음법칙 ON"}
-            : {ok:false,source:"kkutu",message:"끄투 사전에 없는 단어입니다."};
+    // 첫 글자 검색 + 끝 글자 검색을 각각 수행합니다. 하나의 큰 검색 결과에
+    // 의존하지 않고 정확한 단어가 양쪽 조건 중 하나에서 발견되는지 확인합니다.
+    const first=normalized.slice(0,1);
+    const last=normalized.slice(-1);
+    const queries=[{q:first,mode:"kor-start"}];
+    if(last!==first)queries.push({q:last,mode:"kor-end"});
+    const results=[];
+    for(const item of queries){
+        const result=await wordChainKkukoSearch(item.q,{limit:100,duem:true,mode:item.mode});
+        if(result.ok)results.push(result);
+    }
+    const exists=results.some(result=>result.words.some(x=>x.word===normalized));
+    if(exists){
+        const finalResult={ok:true,source:"kkutu",message:"끄투코리아 계열 사전 확인 완료 · 두음법칙 ON"};
         wordChainDictionaryCache.set(normalized,{at:Date.now(),result:finalResult});
         return finalResult;
     }
-
-    // 사전 서버가 실제로 응답하지 않을 때는 임의의 단어를 통과시키지 않습니다.
-    // 다만 이미 확인된 안전 목록은 서버 장애 중에도 게임을 테스트할 수 있도록 허용합니다.
-    const fallback=WORD_CHAIN_FALLBACK.has(normalized);
-    const finalResult=fallback
-        ? {ok:true,source:"fallback",message:"끄코 사전 연결 지연 · 테스트 안전 목록으로 확인"}
-        : {ok:false,source:"dictionary-unreachable",message:"끄투 사전 연결에 실패했습니다. 잠시 후 다시 시도해 주세요."};
-    wordChainDictionaryCache.set(normalized,{at:Date.now(),result:finalResult});
+    if(results.length>0){
+        const finalResult={ok:false,source:"kkutu",message:"끄투코리아 단어사전에 없는 단어입니다."};
+        wordChainDictionaryCache.set(normalized,{at:Date.now(),result:finalResult});
+        return finalResult;
+    }
+    const finalResult={ok:false,source:"dictionary-unreachable",message:"끄투코리아 단어사전에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요."};
     return finalResult;
 }
 async function wordChainHasContinuation(word){
@@ -1772,7 +1808,7 @@ async function wordChainHasContinuation(word){
 
     let reachable=false;
     for(const start of starts){
-        const result=await wordChainKkukoSearch(start,{limit:1000,duem:true});
+        const result=await wordChainKkukoSearch(start,{limit:100,duem:true,mode:"kor-start"});
         if(!result.ok)continue;
         reachable=true;
         if(result.words.some(x=>x.nextWordCount>0)){
@@ -1782,7 +1818,7 @@ async function wordChainHasContinuation(word){
         }
     }
     if(!reachable){
-        const final={ok:null,source:"dictionary-unreachable",message:"한방단어 여부를 확인할 수 없습니다. 사전 연결을 다시 확인해 주세요."};
+        const final={ok:null,source:"dictionary-unreachable",message:"끄투코리아 사전에서 후속 단어를 확인하지 못했습니다."};
         wordChainContinuationCache.set(key,{at:Date.now(),result:final});
         return final;
     }
@@ -1817,7 +1853,6 @@ function wordChainStart(room,hostSocket){
     room.lastResult={ok:true,source:"starter",word:room.currentWord};
     room.winnerId=null;
     room.players.forEach(p=>{p.ready=true;p.mistakes=0;p.hp=2;p.alive=true;p.typing="";});
-    wordChainAddLog(room,`게임 시작! 제시어는 「${room.currentWord}」입니다. 두음법칙 ON · 제한시간 20초.`,"system");
     wordChainBroadcast(room);
 }
 
