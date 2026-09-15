@@ -98,7 +98,7 @@
         if (roomCodeLabel) roomCodeLabel.textContent = '------';
         if (roomModeLabel) roomModeLabel.textContent = '2인전';
         if (roomNameLabel) roomNameLabel.textContent = '새 끝말잇기 방';
-        setDictionaryStatus('로컬 한국어 단어 DB 대기', '');
+        setDictionaryStatus('온라인 끄투 계열 사전 대기', '');
         if (message) setLobbyStatus(message, '');
         renderRoomList();
     }
@@ -202,7 +202,7 @@
             if (!state?.players) return;
             const player = state.players.find(p => p.id === playerId);
             if (!player) return;
-            player.typing = String(text || '').slice(0, 30);
+            player.typing = String(text || '').slice(0, 100);
             renderPlayers();
             renderLiveTyping();
         });
@@ -340,7 +340,7 @@
         }
         if (state.lastResult) {
             const source = state.lastResult.source;
-            if (source === 'local-dictionary') setDictionaryStatus(state.lastResult.ok ? '로컬 한국어 단어 DB 확인 완료 · 두음법칙 ON' : '단어사전에 없음', state.lastResult.ok ? 'ok' : 'bad');
+            if (source === 'local-dictionary') setDictionaryStatus(state.lastResult.ok ? '온라인/로컬 단어 DB 확인 완료 · 두음법칙 ON' : '단어사전에 없음', state.lastResult.ok ? 'ok' : 'bad');
             else if (source === 'fallback') setDictionaryStatus('내장 안전 단어 목록', state.lastResult.ok ? 'ok' : 'bad');
             else if (source === 'dictionary-unreachable') setDictionaryStatus('로컬 단어 DB 확인 실패', 'bad');
             else if (source === 'starter') setDictionaryStatus('안전한 새 제시어', 'ok');
@@ -398,12 +398,12 @@
         socket.emit('wordchain:submit', { word });
         input.value = '';
         socket.emit('wordchain:typing', { text: '' });
-        setDictionaryStatus('로컬 단어 DB 확인 중...', 'loading');
+        setDictionaryStatus('온라인 끄투 계열 사전 확인 중...', 'loading');
     }
 
     function sendTyping() {
         if (!socket || !state || state.status !== 'playing' || state.turnPlayerId !== myId) return;
-        const text = String(input?.value || '').slice(0, 30);
+        const text = String(input?.value || '').slice(0, 100);
         clearTimeout(typingTimer);
         typingTimer = setTimeout(() => socket.emit('wordchain:typing', { text }), 25);
     }
