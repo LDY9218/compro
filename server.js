@@ -1488,10 +1488,10 @@ function wordChainNextStarts(word){
     if(!p)return [...out];
     const initial=p.initial;
     // ㄴ = 2, ㄹ = 5, ㅇ = 11 in Hangul choseong order.
-    const yVowels=new Set([6,7,12,13,18]); // ㅑ ㅒ ㅕ ㅖ ㅛ/ㅣ 계열을 아래 규칙에서 보정
-    const iLike=new Set([20]); // ㅣ
     const medial=p.medial;
-    const isYLike=[6,7,12,13,17,18,19,20].includes(medial);
+    // 두음법칙에서 ㄹ/ㄴ이 허용되는 대표 모음: ㅑ·ㅒ·ㅕ·ㅖ·ㅛ·ㅠ·ㅣ.
+    // (한글 중성 인덱스: 2,3,6,7,12,17,20)
+    const isYLike=[2,3,6,7,12,17,20].includes(medial);
     if(initial===5){
         if(isYLike) out.add(wordChainCompose(11,medial,p.final));
         else out.add(wordChainCompose(2,medial,p.final));
@@ -1553,17 +1553,33 @@ async function wordChainDictionaryCheck(word){
     const cached=wordChainDictionaryCache.get(normalized);
     if(cached && Date.now()-cached.at<WORD_CHAIN_DICT_TTL_MS)return cached.result;
     try{
-        const url=`https://kkutu.lightstudio.kr/?start=${encodeURIComponent(normalized)}&end=${encodeURIComponent(normalized)}`;
-        const response=await fetch(url,{headers:{"user-agent":"COMTIME-PRO-WordChain/1.0"},signal:AbortSignal.timeout(6500)});
+        // 끄투사전의 '시작 글자' 검색을 사용합니다. start=end으로 검색하면
+        // 끝 글자까지 같은 단어만 남기므로 일반 단어 검증에는 부적합합니다.
+        const url=`https://kkutu.lightstudio.kr/?start=${encodeURIComponent(normalized)}`;
+        const response=await fetch(url,{headers:{"user-agent":"Mozilla/5.0 COMTIME-PRO-WordChain/2.0"},signal:AbortSignal.timeout(7000)});
+        if(!response.ok)throw new Error(`KKuTu HTTP ${response.status}`);
         const html=await response.text();
-        const escaped=normalized.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-        const exact=new RegExp(`(?:>|\\b)${escaped}(?:<|\\b)`,'iu').test(html.replace(/&amp;/g,'&'));
-        const result=exact?{ok:true,source:"kkutu",message:"끄투사전 확인 완료"}:{ok:false,source:"kkutu",message:"끄투사전에 없는 단어입니다."};
+        const decoded=html
+            .replace(/<script[\s\S]*?<\/script>/gi,' ')
+            .replace(/<style[\s\S]*?<\/style>/gi,' ')
+            .replace(/<[^>]+>/g,' ')
+            .replace(/&nbsp;/gi,' ')
+            .replace(/&amp;/gi,'&')
+            .replace(/&#39;/gi,"'")
+            .replace(/&quot;/gi,'"')
+            .replace(/\s+/g,' ')
+            .trim();
+        const exactToken=new RegExp(`(?:^|\\s)${normalized.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')}(?:$|\\s|\\[복사\\])`,'iu');
+        const result=exactToken.test(decoded)
+            ? {ok:true,source:"kkutu",message:"끄투사전 확인 완료"}
+            : {ok:false,source:"kkutu",message:"끄투사전에 없는 단어입니다."};
         wordChainDictionaryCache.set(normalized,{at:Date.now(),result});
         return result;
     }catch(error){
         const fallback=WORD_CHAIN_FALLBACK.has(normalized);
-        const result=fallback?{ok:true,source:"fallback",message:"끄투사전 연결 실패 · 임시 단어 목록으로 확인"}:{ok:false,source:"fallback",message:"끄투사전에 연결할 수 없고 임시 목록에도 없는 단어입니다."};
+        const result=fallback
+            ? {ok:true,source:"fallback",message:"끄투사전 연결 실패 · 임시 단어 목록으로 확인"}
+            : {ok:false,source:"fallback",message:"끄투사전에 연결할 수 없고 임시 목록에도 없는 단어입니다."};
         wordChainDictionaryCache.set(normalized,{at:Date.now(),result});
         return result;
     }
