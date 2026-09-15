@@ -197,6 +197,40 @@ app.use((req, res, next) => {
 
 ensureUserStore();
 
+function wordChainRemovePlayer(room,socket){
+    if(!room)return;
+    const idx=room.players.findIndex(p=>p.id===socket.id);
+    if(idx<0){ if(socket.data.wordChainRoom===room.code)socket.data.wordChainRoom=null; return; }
+    const wasTurn=room.turnPlayerId===socket.id;
+    room.players.splice(idx,1);
+    socket.leave(`wordchain:${room.code}`);
+    socket.data.wordChainRoom=null;
+
+    if(room.players.length===0){
+        wordChainRooms.delete(room.code);
+        return;
+    }
+    if(room.hostId===socket.id) room.hostId=room.players[0].id;
+
+    if(room.status==="playing"){
+        const alive=room.players.filter(p=>p.alive);
+        if(alive.length<=1){
+            room.status="ended";
+            room.turnPlayerId=null;
+            room.turnDeadline=0;
+            room.winnerId=alive[0]?.id||null;
+            wordChainAddLog(room,alive[0]?`${alive[0].nickname} 승리!`:'게임 종료','win');
+            wordChainBroadcast(room);
+        }else if(wasTurn){
+            wordChainAdvanceTurn(room);
+        }else{
+            wordChainBroadcast(room);
+        }
+    }else{
+        wordChainBroadcast(room);
+    }
+}
+
 io.on("connection", (socket) => {
     socket.on("auth:identify", ({ token } = {}) => {
         const user = findUserByToken(String(token || ""));
@@ -1463,15 +1497,26 @@ startCarGameLoop();
 // WORD CHAIN — REALTIME 2P / 4P
 // =========================================================
 const wordChainRooms = new Map();
-const WORD_CHAIN_TURN_MS = 15000;
+const WORD_CHAIN_TURN_MS = 20_000;
 const WORD_CHAIN_MAX_MISTAKES = 6;
 const WORD_CHAIN_ROOM_TTL_MS = 30 * 60 * 1000;
-const WORD_CHAIN_START_WORDS = ["사과","학교","자동차","기차","구름","바나나","컴퓨터","친구"];
+const WORD_CHAIN_START_WORDS = ["사과", "학교", "자동차", "기차", "구름", "바나나", "컴퓨터", "친구"];
 const WORD_CHAIN_DICT_TTL_MS = 10 * 60 * 1000;
+const WORD_CHAIN_CONTINUATION_TTL_MS = 5 * 60 * 1000;
 const wordChainDictionaryCache = new Map();
+const wordChainContinuationCache = new Map();
+
+// KKuTu 사전이 일시적으로 응답하지 않을 때 게임이 완전히 멈추지 않도록 하는 최소 안전 목록입니다.
+// 정상적인 판정은 항상 KKuTu 조회를 우선합니다.
 const WORD_CHAIN_FALLBACK = new Set([
-    "사과","과자","자동차","차표","표범","범고래","래미안","안경","경찰","찰떡","떡볶이","이불","불꽃","꽃병","병원","원숭이","이름","음식","식당","당근","근육","육상","상어","어항","항구","구름","름?","학교","교실","실내","내일","일기","기차","차량","양말","말미잘","잘생김","김치","치약","약속","속담","담요","요리","리본","본능","능력","역사","사랑","랑종","종이","이야기","기린","린스","스키","키위","위성","성공","공원","원숭이","이상","상자","자전거","거미","미술","술잔","잔치","치마","마늘","늘보","보리","리더","더위","위험","험담","담배","배추","추억","억울","울음","음료","료리","이름","음악","악기","기분","분필","필통","통나무","무지개","개나리","리모컨","컨트롤","롤러","러시아","아이스크림","림프","프로그램","램프","프린터","터미널","널뛰기","기상","상식","식물","물고기","기차역","역무원","원칙","칙령","영화","화분","분수","수박","박수","수영","영어","어깨","깨소금","금요일","일요일","일기장","장난감","감자","자두","두부","부엌","억새","새우","우산","산책","책상","상추","추리","리더십","십자가","가방","방학","학생","생일","일본","본사","사전","전기","기술","술집","집게","게살","살구","구두","두꺼비","비행기","기린","린넨","넥타이","이발","발목","목걸이","이마","마스크","크레파스","스피커","커피","피아노","노트","트럭","럭비","비누","누나","나비","비상","상어","어묵","묵직","직업","업무","무게","게임","임무","무지개","개미","미역","역전","전구","구슬","슬픔","픔?"
-].filter(Boolean));
+    "사과","과자","자동차","차표","표범","범고래","래미안","안경","경찰","찰떡","떡볶이","이불","불꽃","꽃병","병원","원숭이","이름","음식","식당","당근","근육","육상","상어","어항","항구","구름","학교","교실","실내","내일","일기","기차","차량","양말","말미잘","김치","치약","약속","속담","담요","요리","리본","본능","능력","역사","사랑","종이","이야기","기린","스키","키위","위성","성공","공원","이상","상자","자전거","거미","미술","술잔","잔치","치마","마늘","늘보","보리","리더","더위","위험","험담","담배","배추","추억","억울","울음","음료","음악","악기","기분","분필","필통","통나무","무지개","개나리","리모컨","컨트롤","롤러","러시아","아이스크림","림프","프로그램","램프","프린터","터미널","널뛰기","기상","상식","식물","물고기","기차역","역무원","원칙","영화","화분","분수","수박","박수","수영","영어","어깨","깨소금","금요일","일요일","일기장","장난감","감자","자두","두부","부엌","억새","새우","우산","산책","책상","상추","추리","리더십","십자가","가방","방학","학생","생일","일본","본사","사전","전기","기술","술집","집게","게살","살구","구두","두꺼비","비행기","린넨","넥타이","이발","발목","목걸이","이마","마스크","크레파스","스피커","커피","피아노","노트","트럭","럭비","비누","누나","나비","비상","어묵","묵직","직업","업무","무게","게임","임무","개미","미역","역전","전구","구슬","슬픔"
+]);
+
+// 한방단어가 되기 쉬운 대표 종결 음절. KKuTu 조회가 정상적으로 되면 이 목록보다 실제 사전 결과를 우선합니다.
+const WORD_CHAIN_KNOWN_DEAD_ENDS = new Set([
+    "늄","륨","튬","듐","븀","슘","윰","쥬","쯔","쁨","름","슴","즘","픔","퓸","뮴","븐"
+]);
+
 function wordChainNormalizeWord(raw){
     return String(raw||"").normalize("NFC").trim().toLowerCase().replace(/[^가-힣]/g,"");
 }
@@ -1486,16 +1531,14 @@ function wordChainNextStarts(word){
     const out=new Set([last]);
     const p=wordChainHangulParts(last);
     if(!p)return [...out];
-    const initial=p.initial;
-    // ㄴ = 2, ㄹ = 5, ㅇ = 11 in Hangul choseong order.
     const medial=p.medial;
-    // 두음법칙에서 ㄹ/ㄴ이 허용되는 대표 모음: ㅑ·ㅒ·ㅕ·ㅖ·ㅛ·ㅠ·ㅣ.
-    // (한글 중성 인덱스: 2,3,6,7,12,17,20)
-    const isYLike=[2,3,6,7,12,17,20].includes(medial);
-    if(initial===5){
+    // 한글 맞춤법 제3장 제5절의 두음법칙을 게임용 시작 음절 판정에 반영합니다.
+    // ㄹ 계열은 모음에 따라 ㄴ/ㅇ으로, ㄴ 계열은 일부 모음에서 ㅇ으로 바뀔 수 있습니다.
+    const isYLike=[2,3,6,7,12,17,20].includes(medial); // ㅑ, ㅒ, ㅕ, ㅖ, ㅛ, ㅠ, ㅣ
+    if(p.initial===5){
         if(isYLike) out.add(wordChainCompose(11,medial,p.final));
         else out.add(wordChainCompose(2,medial,p.final));
-    }else if(initial===2 && isYLike){
+    }else if(p.initial===2 && isYLike){
         out.add(wordChainCompose(11,medial,p.final));
     }
     return [...out];
@@ -1518,89 +1561,210 @@ function wordChainRoomCode(){
 }
 function wordChainPublicRoom(room){
     return {
-        code:room.code, mode:room.mode, hostId:room.hostId, status:room.status,
-        currentWord:room.currentWord, requiredStarts:room.currentWord?wordChainNextStarts(room.currentWord):[],
-        turnPlayerId:room.turnPlayerId, turnDeadline:room.turnDeadline,
-        players:room.players.map(p=>({id:p.id,nickname:p.nickname,hp:p.hp,mistakes:p.mistakes,alive:p.alive,ready:p.ready,typing:p.typing||""})),
-        lastResult:room.lastResult||null, winnerId:room.winnerId||null, logs:room.logs.slice(-40)
+        code:room.code,
+        mode:room.mode,
+        hostId:room.hostId,
+        status:room.status,
+        currentWord:room.currentWord,
+        requiredStarts:room.currentWord?wordChainNextStarts(room.currentWord):[],
+        turnPlayerId:room.turnPlayerId,
+        turnDeadline:room.turnDeadline,
+        players:room.players.map(p=>({
+            id:p.id,nickname:p.nickname,hp:p.hp,mistakes:p.mistakes,alive:p.alive,ready:p.ready,typing:p.typing||""
+        })),
+        lastResult:room.lastResult||null,
+        winnerId:room.winnerId||null,
+        logs:room.logs.slice(-40)
     };
 }
 function wordChainBroadcast(room){ io.to(`wordchain:${room.code}`).emit("wordchain:state",wordChainPublicRoom(room)); }
-function wordChainAddLog(room,text,type="system"){ room.logs.push({text:String(text),type,at:Date.now()}); if(room.logs.length>80)room.logs.splice(0,room.logs.length-80); }
+function wordChainAddLog(room,text,type="system"){
+    room.logs.push({text:String(text),type,at:Date.now()});
+    if(room.logs.length>80)room.logs.splice(0,room.logs.length-80);
+}
 function wordChainAdvanceTurn(room){
     const alive=room.players.filter(p=>p.alive);
     if(alive.length<=1){
-        room.status="ended"; room.turnPlayerId=null; room.winnerId=alive[0]?.id||null;
+        room.status="ended";
+        room.turnPlayerId=null;
+        room.turnDeadline=0;
+        room.winnerId=alive[0]?.id||null;
         wordChainAddLog(room,alive[0]?`${alive[0].nickname} 승리!`:`게임 종료`,'win');
-        wordChainBroadcast(room); return;
+        wordChainBroadcast(room);
+        return;
     }
     const currentIndex=room.players.findIndex(p=>p.id===room.turnPlayerId);
     for(let step=1;step<=room.players.length;step++){
         const p=room.players[(currentIndex+step+room.players.length)%room.players.length];
-        if(p?.alive){ room.turnPlayerId=p.id; p.mistakes=0; p.typing=""; room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS; break; }
+        if(p?.alive){
+            room.turnPlayerId=p.id;
+            p.mistakes=0;
+            p.typing="";
+            room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS;
+            break;
+        }
     }
     wordChainBroadcast(room);
 }
 function wordChainApplyPenalty(room,player,reason="6번 틀림"){
-    player.hp=Math.max(0,player.hp-1); player.mistakes=0; player.typing="";
-    if(player.hp<=0){ player.alive=false; wordChainAddLog(room,`${player.nickname} 탈락! (${reason})`,'lose'); }
-    else wordChainAddLog(room,`${player.nickname} 체력 -1 · 다음 턴으로 넘어갑니다.`,'penalty');
+    player.hp=Math.max(0,player.hp-1);
+    player.mistakes=0;
+    player.typing="";
+    if(player.hp<=0){
+        player.alive=false;
+        wordChainAddLog(room,`${player.nickname} 탈락! (${reason})`,'lose');
+    }else{
+        wordChainAddLog(room,`${player.nickname} 체력 -1 · 다음 턴으로 넘어갑니다. (${reason})`,'penalty');
+    }
     wordChainAdvanceTurn(room);
 }
+
+function wordChainDecodeHtml(input){
+    return String(input||"")
+        .replace(/&nbsp;/gi," ")
+        .replace(/&amp;/gi,"&")
+        .replace(/&lt;/gi,"<")
+        .replace(/&gt;/gi,">")
+        .replace(/&quot;/gi,'"')
+        .replace(/&#39;/gi,"'")
+        .replace(/&#x27;/gi,"'");
+}
+
+function wordChainExtractKkutuCandidates(html){
+    const source=String(html||"");
+    // 검색 결과 영역만 잘라야 헤더/푸터의 일반 한국어 문장을 단어로 오인하지 않습니다.
+    let resultArea=source;
+    const topIndex=source.search(/TOP\s*1/i);
+    if(topIndex>=0) resultArea=source.slice(topIndex);
+    const footerIndex=resultArea.search(/사이트에 오류|끄투코리아와 그 어떤 제휴|©\s*2026/i);
+    if(footerIndex>0) resultArea=resultArea.slice(0,footerIndex);
+
+    const candidates=new Set();
+    const patterns=[
+        /<(?:a|button|span|strong|b|div)[^>]*>\s*([가-힣]{2,30})\s*(?:<\/[^>]+>)/giu,
+        /(?:^|[>\s])([가-힣]{2,30})(?=\s*(?:\[복사\]|<\/))/giu
+    ];
+    for(const re of patterns){
+        for(const m of resultArea.matchAll(re)){
+            const word=wordChainNormalizeWord(wordChainDecodeHtml(m[1]));
+            if(word.length>=2)candidates.add(word);
+        }
+    }
+
+    const text=wordChainDecodeHtml(resultArea
+        .replace(/<script[\s\S]*?<\/script>/gi," ")
+        .replace(/<style[\s\S]*?<\/style>/gi," ")
+        .replace(/<[^>]+>/g," ")
+        .replace(/\s+/g," "));
+    for(const token of text.split(/\s+/)){
+        const word=wordChainNormalizeWord(token);
+        if(word.length>=2)candidates.add(word);
+    }
+    return candidates;
+}
+
+async function wordChainKkutuSearch(start){
+    const letter=wordChainNormalizeWord(start).slice(0,1);
+    if(!letter)return {ok:false,reachable:false,words:new Set(),message:"시작 글자가 없습니다."};
+    try{
+        const url=`https://kkutu.lightstudio.kr/?start=${encodeURIComponent(letter)}`;
+        const response=await fetch(url,{
+            headers:{"user-agent":"Mozilla/5.0 COMTIME-PRO-WordChain/3.0","accept":"text/html,application/xhtml+xml"},
+            signal:AbortSignal.timeout(7000)
+        });
+        if(!response.ok)throw new Error(`KKuTu HTTP ${response.status}`);
+        const html=await response.text();
+        const words=wordChainExtractKkutuCandidates(html);
+        // 검색어 자체만 남은 경우에는 '결과 있음'으로 간주하지 않습니다.
+        const realWords=new Set([...words].filter(w=>w.length>=2 && w.startsWith(letter)));
+        return {ok:true,reachable:true,words:realWords,message:"끄투 사전 검색 완료"};
+    }catch(error){
+        return {ok:false,reachable:false,words:new Set(),message:"끄투 사전 연결 지연"};
+    }
+}
+
 async function wordChainDictionaryCheck(word){
     const normalized=wordChainNormalizeWord(word);
     if(normalized.length<2)return {ok:false,source:"rule",message:"두 글자 이상의 단어를 입력하세요."};
     const cached=wordChainDictionaryCache.get(normalized);
     if(cached && Date.now()-cached.at<WORD_CHAIN_DICT_TTL_MS)return cached.result;
+
     try{
-        // 끄투사전의 '시작 글자' 검색을 사용합니다. start=end으로 검색하면
-        // 끝 글자까지 같은 단어만 남기므로 일반 단어 검증에는 부적합합니다.
-        const url=`https://kkutu.lightstudio.kr/?start=${encodeURIComponent(normalized)}`;
-        const response=await fetch(url,{headers:{"user-agent":"Mozilla/5.0 COMTIME-PRO-WordChain/2.0"},signal:AbortSignal.timeout(7000)});
-        if(!response.ok)throw new Error(`KKuTu HTTP ${response.status}`);
-        const html=await response.text();
-        const decoded=html
-            .replace(/<script[\s\S]*?<\/script>/gi,' ')
-            .replace(/<style[\s\S]*?<\/style>/gi,' ')
-            .replace(/<[^>]+>/g,' ')
-            .replace(/&nbsp;/gi,' ')
-            .replace(/&amp;/gi,'&')
-            .replace(/&#39;/gi,"'")
-            .replace(/&quot;/gi,'"')
-            .replace(/\s+/g,' ')
-            .trim();
-        const exactToken=new RegExp(`(?:^|\\s)${normalized.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')}(?:$|\\s|\\[복사\\])`,'iu');
-        const result=exactToken.test(decoded)
-            ? {ok:true,source:"kkutu",message:"끄투사전 확인 완료"}
-            : {ok:false,source:"kkutu",message:"끄투사전에 없는 단어입니다."};
-        wordChainDictionaryCache.set(normalized,{at:Date.now(),result});
-        return result;
-    }catch(error){
-        const fallback=WORD_CHAIN_FALLBACK.has(normalized);
-        const result=fallback
-            ? {ok:true,source:"fallback",message:"끄투사전 연결 실패 · 임시 단어 목록으로 확인"}
-            : {ok:false,source:"fallback",message:"끄투사전에 연결할 수 없고 임시 목록에도 없는 단어입니다."};
-        wordChainDictionaryCache.set(normalized,{at:Date.now(),result});
-        return result;
-    }
+        const result=await wordChainKkutuSearch(normalized.slice(0,1));
+        if(result.ok){
+            const exists=result.words.has(normalized);
+            const finalResult=exists
+                ? {ok:true,source:"kkutu",message:"끄투 사전 확인 완료"}
+                : {ok:false,source:"kkutu",message:"끄투 사전에 없는 단어입니다."};
+            wordChainDictionaryCache.set(normalized,{at:Date.now(),result:finalResult});
+            return finalResult;
+        }
+    }catch(_){ /* fallback below */ }
+
+    const fallback=WORD_CHAIN_FALLBACK.has(normalized);
+    const finalResult=fallback
+        ? {ok:true,source:"fallback",message:"끄투 사전 연결 지연 · 임시 단어 목록으로 확인"}
+        : {ok:false,source:"fallback",message:"끄투 사전에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."};
+    wordChainDictionaryCache.set(normalized,{at:Date.now(),result:finalResult});
+    return finalResult;
 }
+
+async function wordChainHasContinuation(word){
+    const starts=wordChainNextStarts(word);
+    const key=starts.join("|");
+    const cached=wordChainContinuationCache.get(key);
+    if(cached && Date.now()-cached.at<WORD_CHAIN_CONTINUATION_TTL_MS)return cached.result;
+
+    // 하나라도 실제 후속 단어가 확인되면 한방단어가 아닙니다.
+    for(const start of starts){
+        const result=await wordChainKkutuSearch(start);
+        if(result.ok && result.words.size>0){
+            const final={ok:true,source:"kkutu"};
+            wordChainContinuationCache.set(key,{at:Date.now(),result:final});
+            return final;
+        }
+    }
+
+    // 사전 서버가 잠시 죽은 경우 대표적인 막힘 음절만 보수적으로 차단합니다.
+    const last=word.slice(-1);
+    if(WORD_CHAIN_KNOWN_DEAD_ENDS.has(last)){
+        const final={ok:false,source:"rule",message:"한방단어는 사용할 수 없습니다."};
+        wordChainContinuationCache.set(key,{at:Date.now(),result:final});
+        return final;
+    }
+
+    const final={ok:null,source:"unknown",message:"한방단어 여부를 확인하지 못했습니다."};
+    wordChainContinuationCache.set(key,{at:Date.now(),result:final});
+    return final;
+}
+
 function wordChainCanStart(word,room){
     if(!room.currentWord)return true;
-    const starts=wordChainNextStarts(room.currentWord);
-    return starts.includes(word.slice(0,1));
+    return wordChainNextStarts(room.currentWord).includes(word.slice(0,1));
 }
 function wordChainCleanupRoom(room){
     if(!room)return;
-    for(const p of room.players){ const s=io.sockets.sockets.get(p.id); if(s)s.leave(`wordchain:${room.code}`); }
+    for(const p of room.players){
+        const s=io.sockets.sockets.get(p.id);
+        if(s){s.leave(`wordchain:${room.code}`); if(s.data.wordChainRoom===room.code)s.data.wordChainRoom=null;}
+    }
     wordChainRooms.delete(room.code);
 }
 function wordChainStart(room,hostSocket){
     if(room.status!=="lobby")return;
-    if(room.players.length<2){ hostSocket.emit("wordchain:error",{message:"최소 2명이 모여야 시작할 수 있습니다."}); return; }
-    if(room.players.length!==room.mode){ hostSocket.emit("wordchain:error",{message:`${room.mode}인전은 ${room.mode}명이 모두 입장해야 시작할 수 있습니다.`}); return; }
-    room.status="playing"; room.currentWord=WORD_CHAIN_START_WORDS[Math.floor(Math.random()*WORD_CHAIN_START_WORDS.length)]; room.usedWords=new Set([room.currentWord]); room.turnPlayerId=room.players[0].id; room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS; room.lastResult=null;
+    if(room.players.length!==room.mode){
+        hostSocket.emit("wordchain:error",{message:`${room.mode}인전은 ${room.mode}명이 모두 입장해야 시작할 수 있습니다.`});
+        return;
+    }
+    room.status="playing";
+    room.currentWord=WORD_CHAIN_START_WORDS[Math.floor(Math.random()*WORD_CHAIN_START_WORDS.length)];
+    room.usedWords=new Set([room.currentWord]);
+    room.turnPlayerId=room.players[0].id;
+    room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS;
+    room.lastResult=null;
+    room.winnerId=null;
     room.players.forEach(p=>{p.ready=true;p.mistakes=0;p.hp=2;p.alive=true;p.typing="";});
-    wordChainAddLog(room,`게임 시작! 제시어는 「${room.currentWord}」입니다.`,'system');
+    wordChainAddLog(room,`게임 시작! 제시어는 「${room.currentWord}」입니다. 제한 시간은 20초입니다.`,'system');
     wordChainBroadcast(room);
 }
 
@@ -1764,15 +1928,13 @@ const wordChainTimer=setInterval(()=>{
     const now=Date.now();
     for(const room of wordChainRooms.values()){
         if(now-room.createdAt>WORD_CHAIN_ROOM_TTL_MS){wordChainCleanupRoom(room);continue;}
-        if(room.status!=="playing"||!room.turnPlayerId)continue;
-        if(now<room.turnDeadline)continue;
+        if(room.status!=="playing"||!room.turnPlayerId||now<room.turnDeadline)continue;
         const p=room.players.find(x=>x.id===room.turnPlayerId);
         if(!p||!p.alive){wordChainAdvanceTurn(room);continue;}
-        p.mistakes=WORD_CHAIN_MAX_MISTAKES;
-        wordChainAddLog(room,`${p.nickname}: 시간 초과 · 체력 -1`,'penalty');
-        wordChainApplyPenalty(room,p,"시간 초과");
+        // 시간 초과는 6회 실수와 별개로 즉시 체력 1을 깎고 다음 생존자에게 턴을 넘깁니다.
+        wordChainApplyPenalty(room,p,"20초 시간 초과");
     }
-},250);
+},100);
 
 function wormCellKey(x,y,cell){ return `${Math.floor(x/cell)},${Math.floor(y/cell)}`; }
 function wormBuildGrid(cell){
@@ -1885,64 +2047,117 @@ io.on("connection", (socket) => {
     socket.emit("notices:update", { notices: getSortedNotices(), updatedAt: new Date().toISOString() });
 
     socket.on("wordchain:create", ({mode=2,nickname="Player"}={})=>{
+        // 2인전 / 4인전은 방 생성 단계에서 모드가 고정되며 서로 섞이지 않습니다.
         const m=Number(mode)===4?4:2;
+        if(socket.data.wordChainRoom){
+            const old=wordChainRooms.get(socket.data.wordChainRoom);
+            if(old) wordChainRemovePlayer(old,socket);
+        }
         const code=wordChainRoomCode();
-        const room={code,mode:m,hostId:socket.id,status:"lobby",players:[],currentWord:null,usedWords:new Set(),turnPlayerId:null,turnDeadline:0,lastResult:null,winnerId:null,logs:[] ,createdAt:Date.now()};
+        const room={code,mode:m,hostId:socket.id,status:"lobby",players:[],currentWord:null,usedWords:new Set(),turnPlayerId:null,turnDeadline:0,lastResult:null,winnerId:null,logs:[],createdAt:Date.now()};
         const player={id:socket.id,nickname:wordChainUniqueName(nickname,room,socket.id),hp:2,mistakes:0,alive:true,ready:true,typing:""};
-        room.players.push(player); wordChainRooms.set(code,room); socket.join(`wordchain:${code}`); socket.data.wordChainRoom=code;
-        socket.emit("wordchain:created",{code,mode:m}); wordChainBroadcast(room);
+        room.players.push(player);
+        wordChainRooms.set(code,room);
+        socket.join(`wordchain:${code}`);
+        socket.data.wordChainRoom=code;
+        socket.emit("wordchain:created",{code,mode:m});
+        wordChainBroadcast(room);
     });
+
     socket.on("wordchain:join", ({code,nickname="Player"}={})=>{
-        const room=wordChainRooms.get(String(code||"").trim());
+        const target=String(code||"").trim();
+        const room=wordChainRooms.get(target);
         if(!room){socket.emit("wordchain:error",{message:"존재하지 않는 방입니다."});return;}
         if(room.status!=="lobby"){socket.emit("wordchain:error",{message:"이미 게임이 시작된 방입니다."});return;}
-        if(room.players.length>=room.mode){socket.emit("wordchain:error",{message:"방이 가득 찼습니다."});return;}
+        if(room.players.length>=room.mode){socket.emit("wordchain:error",{message:`이 방은 ${room.mode}인전이고 이미 가득 찼습니다.`});return;}
+        if(socket.data.wordChainRoom){
+            const old=wordChainRooms.get(socket.data.wordChainRoom);
+            if(old) wordChainRemovePlayer(old,socket);
+        }
         const player={id:socket.id,nickname:wordChainUniqueName(nickname,room,socket.id),hp:2,mistakes:0,alive:true,ready:true,typing:""};
-        room.players.push(player); socket.join(`wordchain:${room.code}`); socket.data.wordChainRoom=room.code;
-        socket.emit("wordchain:joined",{code:room.code,mode:room.mode}); wordChainBroadcast(room);
+        room.players.push(player);
+        socket.join(`wordchain:${room.code}`);
+        socket.data.wordChainRoom=room.code;
+        socket.emit("wordchain:joined",{code:room.code,mode:room.mode});
+        wordChainBroadcast(room);
     });
+
     socket.on("wordchain:start",()=>{
-        const room=wordChainRooms.get(socket.data.wordChainRoom); if(!room)return;
+        const room=wordChainRooms.get(socket.data.wordChainRoom);
+        if(!room)return;
         if(room.hostId!==socket.id){socket.emit("wordchain:error",{message:"방장만 게임을 시작할 수 있습니다."});return;}
         wordChainStart(room,socket);
     });
+
     socket.on("wordchain:typing",({text=""}={})=>{
-        const room=wordChainRooms.get(socket.data.wordChainRoom); if(!room||room.status!=="playing")return;
-        const p=room.players.find(x=>x.id===socket.id); if(!p||!p.alive)return;
-        p.typing=String(text).slice(0,30); io.to(`wordchain:${room.code}`).emit("wordchain:typing",{playerId:p.id,text:p.typing});
+        const room=wordChainRooms.get(socket.data.wordChainRoom);
+        if(!room||room.status!=="playing")return;
+        const p=room.players.find(x=>x.id===socket.id);
+        if(!p||!p.alive||room.turnPlayerId!==socket.id)return;
+        p.typing=String(text||"").replace(/[^가-힣]/g,"").slice(0,30);
+        io.to(`wordchain:${room.code}`).emit("wordchain:typing",{playerId:p.id,text:p.typing});
     });
+
     socket.on("wordchain:submit",async({word=""}={})=>{
-        const room=wordChainRooms.get(socket.data.wordChainRoom); if(!room||room.status!=="playing")return;
+        const room=wordChainRooms.get(socket.data.wordChainRoom);
+        if(!room||room.status!=="playing")return;
         if(room.turnPlayerId!==socket.id){socket.emit("wordchain:error",{message:"지금은 당신의 턴이 아닙니다."});return;}
-        const p=room.players.find(x=>x.id===socket.id); if(!p||!p.alive)return;
-        const normalized=wordChainNormalizeWord(word); p.typing="";
+        const p=room.players.find(x=>x.id===socket.id);
+        if(!p||!p.alive)return;
+
+        const normalized=wordChainNormalizeWord(word);
+        p.typing="";
+        io.to(`wordchain:${room.code}`).emit("wordchain:typing",{playerId:p.id,text:""});
         if(!normalized){socket.emit("wordchain:invalid",{reason:"단어를 입력하세요."});return;}
-        if(room.usedWords.has(normalized)){
-            p.mistakes+=1; room.lastResult={ok:false,playerId:p.id,word:normalized,reason:"이미 사용한 단어입니다."}; wordChainAddLog(room,`${p.nickname}: ${normalized} · 중복 단어 (${p.mistakes}/${WORD_CHAIN_MAX_MISTAKES})`,'bad');
+
+        let failure="";
+        let source="rule";
+        if(normalized.length<2){
+            failure="두 글자 이상의 단어만 사용할 수 있습니다.";
+        }else if(room.usedWords.has(normalized)){
+            failure="이미 사용한 단어입니다.";
         }else if(!wordChainCanStart(normalized,room)){
-            p.mistakes+=1; room.lastResult={ok:false,playerId:p.id,word:normalized,reason:`${room.currentWord?.slice(-1)}로 시작해야 합니다.`}; wordChainAddLog(room,`${p.nickname}: ${normalized} · 시작 글자 불일치 (${p.mistakes}/${WORD_CHAIN_MAX_MISTAKES})`,'bad');
+            failure=`${room.currentWord?.slice(-1)||"지정 글자"}로 시작해야 합니다.`;
         }else{
             const check=await wordChainDictionaryCheck(normalized);
-            if(!check.ok){
-                p.mistakes+=1; room.lastResult={ok:false,playerId:p.id,word:normalized,reason:check.message,source:check.source}; wordChainAddLog(room,`${p.nickname}: ${normalized} · ${check.message} (${p.mistakes}/${WORD_CHAIN_MAX_MISTAKES})`,'bad');
-            }else{
-                room.usedWords.add(normalized); room.currentWord=normalized; room.lastResult={ok:true,playerId:p.id,word:normalized,source:check.source}; wordChainAddLog(room,`${p.nickname}: ${normalized}`,'good');
-                p.mistakes=0;
-                wordChainAdvanceTurn(room); return;
+            source=check.source;
+            if(!check.ok) failure=check.message;
+            else{
+                // 한방단어는 첫 턴부터 항상 금지합니다. 즉 '처음 5회' 같은 유예가 없습니다.
+                const continuation=await wordChainHasContinuation(normalized);
+                if(continuation.ok===false){
+                    failure=continuation.message||"한방단어는 사용할 수 없습니다.";
+                    source=continuation.source;
+                }else if(continuation.ok===null){
+                    // KKuTu 검색이 일시적으로 불가능하면, 사전 자체는 확인된 단어를 무조건 탈락시키지 않습니다.
+                    wordChainAddLog(room,`${p.nickname}: 한방단어 여부 확인 지연 · 안전 규칙으로 진행`,'system');
+                }else{
+                    room.usedWords.add(normalized);
+                    room.currentWord=normalized;
+                    room.lastResult={ok:true,playerId:p.id,word:normalized,source:source};
+                    p.mistakes=0;
+                    wordChainAddLog(room,`${p.nickname}: ${normalized}`,'good');
+                    wordChainAdvanceTurn(room);
+                    return;
+                }
             }
         }
-        if(p.mistakes>=WORD_CHAIN_MAX_MISTAKES){wordChainApplyPenalty(room,p,"6번 틀림");}
-        else { room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS; wordChainBroadcast(room); }
+
+        p.mistakes+=1;
+        room.lastResult={ok:false,playerId:p.id,word:normalized,reason:failure,source};
+        wordChainAddLog(room,`${p.nickname}: ${normalized||"(빈 입력)"} · ${failure} (${p.mistakes}/${WORD_CHAIN_MAX_MISTAKES})`,'bad');
+        if(p.mistakes>=WORD_CHAIN_MAX_MISTAKES){
+            wordChainApplyPenalty(room,p,"6번 틀림");
+        }else{
+            room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS;
+            wordChainBroadcast(room);
+        }
     });
+
     socket.on("wordchain:leave",()=>{
-        const code=socket.data.wordChainRoom; const room=wordChainRooms.get(code); if(!room)return;
-        const idx=room.players.findIndex(p=>p.id===socket.id); if(idx<0)return;
-        const wasTurn=room.turnPlayerId===socket.id; room.players.splice(idx,1); socket.leave(`wordchain:${code}`); socket.data.wordChainRoom=null;
-        if(room.players.length===0){wordChainRooms.delete(code);return;}
-        if(room.hostId===socket.id)room.hostId=room.players[0].id;
-        if(room.status==="playing"&&room.players.filter(p=>p.alive).length<=1){room.status="ended";room.winnerId=room.players.find(p=>p.alive)?.id||null;}
-        else if(room.status==="playing"&&wasTurn)wordChainAdvanceTurn(room);
-        else wordChainBroadcast(room);
+        const room=wordChainRooms.get(socket.data.wordChainRoom);
+        if(!room)return;
+        wordChainRemovePlayer(room,socket);
     });
 
     socket.on("worm:join", ({ nickname } = {})=>{
@@ -2016,6 +2231,8 @@ io.on("connection", (socket) => {
 
     socket.on("disconnect", () => {
         leaveCarRoom(socket, true);
+        const wordRoom=wordChainRooms.get(socket.data.wordChainRoom);
+        if(wordRoom) wordChainRemovePlayer(wordRoom,socket);
         const p=wormPlayers.get(socket.id);
         if(p && !p.isBot){ if(p.alive)wormDropMass(p); wormPlayers.delete(socket.id); }
     });
