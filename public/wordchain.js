@@ -331,15 +331,14 @@
         if (mistakesEl) mistakesEl.textContent = `틀린 횟수 ${me?.mistakes || 0} / 6`;
         if (state.status === 'lobby') {
             const full = state.players.length === state.mode;
-            if (turnBanner) { turnBanner.textContent = ''; turnBanner.hidden = true; }
+            if (turnBanner) { turnBanner.textContent = ''; turnBanner.hidden = true; turnBanner.style.display = 'none'; }
             if (startBtn) startBtn.hidden = !(state.hostId === myId && full);
         } else if (state.status === 'playing') {
-            const turnPlayer = state.players.find(p => p.id === state.turnPlayerId);
-            if (turnBanner) { turnBanner.hidden = false; turnBanner.textContent = active ? 'YOUR TURN · 20초 안에 단어를 입력하세요' : `${turnPlayer?.nickname || '상대'}의 턴`; }
+            if (turnBanner) { turnBanner.textContent = ''; turnBanner.hidden = true; turnBanner.style.display = 'none'; }
             if (startBtn) startBtn.hidden = true;
             if (active && document.activeElement !== input) input?.focus();
         } else {
-            if (turnBanner) { turnBanner.textContent = ''; turnBanner.hidden = true; }
+            if (turnBanner) { turnBanner.textContent = ''; turnBanner.hidden = true; turnBanner.style.display = 'none'; }
             if (startBtn) startBtn.hidden = true;
         }
     }
@@ -374,7 +373,7 @@
         socket.emit('wordchain:submit', { word });
         input.value = '';
         socket.emit('wordchain:typing', { text: '' });
-        setDictionaryStatus('끄투 사전 + 두음법칙 확인 중...', 'loading');
+        setDictionaryStatus('끄투코리아 사전 확인 중...', 'loading');
     }
 
     function sendTyping() {
