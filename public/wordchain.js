@@ -46,6 +46,7 @@
     let typingTimer = null;
     let timerRaf = null;
     let opening = false;
+    let gameSessionStarted = false;
 
     const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
@@ -64,6 +65,7 @@
     }
 
     function resetViewToLobby(message = '') {
+        gameSessionStarted = false;
         state = null;
         roomCode = '';
         stopTimer();
@@ -74,7 +76,10 @@
         if (submitBtn) submitBtn.disabled = true;
         if (lobby) lobby.hidden = false;
         if (room) room.hidden = true;
-        if (endPanel) endPanel.hidden = true;
+        if (endPanel) {
+            endPanel.hidden = true;
+            endPanel.style.display = 'none';
+        }
         if (playersEl) playersEl.innerHTML = '';
         if (logEl) logEl.innerHTML = '';
         if (liveTypingEl) {
@@ -97,8 +102,10 @@
         modal.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
 
-        // 이전 판의 GAME OVER 오버레이가 남아 있어도 새 진입 시 로비부터 시작합니다.
+        // GAME OVER 오버레이는 새 진입 시 절대로 남아 있으면 안 됩니다.
+        // 실제 진행 중인 방만 유지하고, 끝난 판/초기 상태는 로비로 강제 초기화합니다.
         if (!state || state.status === 'ended') resetViewToLobby();
+        if (endPanel) { endPanel.hidden = true; endPanel.style.display = 'none'; }
         if (!socket) connect();
         opening = false;
     }
@@ -173,16 +180,30 @@
 
         socket.on('wordchain:state', next => {
             if (!next || !Array.isArray(next.players)) return;
+
+            // 서버/브라우저가 오래된 GAME OVER 상태를 가지고 있더라도
+            // 실제 한 판도 시작하지 않은 상태에서는 그것을 표시하지 않습니다.
+            if (next.status === 'ended' && !gameSessionStarted) {
+                resetViewToLobby();
+                return;
+            }
+
             state = next;
             roomCode = String(next.code || roomCode || '');
             mode = Number(next.mode) === 4 ? 4 : 2;
+            if (next.status === 'playing') gameSessionStarted = true;
             lobby.hidden = next.status !== 'lobby';
             room.hidden = next.status === 'lobby';
+            if (next.status !== 'ended' && endPanel) {
+                endPanel.hidden = true;
+                endPanel.style.display = 'none';
+            }
             render();
         });
     }
 
     function createRoom() {
+        if (endPanel) { endPanel.hidden = true; endPanel.style.display = 'none'; }
         if (!socket || !connected) return setLobbyStatus('서버에 연결하는 중입니다. 잠시만 기다려 주세요.', 'error');
         const name = String(createName?.value || 'Player').trim().slice(0, 14) || 'Player';
         socket.emit('wordchain:create', { mode, nickname: name });
@@ -190,6 +211,7 @@
     }
 
     function joinRoom() {
+        if (endPanel) { endPanel.hidden = true; endPanel.style.display = 'none'; }
         if (!socket || !connected) return setLobbyStatus('서버에 연결하는 중입니다. 잠시만 기다려 주세요.', 'error');
         const code = String(roomCodeInput?.value || '').trim();
         if (!/^\d{6}$/.test(code)) return setLobbyStatus('방 코드는 숫자 6자리입니다.', 'error');
@@ -292,8 +314,13 @@
     function renderEnd() {
         if (!endPanel || !state) return;
         const ended = state.status === 'ended';
-        endPanel.hidden = !ended;
-        if (!ended) return;
+        if (!ended) {
+            endPanel.hidden = true;
+            endPanel.style.display = 'none';
+            return;
+        }
+        endPanel.hidden = false;
+        endPanel.style.display = 'flex';
         const winner = state.players.find(p => p.id === state.winnerId);
         const mine = state.winnerId === myId;
         if (endTitle) endTitle.textContent = mine ? 'YOU WIN' : 'GAME OVER';
@@ -341,8 +368,9 @@
     }
 
     function leaveRoom(message = '방에서 나왔습니다.') {
-        if (socket && roomCode) socket.emit('wordchain:leave');
+        if (socket) socket.emit('wordchain:leave');
         resetViewToLobby(message);
+        if (endPanel) { endPanel.hidden = true; endPanel.style.display = 'none'; }
     }
 
     tabs.forEach(tab => tab.addEventListener('click', () => {
@@ -369,7 +397,11 @@
     roomCodeInput?.addEventListener('input', () => {
         roomCodeInput.value = roomCodeInput.value.replace(/\D/g, '').slice(0, 6);
     });
-    rematchBtn?.addEventListener('click', () => leaveRoom('게임이 종료되었습니다. 새 방을 만들거나 다른 방에 참가하세요.'));
+    rematchBtn?.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        leaveRoom('로비로 돌아왔습니다. 새 방을 만들거나 다른 방에 참가하세요.');
+    });
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && modal.classList.contains('active')) close();
     });
