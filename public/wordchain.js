@@ -83,10 +83,11 @@
         if (playersEl) playersEl.innerHTML = '';
         if (logEl) logEl.innerHTML = '';
         if (liveTypingEl) {
-            liveTypingEl.textContent = '상대방 입력 대기 중...';
+            liveTypingEl.textContent = '';
             liveTypingEl.classList.remove('active');
+            liveTypingEl.hidden = true;
         }
-        if (turnBanner) turnBanner.textContent = '방을 준비하고 있습니다.';
+        if (turnBanner) { turnBanner.textContent = ''; turnBanner.hidden = true; }
         if (mistakesEl) mistakesEl.textContent = '틀린 횟수 0 / 6';
         if (roomCodeLabel) roomCodeLabel.textContent = '------';
         if (roomModeLabel) roomModeLabel.textContent = '2인전';
@@ -282,10 +283,18 @@
 
     function renderLiveTyping() {
         if (!liveTypingEl || !state) return;
+        if (state.status !== 'playing') {
+            liveTypingEl.textContent = '';
+            liveTypingEl.classList.remove('active');
+            liveTypingEl.hidden = true;
+            return;
+        }
+        liveTypingEl.hidden = false;
         const typers = state.players.filter(p => p.id !== myId && p.alive && p.typing);
         if (!typers.length) {
-            liveTypingEl.textContent = '상대방 입력 대기 중...';
+            liveTypingEl.textContent = '';
             liveTypingEl.classList.remove('active');
+            liveTypingEl.hidden = true;
             return;
         }
         liveTypingEl.textContent = typers.map(p => `${p.nickname}: ${p.typing}`).join('  ·  ');
@@ -294,9 +303,11 @@
 
     function renderBoard() {
         const current = state.currentWord || '';
-        if (currentWordEl) currentWordEl.textContent = current || '게임 시작을 기다리는 중';
+        const active = state.status === 'playing';
+        if (currentWordEl) currentWordEl.textContent = current || '';
+        if (currentWordEl?.closest('.wordchain-word-board')) currentWordEl.closest('.wordchain-word-board').hidden = !active;
         if (requiredEl) {
-            if (!current) requiredEl.textContent = '첫 제시어가 나오면 시작합니다.';
+            if (!active || !current) requiredEl.textContent = '';
             else {
                 const starts = Array.isArray(state.requiredStarts) ? state.requiredStarts.join(' / ') : current.slice(-1);
                 requiredEl.textContent = `다음 시작 글자 · ${starts} · 두음법칙 ON`;
@@ -320,17 +331,15 @@
         if (mistakesEl) mistakesEl.textContent = `틀린 횟수 ${me?.mistakes || 0} / 6`;
         if (state.status === 'lobby') {
             const full = state.players.length === state.mode;
-            if (turnBanner) turnBanner.textContent = state.players.length < state.mode
-                ? `${state.players.length} / ${state.mode}명 · 참가자를 기다리는 중`
-                : (state.hostId === myId ? '모든 인원이 모였습니다. 게임을 시작하세요.' : '방장이 게임을 시작하기를 기다리는 중');
+            if (turnBanner) { turnBanner.textContent = ''; turnBanner.hidden = true; }
             if (startBtn) startBtn.hidden = !(state.hostId === myId && full);
         } else if (state.status === 'playing') {
             const turnPlayer = state.players.find(p => p.id === state.turnPlayerId);
-            if (turnBanner) turnBanner.textContent = active ? 'YOUR TURN · 20초 안에 단어를 입력하세요' : `${turnPlayer?.nickname || '상대'}의 턴`;
+            if (turnBanner) { turnBanner.hidden = false; turnBanner.textContent = active ? 'YOUR TURN · 20초 안에 단어를 입력하세요' : `${turnPlayer?.nickname || '상대'}의 턴`; }
             if (startBtn) startBtn.hidden = true;
             if (active && document.activeElement !== input) input?.focus();
         } else {
-            if (turnBanner) turnBanner.textContent = 'GAME OVER';
+            if (turnBanner) { turnBanner.textContent = ''; turnBanner.hidden = true; }
             if (startBtn) startBtn.hidden = true;
         }
     }
