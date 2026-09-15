@@ -842,7 +842,7 @@ app.post("/api/gemini", requireAuth, async (req, res) => {
         stream: true,
         system_instruction:
             "너는 COMTIME PRO의 빠른 AI 도우미다. " +
-            "한국어로 정확하고 멋들어지게 답한다. " +
+            "한국어로 정확하고 간결하게 답한다. " +
             "불필요한 서론과 반복을 줄이고 질문에 바로 답한다. " +
             "모르는 내용은 추측하지 않는다."
     };
@@ -1537,943 +1537,255 @@ startCarGameLoop();
 // =========================================================
 // WORD CHAIN — REALTIME 2P / 4P
 // =========================================================
-
 const wordChainRooms = new Map();
-
 const WORD_CHAIN_TURN_MS = 20_000;
 const WORD_CHAIN_MAX_MISTAKES = 6;
 const WORD_CHAIN_ROOM_TTL_MS = 30 * 60 * 1000;
+const WORD_CHAIN_START_WORDS = [
+    "사과","학교","자동차","기차","친구","바나나","컴퓨터","우유","나무","고기",
+    "토마토","포도","오리","하마","소나무","구두","모자","가방","시계","라디오",
+    "피아노","도로","바다","나라","노래","사자","고래","코끼리","거미","나비",
+    "두부","김치","치마","의자","소파","전화","비누","커피","오이","배추",
+    "딸기","복숭아","고구마","감자","주스","아기","강아지","고양이","토끼","여우",
+    "호랑이","코알라","가위","축구","야구","농구","공부","영화","여행","마을",
+    "바지","지도","사진","수박","계란","동생","가수","배우","의사","약국","도서관"
+];
 const WORD_CHAIN_DICT_TTL_MS = 30 * 60 * 1000;
 const WORD_CHAIN_CONTINUATION_TTL_MS = 30 * 60 * 1000;
-
-const WORD_CHAIN_START_WORDS = [
-    "사과", "학교", "자동차", "기차", "친구", "바나나",
-    "컴퓨터", "우유", "나무", "고기", "토마토", "포도",
-    "오리", "하마", "소나무", "구두", "모자", "가방",
-    "시계", "라디오", "피아노", "도로", "바다", "나라",
-    "노래", "사자", "고래", "코끼리", "거미", "나비",
-    "두부", "김치", "치마", "의자", "소파", "전화",
-    "비누", "커피", "오이", "배추", "딸기", "복숭아",
-    "고구마", "감자", "주스", "아기", "강아지", "고양이",
-    "토끼", "여우", "호랑이", "코알라", "가위", "축구",
-    "야구", "농구", "공부", "영화", "여행", "마을",
-    "바지", "지도", "사진", "수박", "계란", "동생",
-    "가수", "배우", "의사", "약국", "도서관"
-];
-
-/*
- * 두음법칙 처리
- *
- * 예:
- * 녀 → 여
- * 뇨 → 요
- * 뉴 → 유
- * 니 → 이
- * 랴 → 야
- * 려 → 여
- * 례 → 예
- * 료 → 요
- * 류 → 유
- * 리 → 이
- * 라 → 나
- * 래 → 내
- * 로 → 노
- * 뢰 → 뇌
- * 루 → 누
- * 르 → 느
- * 래/레 계열 등은 일반적인 한국어 두음 규칙에 맞춰 처리
- */
-function wordChainNormalizeWord(value) {
-    return String(value || "")
-        .trim()
-        .replace(/\s+/g, "")
-        .replace(/[^가-힣]/g, "");
-}
-
-function wordChainDuumCandidates(char) {
-    const map = {
-        "녀": ["녀", "여"],
-        "뇨": ["뇨", "요"],
-        "뉴": ["뉴", "유"],
-        "니": ["니", "이"],
-
-        "랴": ["랴", "야"],
-        "려": ["려", "여"],
-        "례": ["례", "예"],
-        "료": ["료", "요"],
-        "류": ["류", "유"],
-        "리": ["리", "이"],
-
-        "라": ["라", "나"],
-        "래": ["래", "내"],
-        "로": ["로", "노"],
-        "뢰": ["뢰", "뇌"],
-        "루": ["루", "누"],
-        "르": ["르", "느"]
-    };
-
-    return map[char] || [char];
-}
-
-function wordChainNextStarts(word) {
-    const normalized = wordChainNormalizeWord(word);
-
-    if (!normalized) return [];
-
-    const last = normalized.slice(-1);
-
-    return [...new Set(
-        wordChainDuumCandidates(last)
-    )];
-}
-
-/*
- * 시작 단어는 가능하면 받침 없는 단어를 우선합니다.
- * 이렇게 하면 첫 단어부터 지나치게 어려운 시작이 나오는 것을 방지합니다.
- */
-function wordChainPickStarter(room) {
-    const candidates = WORD_CHAIN_START_WORDS.filter(word => {
-        const normalized = wordChainNormalizeWord(word);
-        if (normalized.length < 2) return false;
-
-        const last = normalized.charCodeAt(normalized.length - 1) - 0xAC00;
-
-        // 종성 여부
-        const jongseong = last % 28;
-
-        return jongseong === 0;
-    });
-
-    const source = candidates.length
-        ? candidates
-        : WORD_CHAIN_START_WORDS;
-
-    return source[Math.floor(Math.random() * source.length)];
-}
-
-function wordChainRoomCode() {
-    let code;
-
-    do {
-        code = `ROOM${Math.floor(100000 + Math.random() * 900000)}`;
-    } while (wordChainRooms.has(code));
-
-    return code;
-}
-
-function wordChainRoomName(name) {
-    const cleaned = String(name || "")
-        .replace(/[\r\n\t]/g, " ")
-        .trim()
-        .slice(0, 40);
-
-    return cleaned || "새 끝말잇기 방";
-}
-
-function wordChainUniqueName(rawName, room, excludeId = null) {
-    const base =
-        String(rawName || "Player")
-            .replace(/[^\p{L}\p{N}_ -]/gu, "")
-            .trim()
-            .slice(0, 16) || "Player";
-
-    const used = new Set(
-        room.players
-            .filter(player => player.id !== excludeId)
-            .map(player => player.nickname)
-    );
-
-    if (!used.has(base)) return base;
-
-    for (let i = 2; i <= 99; i++) {
-        const suffix = ` (${i})`;
-        const candidate =
-            base.slice(0, Math.max(1, 16 - suffix.length)) + suffix;
-
-        if (!used.has(candidate)) {
-            return candidate;
-        }
-    }
-
-    return `${base.slice(0, 10)}${Math.floor(Math.random() * 9000 + 1000)}`;
-}
-
-function wordChainPublicRoom(room) {
-    return {
-        code: room.code,
-        name: room.name,
-        mode: room.mode,
-        status: room.status,
-        playerCount: room.players.length,
-        maxPlayers: room.mode,
-        hostName:
-            room.players.find(player => player.id === room.hostId)?.nickname ||
-            "방장",
-        createdAt: room.createdAt
-    };
-}
-
-function wordChainPublicLobbyRooms() {
-    return [...wordChainRooms.values()]
-        .filter(room => room.status === "lobby")
-        .map(wordChainPublicRoom)
-        .sort((a, b) => b.createdAt - a.createdAt);
-}
-
-function wordChainPublicState(room) {
-    const now = Date.now();
-
-    return {
-        code: room.code,
-        name: room.name,
-        mode: room.mode,
-        status: room.status,
-
-        currentWord: room.currentWord,
-
-        turnPlayerId: room.turnPlayerId,
-
-        turnRemainingMs:
-            room.status === "playing" && room.turnDeadline
-                ? Math.max(0, room.turnDeadline - now)
-                : 0,
-
-        turnRemainingSeconds:
-            room.status === "playing" && room.turnDeadline
-                ? Math.max(
-                    0,
-                    Math.ceil((room.turnDeadline - now) / 1000)
-                )
-                : 0,
-
-        hostId: room.hostId,
-
-        winnerId: room.winnerId,
-
-        lastResult: room.lastResult,
-
-        logs: room.logs.slice(-50),
-
-        players: room.players.map(player => ({
-            id: player.id,
-            nickname: player.nickname,
-            hp: player.hp,
-            maxHp: 2,
-            mistakes: player.mistakes,
-            maxMistakes: WORD_CHAIN_MAX_MISTAKES,
-            alive: player.alive,
-            ready: player.ready,
-            typing: player.typing || ""
-        }))
-    };
-}
-
-function wordChainBroadcast(room) {
-    if (!room) return;
-
-    io.to(`wordchain:${room.code}`).emit(
-        "wordchain:state",
-        wordChainPublicState(room)
-    );
-
-    io.emit(
-        "wordchain:rooms",
-        wordChainPublicLobbyRooms()
-    );
-}
-
-function wordChainAddLog(room, text, type = "normal") {
-    room.logs.push({
-        id: crypto.randomUUID(),
-        text: String(text || "").slice(0, 300),
-        type,
-        createdAt: Date.now()
-    });
-
-    if (room.logs.length > 100) {
-        room.logs = room.logs.slice(-100);
-    }
-}
-
-function wordChainAlivePlayers(room) {
-    return room.players.filter(player => player.alive);
-}
-
-function wordChainAdvanceTurn(room) {
-    if (!room || room.status !== "playing") return;
-
-    const alive = wordChainAlivePlayers(room);
-
-    if (alive.length <= 1) {
-        room.status = "ended";
-        room.turnPlayerId = null;
-        room.turnDeadline = 0;
-        room.winnerId = alive[0]?.id || null;
-
-        if (alive[0]) {
-            wordChainAddLog(
-                room,
-                `${alive[0].nickname} 승리!`,
-                "win"
-            );
-        } else {
-            wordChainAddLog(
-                room,
-                "게임 종료",
-                "win"
-            );
-        }
-
-        wordChainBroadcast(room);
-        return;
-    }
-
-    const currentIndex =
-        room.players.findIndex(
-            player => player.id === room.turnPlayerId
-        );
-
-    let nextPlayer = null;
-
-    for (let offset = 1; offset <= room.players.length; offset++) {
-        const index =
-            (currentIndex + offset) % room.players.length;
-
-        const candidate = room.players[index];
-
-        if (candidate && candidate.alive) {
-            nextPlayer = candidate;
-            break;
-        }
-    }
-
-    if (!nextPlayer) {
-        room.status = "ended";
-        room.turnPlayerId = null;
-        room.turnDeadline = 0;
-        wordChainBroadcast(room);
-        return;
-    }
-
-    room.turnPlayerId = nextPlayer.id;
-    room.turnDeadline = Date.now() + WORD_CHAIN_TURN_MS;
-
-    /*
-     * 6회 오답/시간 초과로 HP를 잃은 다음에는
-     * 이전 단어를 계속 이어가는 것이 아니라
-     * 새로운 받침 없는 쉬운 시작 단어를 사용합니다.
-     */
-    if (
-        room.lastPenalty &&
-        room.lastPenalty.turnReset === true
-    ) {
-        const nextStarter = wordChainPickStarter(room);
-
-        room.currentWord = nextStarter;
-        room.usedWords = new Set([nextStarter]);
-
-        room.lastResult = {
-            ok: true,
-            source: "penalty-starter",
-            word: nextStarter
-        };
-
-        room.lastPenalty = null;
-
-        wordChainAddLog(
-            room,
-            `새 턴 시작 단어: ${nextStarter}`,
-            "system"
-        );
-    }
-
-    wordChainBroadcast(room);
-}
-
-function wordChainApplyPenalty(room, player, reason) {
-    if (!room || !player || !player.alive) return;
-
-    player.hp = Math.max(0, Number(player.hp || 0) - 1);
-    player.mistakes = 0;
-    player.typing = "";
-
-    wordChainAddLog(
-        room,
-        `${player.nickname} · ${reason} · HP ${player.hp}/2`,
-        "penalty"
-    );
-
-    io.to(`wordchain:${room.code}`).emit(
-        "wordchain:penalty",
-        {
-            playerId: player.id,
-            nickname: player.nickname,
-            hp: player.hp,
-            reason
-        }
-    );
-
-    if (player.hp <= 0) {
-        player.alive = false;
-
-        wordChainAddLog(
-            room,
-            `${player.nickname} 탈락`,
-            "bad"
-        );
-    }
-
-    room.lastResult = {
-        ok: false,
-        playerId: player.id,
-        reason,
-        penalty: true,
-        hp: player.hp
-    };
-
-    /*
-     * 다음 플레이어에게 새로운 시작 단어를 주도록 표시합니다.
-     */
-    room.lastPenalty = {
-        turnReset: true
-    };
-
-    wordChainAdvanceTurn(room);
-}
-
-function wordChainCanStart(word, room) {
-    if (!room.currentWord) return true;
-
-    const normalized = wordChainNormalizeWord(word);
-
-    if (!normalized) return false;
-
-    return wordChainNextStarts(room.currentWord)
-        .includes(normalized.slice(0, 1));
-}
-
-function wordChainCleanupRoom(room) {
-    if (!room) return;
-
-    for (const player of room.players) {
-        const socket = io.sockets.sockets.get(player.id);
-
-        if (socket) {
-            socket.leave(`wordchain:${room.code}`);
-
-            if (socket.data.wordChainRoom === room.code) {
-                socket.data.wordChainRoom = null;
-            }
-
-            socket.emit("wordchain:left", {
-                code: room.code
-            });
-        }
-    }
-
-    wordChainRooms.delete(room.code);
-
-    io.emit(
-        "wordchain:rooms",
-        wordChainPublicLobbyRooms()
-    );
-}
-
-function wordChainRemovePlayer(room, socket) {
-    if (!room || !socket) return;
-
-    const index =
-        room.players.findIndex(
-            player => player.id === socket.id
-        );
-
-    if (index < 0) {
-        if (socket.data.wordChainRoom === room.code) {
-            socket.data.wordChainRoom = null;
-        }
-
-        return;
-    }
-
-    const wasTurn =
-        room.turnPlayerId === socket.id;
-
-    const removedPlayer =
-        room.players.splice(index, 1)[0];
-
-    socket.leave(`wordchain:${room.code}`);
-    socket.data.wordChainRoom = null;
-
-    if (room.players.length === 0) {
-        wordChainRooms.delete(room.code);
-        wordChainBroadcastRooms();
-        return;
-    }
-
-    if (room.hostId === socket.id) {
-        room.hostId = room.players[0].id;
-    }
-
-    if (room.status === "playing") {
-        const alive = wordChainAlivePlayers(room);
-
-        if (alive.length <= 1) {
-            room.status = "ended";
-            room.turnPlayerId = null;
-            room.turnDeadline = 0;
-            room.winnerId = alive[0]?.id || null;
-
-            wordChainAddLog(
-                room,
-                alive[0]
-                    ? `${alive[0].nickname} 승리!`
-                    : "게임 종료",
-                "win"
-            );
-        } else if (wasTurn) {
-            room.lastPenalty = null;
-            wordChainAdvanceTurn(room);
-        }
-    }
-
-    wordChainBroadcast(room);
-
-    io.emit(
-        "wordchain:rooms",
-        wordChainPublicLobbyRooms()
-    );
-}
-
-function wordChainBroadcastRooms() {
-    io.emit(
-        "wordchain:rooms",
-        wordChainPublicLobbyRooms()
-    );
-}
-
-function wordChainStart(room, hostSocket) {
-    if (!room || room.status !== "lobby") return;
-
-    if (room.players.length !== room.mode) {
-        hostSocket.emit(
-            "wordchain:error",
-            {
-                message:
-                    `${room.mode}인전은 ${room.mode}명이 모두 입장해야 시작할 수 있습니다.`
-            }
-        );
-
-        return;
-    }
-
-    room.status = "playing";
-
-    room.currentWord =
-        wordChainPickStarter(room);
-
-    room.usedWords =
-        new Set([room.currentWord]);
-
-    room.turnPlayerId =
-        room.players[0].id;
-
-    room.turnDeadline =
-        Date.now() + WORD_CHAIN_TURN_MS;
-
-    room.lastResult = {
-        ok: true,
-        source: "starter",
-        word: room.currentWord
-    };
-
-    room.lastPenalty = null;
-    room.winnerId = null;
-
-    room.players.forEach(player => {
-        player.ready = true;
-        player.mistakes = 0;
-        player.hp = 2;
-        player.alive = true;
-        player.typing = "";
-    });
-
-    wordChainAddLog(
-        room,
-        `게임 시작 · 첫 단어: ${room.currentWord}`,
-        "system"
-    );
-
-    wordChainBroadcast(room);
-}
-
-
-// =========================================================
-// LOCAL WORD DICTIONARY
-// =========================================================
-
-const WORD_CHAIN_REMOTE_WORDLISTS = [
-    "https://raw.githubusercontent.com/acidsound/korean_wordlist/master/wordslistUnique.txt",
-    "https://cdn.jsdelivr.net/gh/acidsound/korean_wordlist@master/wordslistUnique.txt"
-];
-
-const wordChainDictionary =
-    new Set(
-        WORD_CHAIN_START_WORDS
-            .map(wordChainNormalizeWord)
-            .filter(Boolean)
-    );
-
-const wordChainStartIndex = new Set();
-
 const wordChainDictionaryCache = new Map();
 const wordChainContinuationCache = new Map();
 
-let wordChainDictionaryReady = false;
-let wordChainDictionaryLoading = null;
+// 서버가 외부 사전 없이도 정상 기동하도록 반드시 먼저 정의합니다.
+// 실제 대형 사전은 아래 로더가 data/wordchain-words.txt 또는 공개 목록에서 추가합니다.
+const WORD_CHAIN_FALLBACK = new Set([
+    ...WORD_CHAIN_START_WORDS,
+    "과자","차표","표범","범고래","래미안","안경","경찰","찰떡","떡볶이","이불",
+    "불꽃","꽃병","병원","원숭이","이름","음식","식당","당근","근육","육상","상어",
+    "어항","항구","구름","학교","교실","실내","내일","일기","차량","양말","말미잘",
+    "잘생김","김치","치약","약속","속담","담요","요리","리본","본능","능력","역사",
+    "사랑","랑종","종이","이야기","기린","린스","스키","키위","위성","성공","공원",
+    "이상","상자","자전거","거미","미술","술잔","잔치","치마","마늘","늘보","보리",
+    "리더","더위","위험","험담","담배","배추","추억","억울","울음","음료","료리",
+    "음악","악기","기분","분필","필통","통나무","무지개","개나리","리모컨","컨트롤",
+    "롤러","러시아","아이스크림","림프","프로그램","램프","프린터","터미널","널뛰기",
+    "기상","상식","식물","물고기","기차역","역무원","원칙","칙령","영화","화분",
+    "분수","수박","박수","수영","영어","어깨","깨소금","금요일","일요일","일기장",
+    "장난감","감자","자두","두부","부엌","억새","새우","우산","산책","책상","상추",
+    "추리","리더십","십자가","가방","방학","학생","생일","일본","본사","사전","전기",
+    "기술","술집","집게","게살","살구","구두","두꺼비","비행기","린넨","넥타이","이발",
+    "발목","목걸이","이마","마스크","크레파스","스피커","커피","피아노","노트","트럭",
+    "럭비","비누","누나","나비","비상","어묵","묵직","직업","업무","무게","게임","임무",
+    "개미","미역","역전","전구","구슬","슬픔"
+].filter(w => /^[가-힣]{2,30}$/.test(w)));
 
-function wordChainIndexWord(word) {
-    const normalized =
-        wordChainNormalizeWord(word);
-
-    if (
-        normalized.length < 2 ||
-        normalized.length > 30
-    ) {
-        return;
+function wordChainNormalizeWord(raw){
+    return String(raw||"").normalize("NFC").trim().toLowerCase().replace(/[^가-힣]/g,"");
+}
+function wordChainHangulParts(ch){
+    const code=ch.charCodeAt(0)-0xAC00;
+    if(code<0||code>11171)return null;
+    return {initial:Math.floor(code/588),medial:Math.floor((code%588)/28),final:code%28};
+}
+function wordChainCompose(initial,medial,final){ return String.fromCharCode(0xAC00+initial*588+medial*28+final); }
+function wordChainNextStarts(word){
+    const last=word.slice(-1);
+    const out=new Set([last]);
+    const p=wordChainHangulParts(last);
+    if(!p)return [...out];
+    const medial=p.medial;
+    const isYLike=[2,3,6,7,12,17,20].includes(medial);
+    if(p.initial===5){
+        if(isYLike) out.add(wordChainCompose(11,medial,p.final));
+        else out.add(wordChainCompose(2,medial,p.final));
+    }else if(p.initial===2 && isYLike){
+        out.add(wordChainCompose(11,medial,p.final));
     }
-
-    if (!/^[가-힣]+$/.test(normalized)) {
-        return;
+    return [...out];
+}
+function wordChainUniqueName(raw,room,socketId){
+    const base=String(raw||"Player").replace(/[^\p{L}\p{N}_ -]/gu,"").trim().slice(0,14)||"Player";
+    const used=new Set((room?.players||[]).filter(p=>p.id!==socketId).map(p=>p.nickname));
+    if(!used.has(base))return base;
+    for(let n=2;n<100;n++){
+        const suffix=` (${n})`;
+        const candidate=base.slice(0,Math.max(1,14-suffix.length))+suffix;
+        if(!used.has(candidate))return candidate;
     }
+    return `Player${Math.floor(Math.random()*9000+1000)}`.slice(0,14);
+}
+function wordChainRoomName(raw){
+    const clean=String(raw||"새 끝말잇기 방").replace(/[<>]/g,"").trim().slice(0,24);
+    return clean||"새 끝말잇기 방";
+}
+function wordChainRoomCode(){
+    let code="";
+    do{ code=String(Math.floor(100000+Math.random()*900000)); }while(wordChainRooms.has(code));
+    return code;
+}
+function wordChainPickStarter(room){
+    const available=WORD_CHAIN_START_WORDS.filter(w=>{
+        const n=wordChainNormalizeWord(w);
+        return n.length>=2 && !room?.usedWords?.has(n) && !/[각간값곶꽃낫낮닭밟삶앉없있옷잎젖집]$/.test(n);
+    });
+    const pool=available.length?available:WORD_CHAIN_START_WORDS;
+    return pool[Math.floor(Math.random()*pool.length)];
+}
+function wordChainPublicRoom(room){
+    const mode=Number(room?.mode)===4?4:2;
+    const players=Array.isArray(room?.players)?room.players:[];
+    return {
+        code:String(room?.code||""),
+        name:wordChainRoomName(room?.name),
+        mode,
+        capacity:mode,
+        count:players.length,
+        hostId:String(room?.hostId||""),
+        hostNickname:players.find(p=>p.id===room?.hostId)?.nickname||"방장",
+        status:room?.status||"lobby",
+        currentWord:room?.currentWord||null,
+        requiredStarts:room?.currentWord?wordChainNextStarts(room.currentWord):[],
+        turnPlayerId:room?.turnPlayerId||null,
+        turnDeadline:Number.isFinite(Number(room?.turnDeadline))?Number(room.turnDeadline):0,
+        players:players.map(p=>({id:String(p.id),nickname:String(p.nickname||"Player"),hp:Math.max(0,Math.min(2,Number(p.hp)||0)),mistakes:Math.max(0,Math.min(WORD_CHAIN_MAX_MISTAKES,Number(p.mistakes)||0)),alive:p.alive!==false,ready:p.ready!==false,typing:String(p.typing||"").slice(0,30)})),
+        lastResult:room?.lastResult||null,
+        winnerId:room?.winnerId||null,
+        logs:Array.isArray(room?.logs)?room.logs.slice(-40):[]
+    };
+}
+function wordChainPublicLobbyRoom(room){
+    const pub=wordChainPublicRoom(room);
+    return {code:pub.code,name:pub.name,mode:pub.mode,capacity:pub.capacity,count:pub.count,status:pub.status,hostId:pub.hostId,hostNickname:pub.hostNickname};
+}
+function wordChainPublicLobbyRooms(){
+    return [...wordChainRooms.values()]
+        .filter(r=>r.status==="lobby")
+        .map(wordChainPublicLobbyRoom)
+        .sort((a,b)=>Number(b.count)-Number(a.count)||a.code.localeCompare(b.code));
+}
+function wordChainBroadcastRooms(){
+    io.emit("wordchain:rooms",wordChainPublicLobbyRooms());
+}
+function wordChainBroadcast(room){ io.to(`wordchain:${room.code}`).emit("wordchain:state",wordChainPublicRoom(room)); wordChainBroadcastRooms(); }
+function wordChainAddLog(room,text,type="system"){ room.logs.push({text:String(text),type,at:Date.now()}); if(room.logs.length>80)room.logs.splice(0,room.logs.length-80); }
+function wordChainAdvanceTurn(room,resetStarter=false){
+    const alive=room.players.filter(p=>p.alive);
+    if(alive.length<=1){
+        room.status="ended"; room.turnPlayerId=null; room.turnDeadline=0; room.winnerId=alive[0]?.id||null;
+        wordChainAddLog(room,alive[0]?`${alive[0].nickname} 승리!`:`게임 종료`,"win");
+        wordChainBroadcast(room); return;
+    }
+    if(resetStarter){
+        const starter=wordChainPickStarter(room);
+        room.currentWord=starter;
+        room.usedWords.add(starter);
+        wordChainAddLog(room,`새 라운드 시작 · 제시어 「${starter}」`,"system");
+    }
+    const currentIndex=room.players.findIndex(p=>p.id===room.turnPlayerId);
+    for(let step=1;step<=room.players.length;step++){
+        const p=room.players[(currentIndex+step+room.players.length)%room.players.length];
+        if(p?.alive){room.turnPlayerId=p.id;p.mistakes=0;p.typing="";room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS;break;}
+    }
+    wordChainBroadcast(room);
+}
+function wordChainApplyPenalty(room,player,reason="6번 틀림"){
+    player.hp=Math.max(0,Number(player.hp)||0); player.hp=Math.max(0,player.hp-1); player.mistakes=0; player.typing="";
+    if(player.hp<=0){player.alive=false;wordChainAddLog(room,`${player.nickname} 탈락! (${reason})`,"lose");}
+    else wordChainAddLog(room,`${player.nickname} 체력 -1 · 새 제시어로 다음 턴`,"penalty");
+    wordChainAdvanceTurn(room,true);
+}
 
+// 공개 단어 목록을 서버 시작 시 한 번만 로드합니다. 게임 중에는 네트워크를 사용하지 않습니다.
+const WORD_CHAIN_REMOTE_WORDLISTS=[
+    "https://raw.githubusercontent.com/acidsound/korean_wordlist/master/wordslistUnique.txt",
+    "https://cdn.jsdelivr.net/gh/acidsound/korean_wordlist@master/wordslistUnique.txt"
+];
+const wordChainDictionary=new Set();
+const wordChainStartIndex=new Set();
+let wordChainDictionaryReady=false;
+let wordChainDictionaryLoading=null;
+function wordChainIndexWord(word){
+    const normalized=wordChainNormalizeWord(word);
+    if(normalized.length<2||normalized.length>30)return;
     wordChainDictionary.add(normalized);
-
-    wordChainStartIndex.add(
-        normalized.slice(0, 1)
-    );
+    wordChainStartIndex.add(normalized.slice(0,1));
 }
-
-for (const word of WORD_CHAIN_START_WORDS) {
-    wordChainIndexWord(word);
-}
-
-async function wordChainLoadLocalDictionary() {
-    if (wordChainDictionaryReady) {
-        return true;
-    }
-
-    if (wordChainDictionaryLoading) {
-        return wordChainDictionaryLoading;
-    }
-
-    wordChainDictionaryLoading =
-        (async () => {
-            const localFile =
-                path.join(
-                    DATA_DIR,
-                    "wordchain-words.txt"
-                );
-
-            const addText = text => {
-                let count = 0;
-
-                for (
-                    const line of String(text || "")
-                        .split(/\r?\n/)
-                ) {
-                    const word =
-                        wordChainNormalizeWord(line);
-
-                    if (
-                        word.length < 2 ||
-                        word.length > 30
-                    ) {
-                        continue;
-                    }
-
-                    if (!/^[가-힣]+$/.test(word)) {
-                        continue;
-                    }
-
-                    wordChainIndexWord(word);
-                    count++;
-                }
-
-                return count;
-            };
-
-            /*
-             * Render 디스크에 이미 대형 사전이 있다면
-             * 네트워크 없이 바로 사용합니다.
-             */
-            try {
-                if (fs.existsSync(localFile)) {
-                    const text =
-                        fs.readFileSync(
-                            localFile,
-                            "utf8"
-                        );
-
-                    const count = addText(text);
-
-                    if (count >= 1000) {
-                        wordChainDictionaryReady = true;
-
-                        console.log(
-                            `[끝말잇기 사전] 로컬 DB 로드 완료: ${wordChainDictionary.size.toLocaleString()}개`
-                        );
-
-                        return true;
-                    }
-                }
-            } catch (error) {
-                console.warn(
-                    `[끝말잇기 사전] 로컬 DB 읽기 실패: ${error?.message || error}`
-                );
+for(const w of WORD_CHAIN_FALLBACK)wordChainIndexWord(w);
+async function wordChainLoadLocalDictionary(){
+    if(wordChainDictionaryReady)return true;
+    if(wordChainDictionaryLoading)return wordChainDictionaryLoading;
+    wordChainDictionaryLoading=(async()=>{
+        const localFile=path.join(DATA_DIR,"wordchain-words.txt");
+        const addText=(text)=>{
+            let count=0;
+            for(const line of String(text||"").split(/\r?\n/)){
+                const word=wordChainNormalizeWord(line);
+                if(!/^[가-힣]{2,30}$/.test(word))continue;
+                wordChainIndexWord(word);count++;
             }
-
-            /*
-             * 최초 실행 시 공개 한국어 단어 목록을
-             * 한 번 받아 로컬 캐시로 저장합니다.
-             */
-            for (
-                const url of WORD_CHAIN_REMOTE_WORDLISTS
-            ) {
-                try {
-                    const response =
-                        await fetch(
-                            url,
-                            {
-                                headers: {
-                                    "user-agent":
-                                        "COMTIME-PRO-WordChain/8.0"
-                                },
-                                signal:
-                                    AbortSignal.timeout(
-                                        12000
-                                    )
-                            }
-                        );
-
-                    if (!response.ok) {
-                        throw new Error(
-                            `HTTP ${response.status}`
-                        );
-                    }
-
-                    const text =
-                        await response.text();
-
-                    const count =
-                        addText(text);
-
-                    if (count < 1000) {
-                        throw new Error(
-                            `단어 ${count}개만 읽음`
-                        );
-                    }
-
-                    try {
-                        fs.mkdirSync(
-                            DATA_DIR,
-                            {
-                                recursive: true
-                            }
-                        );
-
-                        fs.writeFileSync(
-                            localFile,
-                            text,
-                            "utf8"
-                        );
-                    } catch (saveError) {
-                        console.warn(
-                            `[끝말잇기 사전] 로컬 캐시 저장 실패: ${saveError?.message || saveError}`
-                        );
-                    }
-
-                    wordChainDictionaryReady =
-                        true;
-
-                    console.log(
-                        `[끝말잇기 사전] 공개 한국어 DB 로드 완료: ${wordChainDictionary.size.toLocaleString()}개`
-                    );
-
-                    return true;
-                } catch (error) {
-                    console.warn(
-                        `[끝말잇기 사전] 공개 DB 로드 실패: ${url} · ${error?.message || error}`
-                    );
-                }
+            return count;
+        };
+        try{
+            if(fs.existsSync(localFile)){
+                const count=addText(fs.readFileSync(localFile,"utf8"));
+                if(count>1000){wordChainDictionaryReady=true;console.log(`[끝말잇기 사전] 로컬 DB 로드 완료: ${wordChainDictionary.size.toLocaleString()}개`);return true;}
             }
-
-            /*
-             * 외부 연결이 실패하더라도 서버 자체는 죽지 않습니다.
-             */
-            wordChainDictionaryReady = true;
-
-            console.warn(
-                `[끝말잇기 사전] 외부 DB를 불러오지 못했습니다. 내장 사전 ${wordChainDictionary.size.toLocaleString()}개로 시작합니다.`
-            );
-
-            return false;
-        })()
-            .catch(error => {
-                console.error(
-                    "[끝말잇기 사전 초기화 오류]",
-                    error
-                );
-
-                wordChainDictionaryReady = true;
-
-                return false;
-            })
-            .finally(() => {
-                wordChainDictionaryLoading = null;
-            });
-
+        }catch(error){console.warn(`[끝말잇기 사전] 로컬 DB 읽기 실패: ${error?.message||error}`);}
+        for(const url of WORD_CHAIN_REMOTE_WORDLISTS){
+            try{
+                const response=await fetch(url,{headers:{"user-agent":"COMTIME-PRO-WordChain/8.0"},signal:AbortSignal.timeout(12000)});
+                if(!response.ok)throw new Error(`HTTP ${response.status}`);
+                const text=await response.text();
+                const count=addText(text);
+                if(count<1000)throw new Error(`단어 ${count}개만 읽음`);
+                try{fs.mkdirSync(DATA_DIR,{recursive:true});fs.writeFileSync(localFile,text,"utf8");}catch(saveError){console.warn(`[끝말잇기 사전] 로컬 캐시 저장 실패: ${saveError?.message||saveError}`);}
+                wordChainDictionaryReady=true;console.log(`[끝말잇기 사전] 공개 한국어 DB 로드 완료: ${wordChainDictionary.size.toLocaleString()}개`);return true;
+            }catch(error){console.warn(`[끝말잇기 사전] 공개 DB 로드 실패: ${url} · ${error?.message||error}`);}
+        }
+        wordChainDictionaryReady=true;
+        console.warn(`[끝말잇기 사전] 외부 DB를 불러오지 못해 내장 안전 사전 ${wordChainDictionary.size.toLocaleString()}개로 시작합니다.`);
+        return false;
+    })().finally(()=>{wordChainDictionaryLoading=null;});
     return wordChainDictionaryLoading;
 }
-
-/*
- * 서버 시작 직후 사전을 미리 준비합니다.
- * 게임 플레이 중에는 외부 API를 호출하지 않습니다.
- */
 wordChainLoadLocalDictionary();
-
-async function wordChainDictionaryCheck(word) {
-    const normalized =
-        wordChainNormalizeWord(word);
-
-    if (normalized.length < 2) {
-        return {
-            ok: false,
-            source: "rule",
-            message:
-                "두 글자 이상의 단어를 입력하세요."
-        };
-    }
-
-    const cached =
-        wordChainDictionaryCache.get(
-            normalized
-        );
-
-    if (
-        cached &&
-        Date.now() - cached.at <
-            WORD_CHAIN_DICT_TTL_MS
-    ) {
-        return cached.result;
-    }
-
+async function wordChainDictionaryCheck(word){
+    const normalized=wordChainNormalizeWord(word);
+    if(normalized.length<2)return {ok:false,source:"rule",message:"두 글자 이상의 단어를 입력하세요."};
+    const cached=wordChainDictionaryCache.get(normalized);
+    if(cached&&Date.now()-cached.at<WORD_CHAIN_DICT_TTL_MS)return cached.result;
     await wordChainLoadLocalDictionary();
-
-    const ok =
-        wordChainDictionary.has(
-            normalized
-        );
-
-    const result = ok
-        ? {
-            ok: true,
-            source: "local-dictionary",
-            message:
-                "한국어 단어 DB 확인 완료"
-        }
-        : {
-            ok: false,
-            source: "local-dictionary",
-            message:
-                "단어사전에 없는 단어입니다."
-        };
-
-    wordChainDictionaryCache.set(
-        normalized,
-        {
-            at: Date.now(),
-            result
-        }
-    );
-
+    const ok=wordChainDictionary.has(normalized);
+    const result=ok?{ok:true,source:"local-dictionary",message:"한국어 단어 DB 확인 완료 · 두음법칙 ON"}:{ok:false,source:"local-dictionary",message:"단어사전에 없는 단어입니다."};
+    wordChainDictionaryCache.set(normalized,{at:Date.now(),result});
     return result;
 }
-
-async function wordChainHasContinuation(word) {
+async function wordChainHasContinuation(word){
     await wordChainLoadLocalDictionary();
-
-    const starts =
-        wordChainNextStarts(word);
-
-    const key =
-        starts.join("|");
-
-    const cached =
-        wordChainContinuationCache.get(key);
-
-    if (
-        cached &&
-        Date.now() - cached.at <
-            WORD_CHAIN_CONTINUATION_TTL_MS
-    ) {
-        return cached.result;
-    }
-
-    for (const start of starts) {
-        if (
-            wordChainStartIndex.has(start)
-        ) {
-            const result = {
-                ok: true,
-                source: "local-dictionary"
-            };
-
-            wordChainContinuationCache.set(
-                key,
-                {
-                    at: Date.now(),
-                    result
-                }
-            );
-
-            return result;
-        }
-    }
-
-    const result = {
-        ok: false,
-        source: "local-dictionary",
-        message:
-            "한방단어는 사용할 수 없습니다."
-    };
-
-    wordChainContinuationCache.set(
-        key,
-        {
-            at: Date.now(),
-            result
-        }
-    );
-
+    const starts=wordChainNextStarts(word),key=starts.join("|");
+    const cached=wordChainContinuationCache.get(key);
+    if(cached&&Date.now()-cached.at<WORD_CHAIN_CONTINUATION_TTL_MS)return cached.result;
+    const ok=starts.some(start=>wordChainStartIndex.has(start));
+    const result=ok?{ok:true,source:"local-dictionary"}:{ok:false,source:"local-dictionary",message:"한방단어는 사용할 수 없습니다."};
+    wordChainContinuationCache.set(key,{at:Date.now(),result});
     return result;
 }
-
-/*
- * 이전 코드와의 호환용.
- * 더 이상 게임 중 외부 API를 호출하지 않습니다.
- */
-function wordChainExtractApiWords() {
-    return [];
+function wordChainCanStart(word,room){
+    if(!room.currentWord)return true;
+    return wordChainNextStarts(room.currentWord).includes(word.slice(0,1));
+}
+function wordChainCleanupRoom(room){
+    if(!room)return;
+    for(const p of room.players){const s=io.sockets.sockets.get(p.id);if(s){s.leave(`wordchain:${room.code}`);if(s.data.wordChainRoom===room.code)s.data.wordChainRoom=null;}}
+    wordChainRooms.delete(room.code);wordChainBroadcastRooms();
+}
+function wordChainStart(room,hostSocket){
+    if(room.status!=="lobby")return;
+    if(room.players.length!==room.mode){hostSocket.emit("wordchain:error",{message:`${room.mode}인전은 ${room.mode}명이 모두 입장해야 시작할 수 있습니다.`});return;}
+    room.status="playing";room.currentWord=wordChainPickStarter(room);room.usedWords=new Set([room.currentWord]);room.turnPlayerId=room.players[0].id;room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS;room.lastResult={ok:true,source:"starter",word:room.currentWord};room.winnerId=null;
+    room.players.forEach(p=>{p.ready=true;p.mistakes=0;p.hp=2;p.alive=true;p.typing="";});
+    wordChainAddLog(room,`게임 시작! 제시어는 「${room.currentWord}」입니다.`);wordChainBroadcast(room);
 }
 
-async function wordChainKkukoSearch() {
-    return {
-        ok: false,
-        words: [],
-        message:
-            "게임 중 외부 사전 조회를 사용하지 않습니다."
-    };
-}
 // =========================================================
 // WORM ARENA — REALTIME MULTIPLAYER
 // =========================================================
@@ -2636,7 +1948,7 @@ const wordChainTimer=setInterval(()=>{
         if(now-room.createdAt>WORD_CHAIN_ROOM_TTL_MS){wordChainCleanupRoom(room);continue;}
         if(room.status!=="playing"||!room.turnPlayerId||now<room.turnDeadline)continue;
         const p=room.players.find(x=>x.id===room.turnPlayerId);
-        if(!p||!p.alive){wordChainAdvanceTurn(room);continue;}
+        if(!p||!p.alive){wordChainAdvanceTurn(room,true);continue;}
         // 시간 초과는 6회 실수와 별개로 즉시 체력 1을 깎고 다음 생존자에게 턴을 넘깁니다.
         wordChainApplyPenalty(room,p,"20초 시간 초과");
     }
