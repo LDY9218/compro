@@ -275,6 +275,15 @@
                 </div>
                 <span class="game-card-arrow">›</span>
             </button>
+            <button id="hubWordChainGame" class="game-card wordchain-hub-card" type="button">
+                <div class="game-card-art wordchain-art">끝</div>
+                <div class="game-card-body">
+                    <span class="game-card-tag">REALTIME WORD BATTLE</span>
+                    <strong>끝말잇기</strong>
+                    <small>두음법칙 · 끄투 사전 검증 · 2인전 / 4인전 · 실시간 입력 대결</small>
+                </div>
+                <span class="game-card-arrow">›</span>
+            </button>
 
         </div>
     </div>
@@ -335,6 +344,90 @@
             <div id="settingsStatus" class="settings-status" role="status"></div>
             <button id="settingsLogoutBtn" class="settings-logout-btn" type="button">로그아웃</button>
         </div>
+    </div>
+</div>
+
+<!-- ==================================================
+     REALTIME WORD CHAIN
+================================================== -->
+<div id="wordChainModal" class="wordchain-modal" aria-hidden="true">
+    <div id="wordChainBackdrop" class="wordchain-backdrop"></div>
+    <div class="wordchain-window" role="dialog" aria-modal="true" aria-label="끝말잇기">
+        <header class="wordchain-header">
+            <div>
+                <span class="wordchain-eyebrow">COMTIME WORD BATTLE</span>
+                <h2>끝말잇기</h2>
+                <p>두음법칙을 적용하고 끄투 계열 단어사전으로 단어를 검증합니다.</p>
+            </div>
+            <button id="closeWordChainBtn" class="game-close-btn" type="button" aria-label="끝말잇기 닫기">×</button>
+        </header>
+
+        <section id="wordChainLobby" class="wordchain-lobby">
+            <div class="wordchain-mode-tabs">
+                <button type="button" class="wordchain-mode-tab active" data-wc-mode="2">2인전</button>
+                <button type="button" class="wordchain-mode-tab" data-wc-mode="4">4인전</button>
+            </div>
+            <div class="wordchain-lobby-grid">
+                <div class="wordchain-panel">
+                    <span class="wordchain-panel-label">방 만들기</span>
+                    <input id="wordChainCreateName" maxlength="14" placeholder="닉네임" value="Player">
+                    <button id="wordChainCreateBtn" class="wordchain-primary" type="button">새 방 만들기</button>
+                    <small>2인전과 4인전 방은 서로 분리됩니다.</small>
+                </div>
+                <div class="wordchain-panel">
+                    <span class="wordchain-panel-label">방 참가</span>
+                    <input id="wordChainJoinName" maxlength="14" placeholder="닉네임" value="Player">
+                    <input id="wordChainRoomCode" maxlength="6" inputmode="numeric" placeholder="방 코드 6자리">
+                    <button id="wordChainJoinBtn" class="wordchain-secondary" type="button">방 참가</button>
+                </div>
+            </div>
+            <div id="wordChainLobbyStatus" class="wordchain-status"></div>
+            <div class="wordchain-rules">
+                <strong>게임 규칙</strong>
+                <ul>
+                    <li>단어는 끄투 계열 단어사전 확인을 거칩니다.</li>
+                    <li>두음법칙을 적용하여 이어질 수 있는 시작 글자를 판정합니다.</li>
+                    <li>게임 시작 시 제시어가 나오고 그 끝 글자로 이어갑니다.</li>
+                    <li>틀린 단어를 6번 제출하면 체력 2 중 1이 감소하고 다음 턴으로 넘어갑니다.</li>
+                    <li>체력이 0이 되면 탈락하며 마지막 생존자가 승리합니다.</li>
+                    <li>입력 중인 글자는 다른 참가자에게 실시간으로 표시됩니다.</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="wordChainRoom" class="wordchain-room" hidden>
+            <div class="wordchain-room-top">
+                <div>
+                    <span class="wordchain-eyebrow">ROOM</span>
+                    <strong id="wordChainRoomCodeLabel">------</strong>
+                    <small id="wordChainRoomModeLabel">2인전</small>
+                </div>
+                <div class="wordchain-room-actions"><button id="wordChainStartBtn" class="wordchain-primary compact" type="button" hidden>게임 시작</button><button id="wordChainLeaveBtn" class="wordchain-leave" type="button">방 나가기</button></div>
+            </div>
+            <div id="wordChainPlayers" class="wordchain-players"></div>
+            <div id="wordChainWordBoard" class="wordchain-word-board">
+                <span>현재 단어</span>
+                <strong id="wordChainCurrentWord">첫 단어를 입력하세요</strong>
+                <small id="wordChainRequiredLetter">첫 턴 · 자유로운 단어</small>
+            </div>
+            <div id="wordChainLiveTyping" class="wordchain-live-typing">상대방 입력 대기 중...</div>
+            <div id="wordChainTurnBanner" class="wordchain-turn-banner">방을 준비하고 있습니다.</div>
+            <div class="wordchain-input-row">
+                <input id="wordChainInput" maxlength="30" autocomplete="off" placeholder="단어를 입력하세요" disabled>
+                <button id="wordChainSubmitBtn" type="button" disabled>제출</button>
+            </div>
+            <div class="wordchain-input-meta">
+                <span id="wordChainMistakes">틀린 횟수 0 / 6</span>
+                <span id="wordChainTimer">--</span>
+                <span id="wordChainDictionaryStatus">끄투 사전 대기</span>
+            </div>
+            <div id="wordChainLog" class="wordchain-log"></div>
+            <div id="wordChainEndPanel" class="wordchain-end-panel" hidden>
+                <strong id="wordChainEndTitle">GAME OVER</strong>
+                <span id="wordChainEndText"></span>
+                <button id="wordChainRematchBtn" class="wordchain-primary" type="button">로비로 돌아가기</button>
+            </div>
+        </section>
     </div>
 </div>
 
@@ -777,7 +870,8 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="/app.js?v=28"></script>
-<script src="/multiplayer.js?v=28"></script>
+<script src="/app.js?v=30"></script>
+<script src="/multiplayer.js?v=30"></script>
+<script src="/wordchain.js?v=1"></script>
 </body>
 </html>
