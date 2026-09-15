@@ -5439,7 +5439,7 @@ function survivalDropGem(enemy) {
         bossGem: isBoss,
         healthGem: false,
     });
-    if (!isBoss && survivalState.upgrades.healthOrb > 0 && Math.random() < Math.min(0.24, survivalState.upgrades.healthOrb * 0.028)) {
+    if (!isBoss && survivalState.upgrades.healthOrb > 0 && Math.random() < Math.min(0.12, survivalState.upgrades.healthOrb * 0.008 + survivalState.upgrades.healthOrb * survivalState.upgrades.healthOrb * 0.0008)) {
         survivalState.gems.push({
             x: enemy.x + survivalRandom(-8, 8),
             y: enemy.y + survivalRandom(-8, 8),
@@ -5656,11 +5656,11 @@ function survivalApplyUpgrade(key) {
         case "droneDamage": u.droneDamage *= 1.16 * maxBoost; break;
         case "droneCount": u.droneCount += maxed ? 2 : 1; u.drone = Math.min(8, u.drone + (maxed ? 2 : 1)); break;
         case "critDamage": u.critDamage *= 1.16 * maxBoost; break;
-        case "healthPickup": u.healthPickup *= 1.14 * maxBoost; break;
+        case "healthPickup": u.healthPickup *= 1.08 * maxBoost; break;
         case "precision": u.precision += maxed ? 3 : 1; break;
         case "execute": u.execute += maxed ? 3 : 1; break;
         case "homing": u.homing += maxed ? 3 : 1; break;
-        case "healthOrb": u.healthOrb += maxed ? 3 : 1; break;
+        case "healthOrb": u.healthOrb += maxed ? 2 : 1; break;
         case "bossXp": u.bossXp *= 1.18 * maxBoost; break;
         case "bossSlow": u.bossSlow += maxed ? 3 : 1; break;
         case "focus": u.focus += maxed ? 3 : 1; break;
@@ -5668,7 +5668,7 @@ function survivalApplyUpgrade(key) {
         case "dodge": u.dodge += maxed ? 3 : 1; break;
         case "repulse": u.repulse += maxed ? 3 : 1; break;
         case "overdrive": u.overdrive += maxed ? 3 : 1; survivalState.overdriveTimer = 10 + u.overdrive * 1.2; break;
-        case "healingRain": u.healingRain += 1; break;
+        case "healingRain": u.healingRain += maxed ? 2 : 1; break;
         case "fireBottle": u.fireBottle += 1; break;
         case "boomerang": u.boomerang += 1; break;
         case "ricochet": u.ricochet += 1; break;
@@ -6124,7 +6124,8 @@ function survivalUpdate(dt) {
             if(e.shootTimer>Math.max(.75,2.2-e.bossNumber*.05)&&d<800){e.shootTimer=0;const count=8+Math.min(8,Math.floor(e.bossNumber/2));for(let n=0;n<count;n++){const a=Math.PI*2*n/count;survivalState.bullets.push({x:e.x,y:e.y,vx:Math.cos(a)*(170+e.bossNumber*4),vy:Math.sin(a)*(170+e.bossNumber*4),radius:8+Math.min(5,e.bossNumber*.15),damage:(12+e.bossNumber*2.4)*(e.finalBoss?1.35:1),life:2.5,enemyBullet:true});}}
         } else { e.x+=(dx/d)*e.speed*frostSlow*timeSlow*dt; e.y+=(dy/d)*e.speed*frostSlow*timeSlow*dt; }
         if (d < p.radius + e.r) {
-            const contactDamage = e.damage * dt * 2.6;
+            const contactMultiplier = 4.15 + Math.min(2.2, survivalState.wave * 0.03);
+            const contactDamage = e.damage * dt * contactMultiplier;
             survivalTakeDamage(contactDamage);
             // 몸에 끼어도 적을 튕겨내지 않고, 플레이어가 받는 접촉 피해만큼 적도 함께 피해를 받습니다.
             e.hp -= contactDamage * (e.boss ? 0.72 : 1);
@@ -6240,7 +6241,7 @@ function survivalUpdate(dt) {
         }
         if (d < p.radius + g.radius + 5) {
             if (g.healthGem) {
-                p.hp = Math.min(p.maxHp, p.hp + p.maxHp * Math.min(0.38, (0.05 + survivalState.upgrades.healthOrb * 0.012) * survivalState.upgrades.healthPickup));
+                const orbLevel=survivalState.upgrades.healthOrb||0; const pickupLevel=survivalState.upgrades.healthPickup||0; const healRatio=Math.min(0.28,(0.015+orbLevel*0.009)*(0.92+pickupLevel*0.045)); p.hp = Math.min(p.maxHp, p.hp + p.maxHp * healRatio);
             } else if (g.bossGem) {
                 survivalCollectBossXp(g);
             } else {
@@ -6322,7 +6323,7 @@ function survivalUpdate(dt) {
     if(u.quake&&survivalState.quakeTimer>Math.max(2.2,6.5-u.quake*.2)){survivalState.quakeTimer=0;for(const e of survivalState.enemies)e.hp-=95*u.damage;survivalAddParticle(p.x,p.y,'#d6a06b',60);}
     if(u.shockwave&&survivalState.quakeTimer>Math.max(1.5,4.5-u.shockwave*.15)){survivalState.quakeTimer=0;const r=150+u.shockwave*14;for(const e of survivalState.enemies){const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy)||1;if(d<r){e.hp-=70*u.damage;e.x+=dx/d*80;e.y+=dy/d*80;}}}
     if(u.vacuum&&survivalState.vacuumTimer>Math.max(.65,3.8-u.vacuum*.22)){survivalState.vacuumTimer=0;for(const g of survivalState.gems){g.x+=(p.x-g.x)*.35;g.y+=(p.y-g.y)*.35;}}
-    if(u.healingRain&&survivalState.healingRainTimer>Math.max(2.4,8.2-u.healingRain*.32)){survivalState.healingRainTimer=0;for(let i=0;i<Math.min(3+u.healingRain,12);i++)survivalState.gems.push({x:p.x+survivalRandom(-180,180),y:p.y+survivalRandom(-180,180),value:0,radius:7,color:'#ff7ea4',bossGem:false,healthGem:true});}
+    if(u.healingRain&&survivalState.healingRainTimer>Math.max(6.8,9.6-u.healingRain*.56)){survivalState.healingRainTimer=0;const rainCount=Math.min(4,1+Math.floor(u.healingRain/2));for(let i=0;i<rainCount;i++)survivalState.gems.push({x:p.x+survivalRandom(-180,180),y:p.y+survivalRandom(-180,180),value:0,radius:7,color:'#ff7ea4',bossGem:false,healthGem:true});}
     if(u.droneMissile&&survivalState.droneMissileTimer>Math.max(1,3.8-u.droneMissile*.15)){survivalState.droneMissileTimer=0;const t=survivalNearestEnemy();if(t)survivalState.bullets.push({x:p.x,y:p.y,vx:0,vy:-20,radius:8,damage:95*u.damage*(1+u.droneMissile*.1),life:3,pierceLeft:2,drone:true,homing:Math.max(4,u.homing*1.8),missile:true});}
     if(u.bladeWave&&survivalState.bladeWaveTimer>Math.max(.8,3.2-u.bladeWave*.14)){survivalState.bladeWaveTimer=0;for(let n=0;n<8;n++){const a=n*Math.PI/4;survivalState.bullets.push({x:p.x,y:p.y,vx:Math.cos(a)*380,vy:Math.sin(a)*380,radius:6,damage:55*u.damage,life:1.2,pierceLeft:2});}}
     if(u.railgun&&survivalState.railgunTimer>Math.max(1.8,6.5-u.railgun*.25)){survivalState.railgunTimer=0;const t=survivalNearestEnemy();if(t){const a=Math.atan2(t.y-p.y,t.x-p.x);for(const e of survivalState.enemies){const relx=e.x-p.x,rely=e.y-p.y,perp=Math.abs(relx*Math.sin(a)-rely*Math.cos(a));if(perp<22)e.hp-=320*u.damage*(1+u.railgun*.1);}survivalAddParticle(t.x,t.y,'#ffffff',80);}}
