@@ -416,12 +416,11 @@
             <div id="wordChainPlayers" class="wordchain-players"></div>
             <div id="wordChainWordBoard" class="wordchain-word-board">
                 <span>현재 단어</span>
-                <strong id="wordChainCurrentWord">첫 단어를 입력하세요</strong>
-                <small id="wordChainRequiredLetter">첫 턴 · 자유로운 단어</small>
+                <strong id="wordChainCurrentWord"></strong>
+                <small id="wordChainRequiredLetter"></small>
             </div>
-            <div id="wordChainLiveTyping" class="wordchain-live-typing">상대방 입력 대기 중...</div>
-            <div id="wordChainTurnBanner" class="wordchain-turn-banner">방을 준비하고 있습니다.</div>
-            <div class="wordchain-input-row">
+            <div id="wordChainLiveTyping" class="wordchain-live-typing" hidden></div>
+                        <div class="wordchain-input-row">
                 <input id="wordChainInput" maxlength="30" autocomplete="off" placeholder="단어를 입력하세요" disabled>
                 <button id="wordChainSubmitBtn" type="button" disabled>제출</button>
             </div>
@@ -881,6 +880,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/app.js?v=30"></script>
 <script src="/multiplayer.js?v=30"></script>
-<script src="/wordchain.js?v=500"></script>
+<script src="/wordchain.js?v=600"></script>
 </body>
 </html>
