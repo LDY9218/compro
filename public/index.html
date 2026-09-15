@@ -359,7 +359,7 @@
                 <h2>끝말잇기</h2>
                 <p>두음법칙을 적용하고 로컬 한국어 단어 DB로 빠르게 단어를 검증하고 두음법칙을 적용합니다.</p>
             </div>
-            <button id="closeWordChainBtn" class="game-close-btn" type="button" aria-label="끝말잇기 닫기">×</button>
+            <button id="closeWordChainBtn" class="game-close-btn wordchain-mobile-close" type="button" aria-label="끝말잇기 닫기">×</button>
         </header>
 
         <section id="wordChainLobby" class="wordchain-lobby">
@@ -378,7 +378,7 @@
                 <div class="wordchain-panel">
                     <span class="wordchain-panel-label">방 참가</span>
                     <input id="wordChainJoinName" maxlength="14" placeholder="닉네임" value="Player">
-                    <input id="wordChainRoomCode" maxlength="6" inputmode="numeric" placeholder="방 코드 6자리">
+                    <input id="wordChainRoomCode" inputmode="numeric" autocomplete="off" placeholder="방 코드 6자리">
                     <button id="wordChainJoinBtn" class="wordchain-secondary" type="button">방 참가</button>
                 </div>
             </div>
@@ -880,6 +880,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/app.js?v=30"></script>
 <script src="/multiplayer.js?v=30"></script>
-<script src="/wordchain.js?v=800"></script>
+<script src="/wordchain.js?v=900"></script>
 </body>
 </html>
