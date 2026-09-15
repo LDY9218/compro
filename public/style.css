@@ -3908,3 +3908,6 @@ body:has(.wordchain-modal.active) header{display:none!important;}
 .wordchain-turn-banner{display:none!important}
 .wordchain-word-board:empty{display:none}
 .wordchain-word-board strong:empty,.wordchain-word-board small:empty{display:none}
+
+/* V7: 사용하지 않는 턴 배너는 레이아웃 공간까지 제거 */
+.wordchain-turn-banner{display:none!important;height:0!important;min-height:0!important;padding:0!important;margin:0!important;border:0!important}
