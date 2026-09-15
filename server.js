@@ -1460,6 +1460,135 @@ function startCarGameLoop() {
 startCarGameLoop();
 
 // =========================================================
+// WORD CHAIN — REALTIME 2P / 4P
+// =========================================================
+const wordChainRooms = new Map();
+const WORD_CHAIN_TURN_MS = 15000;
+const WORD_CHAIN_MAX_MISTAKES = 6;
+const WORD_CHAIN_ROOM_TTL_MS = 30 * 60 * 1000;
+const WORD_CHAIN_START_WORDS = ["사과","학교","자동차","기차","구름","바나나","컴퓨터","친구"];
+const WORD_CHAIN_DICT_TTL_MS = 10 * 60 * 1000;
+const wordChainDictionaryCache = new Map();
+const WORD_CHAIN_FALLBACK = new Set([
+    "사과","과자","자동차","차표","표범","범고래","래미안","안경","경찰","찰떡","떡볶이","이불","불꽃","꽃병","병원","원숭이","이름","음식","식당","당근","근육","육상","상어","어항","항구","구름","름?","학교","교실","실내","내일","일기","기차","차량","양말","말미잘","잘생김","김치","치약","약속","속담","담요","요리","리본","본능","능력","역사","사랑","랑종","종이","이야기","기린","린스","스키","키위","위성","성공","공원","원숭이","이상","상자","자전거","거미","미술","술잔","잔치","치마","마늘","늘보","보리","리더","더위","위험","험담","담배","배추","추억","억울","울음","음료","료리","이름","음악","악기","기분","분필","필통","통나무","무지개","개나리","리모컨","컨트롤","롤러","러시아","아이스크림","림프","프로그램","램프","프린터","터미널","널뛰기","기상","상식","식물","물고기","기차역","역무원","원칙","칙령","영화","화분","분수","수박","박수","수영","영어","어깨","깨소금","금요일","일요일","일기장","장난감","감자","자두","두부","부엌","억새","새우","우산","산책","책상","상추","추리","리더십","십자가","가방","방학","학생","생일","일본","본사","사전","전기","기술","술집","집게","게살","살구","구두","두꺼비","비행기","기린","린넨","넥타이","이발","발목","목걸이","이마","마스크","크레파스","스피커","커피","피아노","노트","트럭","럭비","비누","누나","나비","비상","상어","어묵","묵직","직업","업무","무게","게임","임무","무지개","개미","미역","역전","전구","구슬","슬픔","픔?"
+].filter(Boolean));
+function wordChainNormalizeWord(raw){
+    return String(raw||"").normalize("NFC").trim().toLowerCase().replace(/[^가-힣]/g,"");
+}
+function wordChainHangulParts(ch){
+    const code=ch.charCodeAt(0)-0xAC00;
+    if(code<0||code>11171)return null;
+    return {initial:Math.floor(code/588),medial:Math.floor((code%588)/28),final:code%28};
+}
+function wordChainCompose(initial,medial,final){ return String.fromCharCode(0xAC00+initial*588+medial*28+final); }
+function wordChainNextStarts(word){
+    const last=word.slice(-1);
+    const out=new Set([last]);
+    const p=wordChainHangulParts(last);
+    if(!p)return [...out];
+    const initial=p.initial;
+    // ㄴ = 2, ㄹ = 5, ㅇ = 11 in Hangul choseong order.
+    const yVowels=new Set([6,7,12,13,18]); // ㅑ ㅒ ㅕ ㅖ ㅛ/ㅣ 계열을 아래 규칙에서 보정
+    const iLike=new Set([20]); // ㅣ
+    const medial=p.medial;
+    const isYLike=[6,7,12,13,17,18,19,20].includes(medial);
+    if(initial===5){
+        if(isYLike) out.add(wordChainCompose(11,medial,p.final));
+        else out.add(wordChainCompose(2,medial,p.final));
+    }else if(initial===2 && isYLike){
+        out.add(wordChainCompose(11,medial,p.final));
+    }
+    return [...out];
+}
+function wordChainUniqueName(raw, room, socketId){
+    const base=String(raw||"Player").replace(/[^\p{L}\p{N}_ -]/gu,"").trim().slice(0,14)||"Player";
+    const used=new Set(room.players.filter(p=>p.id!==socketId).map(p=>p.nickname));
+    if(!used.has(base))return base;
+    for(let n=2;n<100;n++){
+        const suffix=` (${n})`;
+        const candidate=base.slice(0,Math.max(1,14-suffix.length))+suffix;
+        if(!used.has(candidate))return candidate;
+    }
+    return `Player${Math.floor(Math.random()*9000+1000)}`.slice(0,14);
+}
+function wordChainRoomCode(){
+    let code="";
+    do{ code=String(Math.floor(100000+Math.random()*900000)); }while(wordChainRooms.has(code));
+    return code;
+}
+function wordChainPublicRoom(room){
+    return {
+        code:room.code, mode:room.mode, hostId:room.hostId, status:room.status,
+        currentWord:room.currentWord, requiredStarts:room.currentWord?wordChainNextStarts(room.currentWord):[],
+        turnPlayerId:room.turnPlayerId, turnDeadline:room.turnDeadline,
+        players:room.players.map(p=>({id:p.id,nickname:p.nickname,hp:p.hp,mistakes:p.mistakes,alive:p.alive,ready:p.ready,typing:p.typing||""})),
+        lastResult:room.lastResult||null, winnerId:room.winnerId||null, logs:room.logs.slice(-40)
+    };
+}
+function wordChainBroadcast(room){ io.to(`wordchain:${room.code}`).emit("wordchain:state",wordChainPublicRoom(room)); }
+function wordChainAddLog(room,text,type="system"){ room.logs.push({text:String(text),type,at:Date.now()}); if(room.logs.length>80)room.logs.splice(0,room.logs.length-80); }
+function wordChainAdvanceTurn(room){
+    const alive=room.players.filter(p=>p.alive);
+    if(alive.length<=1){
+        room.status="ended"; room.turnPlayerId=null; room.winnerId=alive[0]?.id||null;
+        wordChainAddLog(room,alive[0]?`${alive[0].nickname} 승리!`:`게임 종료`,'win');
+        wordChainBroadcast(room); return;
+    }
+    const currentIndex=room.players.findIndex(p=>p.id===room.turnPlayerId);
+    for(let step=1;step<=room.players.length;step++){
+        const p=room.players[(currentIndex+step+room.players.length)%room.players.length];
+        if(p?.alive){ room.turnPlayerId=p.id; p.mistakes=0; p.typing=""; room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS; break; }
+    }
+    wordChainBroadcast(room);
+}
+function wordChainApplyPenalty(room,player,reason="6번 틀림"){
+    player.hp=Math.max(0,player.hp-1); player.mistakes=0; player.typing="";
+    if(player.hp<=0){ player.alive=false; wordChainAddLog(room,`${player.nickname} 탈락! (${reason})`,'lose'); }
+    else wordChainAddLog(room,`${player.nickname} 체력 -1 · 다음 턴으로 넘어갑니다.`,'penalty');
+    wordChainAdvanceTurn(room);
+}
+async function wordChainDictionaryCheck(word){
+    const normalized=wordChainNormalizeWord(word);
+    if(normalized.length<2)return {ok:false,source:"rule",message:"두 글자 이상의 단어를 입력하세요."};
+    const cached=wordChainDictionaryCache.get(normalized);
+    if(cached && Date.now()-cached.at<WORD_CHAIN_DICT_TTL_MS)return cached.result;
+    try{
+        const url=`https://kkutu.lightstudio.kr/?start=${encodeURIComponent(normalized)}&end=${encodeURIComponent(normalized)}`;
+        const response=await fetch(url,{headers:{"user-agent":"COMTIME-PRO-WordChain/1.0"},signal:AbortSignal.timeout(6500)});
+        const html=await response.text();
+        const escaped=normalized.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+        const exact=new RegExp(`(?:>|\\b)${escaped}(?:<|\\b)`,'iu').test(html.replace(/&amp;/g,'&'));
+        const result=exact?{ok:true,source:"kkutu",message:"끄투사전 확인 완료"}:{ok:false,source:"kkutu",message:"끄투사전에 없는 단어입니다."};
+        wordChainDictionaryCache.set(normalized,{at:Date.now(),result});
+        return result;
+    }catch(error){
+        const fallback=WORD_CHAIN_FALLBACK.has(normalized);
+        const result=fallback?{ok:true,source:"fallback",message:"끄투사전 연결 실패 · 임시 단어 목록으로 확인"}:{ok:false,source:"fallback",message:"끄투사전에 연결할 수 없고 임시 목록에도 없는 단어입니다."};
+        wordChainDictionaryCache.set(normalized,{at:Date.now(),result});
+        return result;
+    }
+}
+function wordChainCanStart(word,room){
+    if(!room.currentWord)return true;
+    const starts=wordChainNextStarts(room.currentWord);
+    return starts.includes(word.slice(0,1));
+}
+function wordChainCleanupRoom(room){
+    if(!room)return;
+    for(const p of room.players){ const s=io.sockets.sockets.get(p.id); if(s)s.leave(`wordchain:${room.code}`); }
+    wordChainRooms.delete(room.code);
+}
+function wordChainStart(room,hostSocket){
+    if(room.status!=="lobby")return;
+    if(room.players.length<2){ hostSocket.emit("wordchain:error",{message:"최소 2명이 모여야 시작할 수 있습니다."}); return; }
+    if(room.players.length!==room.mode){ hostSocket.emit("wordchain:error",{message:`${room.mode}인전은 ${room.mode}명이 모두 입장해야 시작할 수 있습니다.`}); return; }
+    room.status="playing"; room.currentWord=WORD_CHAIN_START_WORDS[Math.floor(Math.random()*WORD_CHAIN_START_WORDS.length)]; room.usedWords=new Set([room.currentWord]); room.turnPlayerId=room.players[0].id; room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS; room.lastResult=null;
+    room.players.forEach(p=>{p.ready=true;p.mistakes=0;p.hp=2;p.alive=true;p.typing="";});
+    wordChainAddLog(room,`게임 시작! 제시어는 「${room.currentWord}」입니다.`,'system');
+    wordChainBroadcast(room);
+}
+
+// =========================================================
 // WORM ARENA — REALTIME MULTIPLAYER
 // =========================================================
 const WORM_WORLD = 5200;
@@ -1615,6 +1744,20 @@ function wormEmitState(){
     }
 }
 
+const wordChainTimer=setInterval(()=>{
+    const now=Date.now();
+    for(const room of wordChainRooms.values()){
+        if(now-room.createdAt>WORD_CHAIN_ROOM_TTL_MS){wordChainCleanupRoom(room);continue;}
+        if(room.status!=="playing"||!room.turnPlayerId)continue;
+        if(now<room.turnDeadline)continue;
+        const p=room.players.find(x=>x.id===room.turnPlayerId);
+        if(!p||!p.alive){wordChainAdvanceTurn(room);continue;}
+        p.mistakes=WORD_CHAIN_MAX_MISTAKES;
+        wordChainAddLog(room,`${p.nickname}: 시간 초과 · 체력 -1`,'penalty');
+        wordChainApplyPenalty(room,p,"시간 초과");
+    }
+},250);
+
 function wormCellKey(x,y,cell){ return `${Math.floor(x/cell)},${Math.floor(y/cell)}`; }
 function wormBuildGrid(cell){
     const grid=new Map();
@@ -1725,7 +1868,68 @@ setInterval(wormTick,WORM_TICK_MS);
 io.on("connection", (socket) => {
     socket.emit("notices:update", { notices: getSortedNotices(), updatedAt: new Date().toISOString() });
 
-    socket.on("worm:join", ({ nickname } = {}) => {
+    socket.on("wordchain:create", ({mode=2,nickname="Player"}={})=>{
+        const m=Number(mode)===4?4:2;
+        const code=wordChainRoomCode();
+        const room={code,mode:m,hostId:socket.id,status:"lobby",players:[],currentWord:null,usedWords:new Set(),turnPlayerId:null,turnDeadline:0,lastResult:null,winnerId:null,logs:[] ,createdAt:Date.now()};
+        const player={id:socket.id,nickname:wordChainUniqueName(nickname,room,socket.id),hp:2,mistakes:0,alive:true,ready:true,typing:""};
+        room.players.push(player); wordChainRooms.set(code,room); socket.join(`wordchain:${code}`); socket.data.wordChainRoom=code;
+        socket.emit("wordchain:created",{code,mode:m}); wordChainBroadcast(room);
+    });
+    socket.on("wordchain:join", ({code,nickname="Player"}={})=>{
+        const room=wordChainRooms.get(String(code||"").trim());
+        if(!room){socket.emit("wordchain:error",{message:"존재하지 않는 방입니다."});return;}
+        if(room.status!=="lobby"){socket.emit("wordchain:error",{message:"이미 게임이 시작된 방입니다."});return;}
+        if(room.players.length>=room.mode){socket.emit("wordchain:error",{message:"방이 가득 찼습니다."});return;}
+        const player={id:socket.id,nickname:wordChainUniqueName(nickname,room,socket.id),hp:2,mistakes:0,alive:true,ready:true,typing:""};
+        room.players.push(player); socket.join(`wordchain:${room.code}`); socket.data.wordChainRoom=room.code;
+        socket.emit("wordchain:joined",{code:room.code,mode:room.mode}); wordChainBroadcast(room);
+    });
+    socket.on("wordchain:start",()=>{
+        const room=wordChainRooms.get(socket.data.wordChainRoom); if(!room)return;
+        if(room.hostId!==socket.id){socket.emit("wordchain:error",{message:"방장만 게임을 시작할 수 있습니다."});return;}
+        wordChainStart(room,socket);
+    });
+    socket.on("wordchain:typing",({text=""}={})=>{
+        const room=wordChainRooms.get(socket.data.wordChainRoom); if(!room||room.status!=="playing")return;
+        const p=room.players.find(x=>x.id===socket.id); if(!p||!p.alive)return;
+        p.typing=String(text).slice(0,30); io.to(`wordchain:${room.code}`).emit("wordchain:typing",{playerId:p.id,text:p.typing});
+    });
+    socket.on("wordchain:submit",async({word=""}={})=>{
+        const room=wordChainRooms.get(socket.data.wordChainRoom); if(!room||room.status!=="playing")return;
+        if(room.turnPlayerId!==socket.id){socket.emit("wordchain:error",{message:"지금은 당신의 턴이 아닙니다."});return;}
+        const p=room.players.find(x=>x.id===socket.id); if(!p||!p.alive)return;
+        const normalized=wordChainNormalizeWord(word); p.typing="";
+        if(!normalized){socket.emit("wordchain:invalid",{reason:"단어를 입력하세요."});return;}
+        if(room.usedWords.has(normalized)){
+            p.mistakes+=1; room.lastResult={ok:false,playerId:p.id,word:normalized,reason:"이미 사용한 단어입니다."}; wordChainAddLog(room,`${p.nickname}: ${normalized} · 중복 단어 (${p.mistakes}/${WORD_CHAIN_MAX_MISTAKES})`,'bad');
+        }else if(!wordChainCanStart(normalized,room)){
+            p.mistakes+=1; room.lastResult={ok:false,playerId:p.id,word:normalized,reason:`${room.currentWord?.slice(-1)}로 시작해야 합니다.`}; wordChainAddLog(room,`${p.nickname}: ${normalized} · 시작 글자 불일치 (${p.mistakes}/${WORD_CHAIN_MAX_MISTAKES})`,'bad');
+        }else{
+            const check=await wordChainDictionaryCheck(normalized);
+            if(!check.ok){
+                p.mistakes+=1; room.lastResult={ok:false,playerId:p.id,word:normalized,reason:check.message,source:check.source}; wordChainAddLog(room,`${p.nickname}: ${normalized} · ${check.message} (${p.mistakes}/${WORD_CHAIN_MAX_MISTAKES})`,'bad');
+            }else{
+                room.usedWords.add(normalized); room.currentWord=normalized; room.lastResult={ok:true,playerId:p.id,word:normalized,source:check.source}; wordChainAddLog(room,`${p.nickname}: ${normalized}`,'good');
+                p.mistakes=0;
+                wordChainAdvanceTurn(room); return;
+            }
+        }
+        if(p.mistakes>=WORD_CHAIN_MAX_MISTAKES){wordChainApplyPenalty(room,p,"6번 틀림");}
+        else { room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS; wordChainBroadcast(room); }
+    });
+    socket.on("wordchain:leave",()=>{
+        const code=socket.data.wordChainRoom; const room=wordChainRooms.get(code); if(!room)return;
+        const idx=room.players.findIndex(p=>p.id===socket.id); if(idx<0)return;
+        const wasTurn=room.turnPlayerId===socket.id; room.players.splice(idx,1); socket.leave(`wordchain:${code}`); socket.data.wordChainRoom=null;
+        if(room.players.length===0){wordChainRooms.delete(code);return;}
+        if(room.hostId===socket.id)room.hostId=room.players[0].id;
+        if(room.status==="playing"&&room.players.filter(p=>p.alive).length<=1){room.status="ended";room.winnerId=room.players.find(p=>p.alive)?.id||null;}
+        else if(room.status==="playing"&&wasTurn)wordChainAdvanceTurn(room);
+        else wordChainBroadcast(room);
+    });
+
+    socket.on("worm:join", ({ nickname } = {})=>{
         const existing=wormPlayers.get(socket.id);
         // 죽은 플레이어가 다시 ENTER하면 같은 소켓으로 새 지렁이를 즉시 생성한다.
         if(existing && !existing.alive){
