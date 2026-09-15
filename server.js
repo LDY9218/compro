@@ -1648,6 +1648,7 @@ function wordChainPublicRoom(room){
         requiredStarts:room?.currentWord?wordChainNextStarts(room.currentWord):[],
         turnPlayerId:room?.turnPlayerId||null,
         turnDeadline:Number.isFinite(Number(room?.turnDeadline))?Number(room.turnDeadline):0,
+        roundMoveCount:Number.isFinite(Number(room?.roundMoveCount))?Number(room.roundMoveCount):0,
         players:players.map(p=>({id:String(p.id),nickname:String(p.nickname||"Player"),hp:Math.max(0,Math.min(2,Number(p.hp)||0)),mistakes:Math.max(0,Math.min(WORD_CHAIN_MAX_MISTAKES,Number(p.mistakes)||0)),alive:p.alive!==false,ready:p.ready!==false,typing:String(p.typing||"").slice(0,30)})),
         lastResult:room?.lastResult||null,
         winnerId:room?.winnerId||null,
@@ -1672,7 +1673,7 @@ function wordChainAddLog(room,text,type="system"){ room.logs.push({text:String(t
 function wordChainAdvanceTurn(room,resetStarter=false){
     const alive=room.players.filter(p=>p.alive);
     if(alive.length<=1){
-        room.status="ended"; room.turnPlayerId=null; room.turnDeadline=0; room.winnerId=alive[0]?.id||null;
+        room.status="ended"; room.turnPlayerId=null; room.turnDeadline=0; room.roundMoveCount=room.roundMoveCount||0; room.winnerId=alive[0]?.id||null;
         wordChainAddLog(room,alive[0]?`${alive[0].nickname} 승리!`:`게임 종료`,"win");
         wordChainBroadcast(room); return;
     }
@@ -1680,6 +1681,7 @@ function wordChainAdvanceTurn(room,resetStarter=false){
         const starter=wordChainPickStarter(room);
         room.currentWord=starter;
         room.usedWords.add(starter);
+        room.roundMoveCount=0;
         wordChainAddLog(room,`새 라운드 시작 · 제시어 「${starter}」`,"system");
     }
     const currentIndex=room.players.findIndex(p=>p.id===room.turnPlayerId);
@@ -1729,7 +1731,7 @@ async function wordChainLoadLocalDictionary(){
         try{
             if(fs.existsSync(localFile)){
                 const count=addText(fs.readFileSync(localFile,"utf8"));
-                if(count>1000){wordChainDictionaryReady=true;console.log(`[끝말잇기 사전] 로컬 DB 로드 완료: ${wordChainDictionary.size.toLocaleString()}개`);return true;}
+                if(count>50000){wordChainDictionaryReady=true;console.log(`[끝말잇기 사전] 대형 로컬 DB 로드 완료: ${wordChainDictionary.size.toLocaleString()}개`);return true;}
             }
         }catch(error){console.warn(`[끝말잇기 사전] 로컬 DB 읽기 실패: ${error?.message||error}`);}
         for(const url of WORD_CHAIN_REMOTE_WORDLISTS){
@@ -1744,7 +1746,7 @@ async function wordChainLoadLocalDictionary(){
             }catch(error){console.warn(`[끝말잇기 사전] 공개 DB 로드 실패: ${url} · ${error?.message||error}`);}
         }
         wordChainDictionaryReady=true;
-        console.warn(`[끝말잇기 사전] 외부 DB를 불러오지 못해 내장 안전 사전 ${wordChainDictionary.size.toLocaleString()}개로 시작합니다.`);
+        console.warn(`[끝말잇기 사전] 외부 DB를 불러오지 못해 내장 확장 사전 ${wordChainDictionary.size.toLocaleString()}개로 시작합니다.`);
         return false;
     })().finally(()=>{wordChainDictionaryLoading=null;});
     return wordChainDictionaryLoading;
@@ -1783,7 +1785,7 @@ function wordChainCleanupRoom(room){
 function wordChainStart(room,hostSocket){
     if(room.status!=="lobby")return;
     if(room.players.length!==room.mode){hostSocket.emit("wordchain:error",{message:`${room.mode}인전은 ${room.mode}명이 모두 입장해야 시작할 수 있습니다.`});return;}
-    room.status="playing";room.currentWord=wordChainPickStarter(room);room.usedWords=new Set([room.currentWord]);room.turnPlayerId=room.players[0].id;room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS;room.lastResult={ok:true,source:"starter",word:room.currentWord};room.winnerId=null;
+    room.status="playing";room.currentWord=wordChainPickStarter(room);room.usedWords=new Set([room.currentWord]);room.roundMoveCount=0;room.turnPlayerId=room.players[0].id;room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS;room.lastResult={ok:true,source:"starter",word:room.currentWord};room.winnerId=null;
     room.players.forEach(p=>{p.ready=true;p.mistakes=0;p.hp=2;p.alive=true;p.typing="";});
     wordChainAddLog(room,`게임 시작! 제시어는 「${room.currentWord}」입니다.`);wordChainBroadcast(room);
 }
@@ -2073,7 +2075,7 @@ io.on("connection", (socket) => {
             if(old) wordChainRemovePlayer(old,socket);
         }
         const code=wordChainRoomCode();
-        const room={code,name:wordChainRoomName(roomName),mode:m,hostId:socket.id,status:"lobby",players:[],currentWord:null,usedWords:new Set(),turnPlayerId:null,turnDeadline:0,lastResult:null,winnerId:null,logs:[],createdAt:Date.now()};
+        const room={code,name:wordChainRoomName(roomName),mode:m,hostId:socket.id,status:"lobby",players:[],currentWord:null,usedWords:new Set(),turnPlayerId:null,turnDeadline:0,roundMoveCount:0,lastResult:null,winnerId:null,logs:[],createdAt:Date.now()};
         const player={id:socket.id,nickname:wordChainUniqueName(nickname,room,socket.id),hp:2,mistakes:0,alive:true,ready:true,typing:""};
         room.players.push(player);
         wordChainRooms.set(code,room);
@@ -2147,18 +2149,22 @@ io.on("connection", (socket) => {
             source=check.source;
             if(!check.ok) failure=check.message;
             else{
-                // 한방단어는 첫 턴부터 항상 금지합니다. 즉 '처음 5회' 같은 유예가 없습니다.
-                const continuation=await wordChainHasContinuation(normalized);
-                if(continuation.ok===false){
-                    failure=continuation.message||"한방단어는 사용할 수 없습니다.";
-                    source=continuation.source;
-                }else if(continuation.ok===null){
-                    // 한방단어 여부를 확인할 수 없는 상태에서 단어를 통과시키면 규칙이 무너집니다.
-                    failure="끄투 사전 연결이 불안정해 한방단어 여부를 확인하지 못했습니다. 잠시 후 다시 시도하세요.";
-                    source=continuation.source||"dictionary-unreachable";
-                }else{
+                // 한방단어는 각 라운드의 첫 번째 실제 플레이어 입력에서만 금지합니다.
+                // 첫 단어가 처리된 뒤에는 한방단어도 정상적으로 사용할 수 있습니다.
+                if(Number(room.roundMoveCount||0)===0){
+                    const continuation=await wordChainHasContinuation(normalized);
+                    if(continuation.ok===false){
+                        failure=continuation.message||"한방단어는 첫 턴에 사용할 수 없습니다.";
+                        source=continuation.source;
+                    }else if(continuation.ok===null){
+                        failure="한방단어 여부를 확인하지 못했습니다. 잠시 후 다시 시도하세요.";
+                        source=continuation.source||"dictionary-unreachable";
+                    }
+                }
+                if(!failure){
                     room.usedWords.add(normalized);
                     room.currentWord=normalized;
+                    room.roundMoveCount=Number(room.roundMoveCount||0)+1;
                     room.lastResult={ok:true,playerId:p.id,word:normalized,source:source};
                     p.mistakes=0;
                     wordChainAddLog(room,`${p.nickname}: ${normalized}`,'good');
