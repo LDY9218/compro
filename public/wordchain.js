@@ -3,21 +3,26 @@
 
     const modal = document.getElementById('wordChainModal');
     if (!modal) return;
-
     const $ = (id) => document.getElementById(id);
+
     const backdrop = $('wordChainBackdrop');
     const closeBtn = $('closeWordChainBtn');
     const lobby = $('wordChainLobby');
     const room = $('wordChainRoom');
     const tabs = [...document.querySelectorAll('.wordchain-mode-tab')];
     const createName = $('wordChainCreateName');
+    const createRoomName = $('wordChainCreateRoomName');
     const joinName = $('wordChainJoinName');
     const roomCodeInput = $('wordChainRoomCode');
     const createBtn = $('wordChainCreateBtn');
     const joinBtn = $('wordChainJoinBtn');
+    const refreshRoomsBtn = $('wordChainRefreshRoomsBtn');
+    const roomList = $('wordChainRoomList');
+    const roomListCount = $('wordChainRoomListCount');
     const lobbyStatus = $('wordChainLobbyStatus');
     const roomCodeLabel = $('wordChainRoomCodeLabel');
     const roomModeLabel = $('wordChainRoomModeLabel');
+    const roomNameLabel = $('wordChainRoomNameLabel');
     const startBtn = $('wordChainStartBtn');
     const leaveBtn = $('wordChainLeaveBtn');
     const playersEl = $('wordChainPlayers');
@@ -47,6 +52,7 @@
     let timerRaf = null;
     let opening = false;
     let gameSessionStarted = false;
+    let lobbyRooms = [];
 
     const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
@@ -60,7 +66,7 @@
 
     function setDictionaryStatus(text, kind = '') {
         if (!dictStatus) return;
-        dictStatus.textContent = text;
+        dictStatus.textContent = text || '';
         dictStatus.dataset.kind = kind;
     }
 
@@ -69,17 +75,11 @@
         state = null;
         roomCode = '';
         stopTimer();
-        if (input) {
-            input.value = '';
-            input.disabled = true;
-        }
+        if (input) { input.value = ''; input.disabled = true; }
         if (submitBtn) submitBtn.disabled = true;
-        if (lobby) lobby.hidden = false;
+        if (lobby) { lobby.hidden = false; lobby.scrollTop = 0; }
         if (room) room.hidden = true;
-        if (endPanel) {
-            endPanel.hidden = true;
-            endPanel.style.display = 'none';
-        }
+        if (endPanel) { endPanel.hidden = true; endPanel.style.display = 'none'; }
         if (playersEl) playersEl.innerHTML = '';
         if (logEl) logEl.innerHTML = '';
         if (liveTypingEl) {
@@ -88,8 +88,12 @@
         }
         if (turnBanner) turnBanner.textContent = '방을 준비하고 있습니다.';
         if (mistakesEl) mistakesEl.textContent = '틀린 횟수 0 / 6';
+        if (roomCodeLabel) roomCodeLabel.textContent = '------';
+        if (roomModeLabel) roomModeLabel.textContent = '2인전';
+        if (roomNameLabel) roomNameLabel.textContent = '새 끝말잇기 방';
         setDictionaryStatus('끄투 사전 대기', '');
         if (message) setLobbyStatus(message, '');
+        renderRoomList();
     }
 
     function open() {
@@ -101,12 +105,10 @@
         modal.classList.add('active');
         modal.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
-
-        // GAME OVER 오버레이는 새 진입 시 절대로 남아 있으면 안 됩니다.
-        // 실제 진행 중인 방만 유지하고, 끝난 판/초기 상태는 로비로 강제 초기화합니다.
         if (!state || state.status === 'ended') resetViewToLobby();
         if (endPanel) { endPanel.hidden = true; endPanel.style.display = 'none'; }
         if (!socket) connect();
+        else socket.emit('wordchain:list');
         opening = false;
     }
 
@@ -124,7 +126,6 @@
             setLobbyStatus('실시간 서버 연결 기능을 불러오지 못했습니다.', 'error');
             return;
         }
-
         socket = window.io(window.location.origin, {
             transports: ['websocket', 'polling'],
             reconnection: true,
@@ -135,6 +136,7 @@
             connected = true;
             myId = socket.id;
             setLobbyStatus('실시간 서버 연결 완료', 'ok');
+            socket.emit('wordchain:list');
         });
 
         socket.on('disconnect', () => {
@@ -149,16 +151,22 @@
             setLobbyStatus('실시간 서버에 연결하지 못했습니다.', 'error');
         });
 
-        socket.on('wordchain:created', ({ code, mode: serverMode }) => {
-            roomCode = String(code || '');
-            mode = Number(serverMode) === 4 ? 4 : 2;
-            setLobbyStatus(`방 ${roomCode} 생성 완료 · ${mode}명이 모두 입장하면 게임을 시작할 수 있습니다.`, 'ok');
+        socket.on('wordchain:rooms', rooms => {
+            lobbyRooms = Array.isArray(rooms) ? rooms : [];
+            renderRoomList();
         });
 
-        socket.on('wordchain:joined', ({ code, mode: serverMode }) => {
+        socket.on('wordchain:created', ({ code, mode: serverMode, name }) => {
             roomCode = String(code || '');
             mode = Number(serverMode) === 4 ? 4 : 2;
-            setLobbyStatus(`방 ${roomCode} 입장 완료`, 'ok');
+            if (createRoomName && name) createRoomName.value = name;
+            setLobbyStatus(`방 ${roomCode} 생성 완료 · ${mode}명이 모두 입장하면 시작할 수 있습니다.`, 'ok');
+        });
+
+        socket.on('wordchain:joined', ({ code, mode: serverMode, name }) => {
+            roomCode = String(code || '');
+            mode = Number(serverMode) === 4 ? 4 : 2;
+            setLobbyStatus(`「${name || '끝말잇기 방'}」 입장 완료`, 'ok');
         });
 
         socket.on('wordchain:error', ({ message }) => {
@@ -180,14 +188,10 @@
 
         socket.on('wordchain:state', next => {
             if (!next || !Array.isArray(next.players)) return;
-
-            // 서버/브라우저가 오래된 GAME OVER 상태를 가지고 있더라도
-            // 실제 한 판도 시작하지 않은 상태에서는 그것을 표시하지 않습니다.
             if (next.status === 'ended' && !gameSessionStarted) {
                 resetViewToLobby();
                 return;
             }
-
             state = next;
             roomCode = String(next.code || roomCode || '');
             mode = Number(next.mode) === 4 ? 4 : 2;
@@ -202,19 +206,47 @@
         });
     }
 
+    function renderRoomList() {
+        if (!roomList) return;
+        const filtered = lobbyRooms.filter(r => Number(r.mode) === mode);
+        if (roomListCount) roomListCount.textContent = `${filtered.length}개`;
+        if (!filtered.length) {
+            roomList.innerHTML = `<div class="wordchain-room-empty"><strong>${mode}인전 대기방이 없습니다.</strong><span>위에서 첫 방을 만들어 보세요.</span></div>`;
+            return;
+        }
+        roomList.innerHTML = filtered.map(r => {
+            const full = Number(r.count) >= Number(r.capacity);
+            return `<button type="button" class="wordchain-room-item ${full ? 'full' : ''}" data-room-code="${esc(r.code)}" ${full ? 'disabled' : ''}>
+                <span class="wordchain-room-item-main"><strong>${esc(r.name || '끝말잇기 방')}</strong><small>ROOM ${esc(r.code)} · ${esc(r.hostNickname || '방장')}</small></span>
+                <span class="wordchain-room-item-side"><b>${Number(r.count)}/${Number(r.capacity)}</b><em>${full ? '가득 참' : '참가'}</em></span>
+            </button>`;
+        }).join('');
+        roomList.querySelectorAll('[data-room-code]').forEach(btn => btn.addEventListener('click', () => {
+            const code = btn.dataset.roomCode || '';
+            if (roomCodeInput) roomCodeInput.value = code;
+            joinRoom(code);
+        }));
+    }
+
     function createRoom() {
         if (endPanel) { endPanel.hidden = true; endPanel.style.display = 'none'; }
         if (!socket || !connected) return setLobbyStatus('서버에 연결하는 중입니다. 잠시만 기다려 주세요.', 'error');
         const name = String(createName?.value || 'Player').trim().slice(0, 14) || 'Player';
-        socket.emit('wordchain:create', { mode, nickname: name });
-        setLobbyStatus(`${mode}인전 방을 만드는 중...`, '');
+        const roomName = String(createRoomName?.value || '새 끝말잇기 방').trim().slice(0, 24) || '새 끝말잇기 방';
+        socket.emit('wordchain:create', { mode, nickname: name, roomName });
+        setLobbyStatus(`${mode}인전 「${roomName}」 방을 만드는 중...`, '');
     }
 
-    function joinRoom() {
+    function joinRoom(explicitCode = '') {
         if (endPanel) { endPanel.hidden = true; endPanel.style.display = 'none'; }
         if (!socket || !connected) return setLobbyStatus('서버에 연결하는 중입니다. 잠시만 기다려 주세요.', 'error');
-        const code = String(roomCodeInput?.value || '').trim();
+        const code = String(explicitCode || roomCodeInput?.value || '').trim();
         if (!/^\d{6}$/.test(code)) return setLobbyStatus('방 코드는 숫자 6자리입니다.', 'error');
+        const selected = lobbyRooms.find(r => String(r.code) === code);
+        if (selected && Number(selected.mode) !== mode) {
+            mode = Number(selected.mode) === 4 ? 4 : 2;
+            tabs.forEach(x => x.classList.toggle('active', Number(x.dataset.wcMode) === mode));
+        }
         const name = String(joinName?.value || 'Player').trim().slice(0, 14) || 'Player';
         socket.emit('wordchain:join', { code, nickname: name });
         setLobbyStatus('방에 참가하는 중...', '');
@@ -224,6 +256,7 @@
         if (!state) return;
         if (roomCodeLabel) roomCodeLabel.textContent = state.code || '------';
         if (roomModeLabel) roomModeLabel.textContent = `${state.mode}인전`;
+        if (roomNameLabel) roomNameLabel.textContent = state.name || '끝말잇기 방';
         renderPlayers();
         renderLiveTyping();
         renderBoard();
@@ -266,13 +299,15 @@
             if (!current) requiredEl.textContent = '첫 제시어가 나오면 시작합니다.';
             else {
                 const starts = Array.isArray(state.requiredStarts) ? state.requiredStarts.join(' / ') : current.slice(-1);
-                requiredEl.textContent = `다음 시작 글자 · ${starts}`;
+                requiredEl.textContent = `다음 시작 글자 · ${starts} · 두음법칙 ON`;
             }
         }
         if (state.lastResult) {
             const source = state.lastResult.source;
-            if (source === 'kkutu') setDictionaryStatus(state.lastResult.ok ? '끄투 사전 확인 완료' : '끄투 사전 불인정', state.lastResult.ok ? 'ok' : 'bad');
-            else if (source === 'fallback') setDictionaryStatus('끄투 연결 지연 · 임시 사전 사용', state.lastResult.ok ? 'ok' : 'bad');
+            if (source === 'kkutu') setDictionaryStatus(state.lastResult.ok ? '끄투 계열 사전 확인 완료 · 두음법칙 ON' : '끄투 사전 불인정', state.lastResult.ok ? 'ok' : 'bad');
+            else if (source === 'fallback') setDictionaryStatus('사전 연결 지연 · 임시 안전 목록 사용', state.lastResult.ok ? 'ok' : 'bad');
+            else if (source === 'dictionary-unreachable') setDictionaryStatus('끄투 사전 연결 필요', 'bad');
+            else if (source === 'starter') setDictionaryStatus('안전한 새 제시어', 'ok');
         }
     }
 
@@ -280,18 +315,14 @@
         const me = state.players.find(p => p.id === myId);
         const myTurn = state.status === 'playing' && state.turnPlayerId === myId && Boolean(me?.alive);
         const active = Boolean(myTurn);
-
         if (input) input.disabled = !active;
         if (submitBtn) submitBtn.disabled = !active;
         if (mistakesEl) mistakesEl.textContent = `틀린 횟수 ${me?.mistakes || 0} / 6`;
-
         if (state.status === 'lobby') {
             const full = state.players.length === state.mode;
-            if (turnBanner) {
-                turnBanner.textContent = state.players.length < state.mode
-                    ? `${state.players.length} / ${state.mode}명 · 참가자를 기다리는 중`
-                    : (state.hostId === myId ? '모든 인원이 모였습니다. 게임을 시작하세요.' : '방장이 게임을 시작하기를 기다리는 중');
-            }
+            if (turnBanner) turnBanner.textContent = state.players.length < state.mode
+                ? `${state.players.length} / ${state.mode}명 · 참가자를 기다리는 중`
+                : (state.hostId === myId ? '모든 인원이 모였습니다. 게임을 시작하세요.' : '방장이 게임을 시작하기를 기다리는 중');
             if (startBtn) startBtn.hidden = !(state.hostId === myId && full);
         } else if (state.status === 'playing') {
             const turnPlayer = state.players.find(p => p.id === state.turnPlayerId);
@@ -334,14 +365,14 @@
         socket.emit('wordchain:submit', { word });
         input.value = '';
         socket.emit('wordchain:typing', { text: '' });
-        setDictionaryStatus('끄투 사전 확인 중...', 'loading');
+        setDictionaryStatus('끄투 사전 + 두음법칙 확인 중...', 'loading');
     }
 
     function sendTyping() {
         if (!socket || !state || state.status !== 'playing' || state.turnPlayerId !== myId) return;
         const text = String(input?.value || '').slice(0, 30);
         clearTimeout(typingTimer);
-        typingTimer = setTimeout(() => socket.emit('wordchain:typing', { text }), 15);
+        typingTimer = setTimeout(() => socket.emit('wordchain:typing', { text }), 25);
     }
 
     function startTimer() {
@@ -361,43 +392,40 @@
     function stopTimer() {
         if (timerRaf) cancelAnimationFrame(timerRaf);
         timerRaf = null;
-        if (timerEl) {
-            timerEl.textContent = '--';
-            timerEl.classList.remove('danger');
-        }
+        if (timerEl) { timerEl.textContent = '--'; timerEl.classList.remove('danger'); }
     }
 
     function leaveRoom(message = '방에서 나왔습니다.') {
-        if (socket) socket.emit('wordchain:leave');
+        if (socket && roomCode) socket.emit('wordchain:leave');
         resetViewToLobby(message);
         if (endPanel) { endPanel.hidden = true; endPanel.style.display = 'none'; }
+        if (socket) socket.emit('wordchain:list');
     }
 
     tabs.forEach(tab => tab.addEventListener('click', () => {
         mode = Number(tab.dataset.wcMode) === 4 ? 4 : 2;
         tabs.forEach(x => x.classList.toggle('active', x === tab));
         setLobbyStatus(`${mode}인전 모드가 선택되었습니다.`, '');
+        renderRoomList();
     }));
 
     hubBtn?.addEventListener('click', open);
     closeBtn?.addEventListener('click', close);
     backdrop?.addEventListener('click', close);
     createBtn?.addEventListener('click', createRoom);
-    joinBtn?.addEventListener('click', joinRoom);
+    joinBtn?.addEventListener('click', () => joinRoom());
+    refreshRoomsBtn?.addEventListener('click', () => socket?.emit('wordchain:list'));
     startBtn?.addEventListener('click', () => socket?.emit('wordchain:start'));
     leaveBtn?.addEventListener('click', () => leaveRoom());
     submitBtn?.addEventListener('click', submit);
     input?.addEventListener('input', sendTyping);
     input?.addEventListener('keydown', e => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            submit();
-        }
+        if (e.key === 'Enter') { e.preventDefault(); submit(); }
     });
     roomCodeInput?.addEventListener('input', () => {
         roomCodeInput.value = roomCodeInput.value.replace(/\D/g, '').slice(0, 6);
     });
-    rematchBtn?.addEventListener('click', (event) => {
+    rematchBtn?.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
         leaveRoom('로비로 돌아왔습니다. 새 방을 만들거나 다른 방에 참가하세요.');
@@ -405,4 +433,6 @@
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && modal.classList.contains('active')) close();
     });
+
+    renderRoomList();
 })();
