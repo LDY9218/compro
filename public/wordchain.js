@@ -158,20 +158,29 @@
         });
 
         socket.on('wordchain:created', ({ code, mode: serverMode, name }) => {
-            roomCode = String(code || '');
+            roomCode = String(code || '').replace(/\D/g, '').slice(0, 6);
             mode = Number(serverMode) === 4 ? 4 : 2;
             if (createRoomName && name) createRoomName.value = name;
             setLobbyStatus(`방 ${roomCode} 생성 완료 · ${mode}명이 모두 입장하면 시작할 수 있습니다.`, 'ok');
         });
 
         socket.on('wordchain:joined', ({ code, mode: serverMode, name }) => {
-            roomCode = String(code || '');
+            const normalizedCode = String(code || '').replace(/\D/g, '').slice(0, 6);
+            if (normalizedCode.length !== 6) {
+                setLobbyStatus('서버에서 올바르지 않은 방 코드를 받았습니다. 방 목록을 새로고침합니다.', 'error');
+                socket.emit('wordchain:list');
+                return;
+            }
+            roomCode = normalizedCode;
             mode = Number(serverMode) === 4 ? 4 : 2;
             setLobbyStatus(`「${name || '끝말잇기 방'}」 입장 완료`, 'ok');
         });
 
         socket.on('wordchain:error', ({ message }) => {
             setLobbyStatus(message || '끝말잇기 처리 중 오류가 발생했습니다.', 'error');
+            if (message && /존재하지|가득|시작된|6자리|방장/.test(message)) {
+                socket.emit('wordchain:list');
+            }
         });
 
         socket.on('wordchain:invalid', ({ reason }) => {
@@ -209,17 +218,19 @@
 
     function renderRoomList() {
         if (!roomList) return;
-        const filtered = lobbyRooms.filter(r => Number(r.mode) === mode);
+        const filtered = lobbyRooms.filter(r => Number(r?.mode) === mode && String(r?.code || '').length === 6);
         if (roomListCount) roomListCount.textContent = `${filtered.length}개`;
         if (!filtered.length) {
             roomList.innerHTML = `<div class="wordchain-room-empty"><strong>${mode}인전 대기방이 없습니다.</strong><span>위에서 첫 방을 만들어 보세요.</span></div>`;
             return;
         }
         roomList.innerHTML = filtered.map(r => {
-            const full = Number(r.count) >= Number(r.capacity);
+            const count = Number.isFinite(Number(r?.count)) ? Number(r.count) : 0;
+            const capacity = Number(r?.capacity) === 4 ? 4 : 2;
+            const full = count >= capacity;
             return `<button type="button" class="wordchain-room-item ${full ? 'full' : ''}" data-room-code="${esc(r.code)}" ${full ? 'disabled' : ''}>
                 <span class="wordchain-room-item-main"><strong>${esc(r.name || '끝말잇기 방')}</strong><small>ROOM ${esc(r.code)} · ${esc(r.hostNickname || '방장')}</small></span>
-                <span class="wordchain-room-item-side"><b>${Number(r.count)}/${Number(r.capacity)}</b><em>${full ? '가득 참' : '참가'}</em></span>
+                <span class="wordchain-room-item-side"><b>${count}/${capacity}</b><em>${full ? '가득 참' : '참가'}</em></span>
             </button>`;
         }).join('');
         roomList.querySelectorAll('[data-room-code]').forEach(btn => btn.addEventListener('click', () => {
@@ -243,14 +254,15 @@
         if (!socket || !connected) return setLobbyStatus('서버에 연결하는 중입니다. 잠시만 기다려 주세요.', 'error');
         const code = String(explicitCode || roomCodeInput?.value || '').trim();
         if (!/^\d{6}$/.test(code)) return setLobbyStatus('방 코드는 숫자 6자리입니다.', 'error');
+        if (Number(code) < 100000 || Number(code) > 999999) return setLobbyStatus('올바른 6자리 방 코드를 입력하세요.', 'error');
         const selected = lobbyRooms.find(r => String(r.code) === code);
         if (selected && Number(selected.mode) !== mode) {
             mode = Number(selected.mode) === 4 ? 4 : 2;
             tabs.forEach(x => x.classList.toggle('active', Number(x.dataset.wcMode) === mode));
         }
         const name = String(joinName?.value || 'Player').trim().slice(0, 14) || 'Player';
-        socket.emit('wordchain:join', { code, nickname: name });
-        setLobbyStatus('방에 참가하는 중...', '');
+        socket.emit('wordchain:join', { code: String(code), nickname: name });
+        setLobbyStatus(`ROOM ${code} 참가 요청 중...`, '');
     }
 
     function render() {
