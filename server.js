@@ -1633,12 +1633,14 @@ function wordChainPickStarter(room){
 function wordChainPublicRoom(room){
     const mode=Number(room?.mode)===4?4:2;
     const players=Array.isArray(room?.players)?room.players:[];
+    const safeCount = Number.isFinite(players.length) ? players.length : 0;
     return {
         code:String(room?.code||""),
         name:wordChainRoomName(room?.name),
         mode,
         capacity:mode,
-        count:players.length,
+        maxPlayers:mode,
+        count:safeCount,
         hostId:String(room?.hostId||""),
         hostNickname:players.find(p=>p.id===room?.hostId)?.nickname||"방장",
         status:room?.status||"lobby",
@@ -1654,7 +1656,7 @@ function wordChainPublicRoom(room){
 }
 function wordChainPublicLobbyRoom(room){
     const pub=wordChainPublicRoom(room);
-    return {code:pub.code,name:pub.name,mode:pub.mode,capacity:pub.capacity,count:pub.count,status:pub.status,hostId:pub.hostId,hostNickname:pub.hostNickname};
+    return {code:pub.code,name:pub.name,mode:pub.mode,capacity:Number(pub.capacity)||pub.mode,maxPlayers:Number(pub.maxPlayers)||pub.mode,count:Number.isFinite(Number(pub.count))?Number(pub.count):0,status:pub.status,hostId:pub.hostId,hostNickname:pub.hostNickname};
 }
 function wordChainPublicLobbyRooms(){
     return [...wordChainRooms.values()]
@@ -2086,7 +2088,8 @@ io.on("connection", (socket) => {
     });
 
     socket.on("wordchain:join", ({code,nickname="Player"}={})=>{
-        const target=String(code||"").trim();
+        const target=String(code||"").replace(/[\s-]/g, "").replace(/\D/g, "");
+        if(!/^\d{6}$/.test(target)){socket.emit("wordchain:error",{message:"방 코드는 숫자 6자리입니다."});return;}
         const room=wordChainRooms.get(target);
         if(!room){socket.emit("wordchain:error",{message:"존재하지 않는 방입니다."});return;}
         if(room.status!=="lobby"){socket.emit("wordchain:error",{message:"이미 게임이 시작된 방입니다."});return;}
