@@ -72,6 +72,7 @@
         room.hidden = true;
         endPanel.hidden = true;
         if (input) input.value = '';
+        setLobbyStatus('', '');
         stopTimer();
     }
 
@@ -113,12 +114,13 @@
             const p = state.players.find(x => x.id === playerId);
             if (!p) return;
             p.typing = String(text || '');
-            if (playerId !== myId && p.alive && p.typing) {
-                liveTypingEl.textContent = `${p.nickname} 입력 중 · ${p.typing}`;
+            const otherTypers = state.players.filter(x => x.id !== myId && x.alive && x.typing);
+            if (otherTypers.length) {
+                liveTypingEl.textContent = otherTypers.map(x => `${x.nickname}: ${x.typing}`).join('  ·  ');
                 liveTypingEl.classList.add('active');
-            } else if (playerId === state.turnPlayerId) {
-                const other = state.players.find(x => x.id !== myId && x.alive && x.typing);
-                if (!other) liveTypingEl.textContent = '상대방 입력 대기 중...';
+            } else {
+                liveTypingEl.textContent = '상대방 입력 대기 중...';
+                liveTypingEl.classList.remove('active');
             }
             renderPlayers();
         });
@@ -128,10 +130,6 @@
             mode = Number(next.mode) === 4 ? 4 : 2;
             lobby.hidden = next.status !== 'lobby';
             room.hidden = next.status === 'lobby';
-            if (next.status === 'lobby') {
-                lobby.hidden = true;
-                room.hidden = false;
-            }
             render();
         });
     }
