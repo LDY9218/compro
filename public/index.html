@@ -357,7 +357,7 @@
             <div>
                 <span class="wordchain-eyebrow">COMTIME WORD BATTLE</span>
                 <h2>끝말잇기</h2>
-                <p>두음법칙을 적용하고 로컬 한국어 단어 DB로 빠르게 단어를 검증하고 두음법칙을 적용합니다.</p>
+                <p>두음법칙을 적용하고 온라인 끄투 계열 오픈DB와 공개 한국어 단어 목록을 이용해 긴 단어까지 검증합니다.</p>
             </div>
             <button id="closeWordChainBtn" class="game-close-btn wordchain-mobile-close" type="button" aria-label="끝말잇기 닫기">×</button>
         </header>
@@ -393,12 +393,12 @@
             <div class="wordchain-rules">
                 <strong>게임 규칙</strong>
                 <ul>
-                    <li>단어는 서버에 미리 로드된 대규모 한국어 단어 DB에서 즉시 확인합니다.</li>
+                    <li>단어는 온라인 끄투 계열 오픈DB를 우선 검색하고 공개 한국어 단어 DB를 보조로 사용합니다.</li>
                     <li>두음법칙을 적용하여 이어질 수 있는 시작 글자를 판정합니다.</li>
                     <li>게임 시작 시 제시어가 나오고 그 끝 글자로 이어갑니다.</li>
                     <li>틀린 단어를 6번 제출하면 체력 2 중 1이 감소하고 다음 턴으로 넘어갑니다.</li>
                     <li>체력이 0이 되면 탈락하며 마지막 생존자가 승리합니다.</li>
-                    <li>입력 중인 글자는 다른 참가자에게 실시간으로 표시됩니다.</li>
+                    <li>입력 중인 글자는 다른 참가자에게 실시간으로 표시되며 최대 100글자 장문을 지원합니다.</li>
                 </ul>
             </div>
         </section>
@@ -421,7 +421,7 @@
             </div>
             <div id="wordChainLiveTyping" class="wordchain-live-typing" hidden></div>
                         <div class="wordchain-input-row">
-                <input id="wordChainInput" maxlength="30" autocomplete="off" placeholder="단어를 입력하세요" disabled>
+                <input id="wordChainInput" maxlength="100" autocomplete="off" placeholder="단어를 입력하세요" disabled>
                 <button id="wordChainSubmitBtn" type="button" disabled>제출</button>
             </div>
             <div class="wordchain-input-meta">
@@ -880,6 +880,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/app.js?v=30"></script>
 <script src="/multiplayer.js?v=30"></script>
-<script src="/wordchain.js?v=900"></script>
+<script src="/wordchain.js?v=1000"></script>
 </body>
 </html>
