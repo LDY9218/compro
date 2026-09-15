@@ -53,21 +53,59 @@ function ensureUserStore() {
     if (!fs.existsSync(LOG_FILE)) fs.writeFileSync(LOG_FILE, "", "utf8");
 }
 
+function backupCorruptJson(file) {
+    try {
+        if (!fs.existsSync(file)) return null;
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const backup = `${file}.corrupt-${stamp}-${process.pid}`;
+        fs.copyFileSync(file, backup);
+        return backup;
+    } catch (error) {
+        console.error(`[데이터 백업 오류] ${path.basename(file)}`, error);
+        return null;
+    }
+}
+
 function readJsonFile(file, fallback) {
     ensureUserStore();
     try {
-        return JSON.parse(fs.readFileSync(file, "utf8"));
+        const raw = fs.readFileSync(file, "utf8");
+        if (!raw.trim()) throw new SyntaxError("empty JSON file");
+        const parsed = JSON.parse(raw);
+        return parsed;
     } catch (error) {
-        console.error(`[데이터 읽기 오류] ${path.basename(file)}`, error);
-        return fallback;
+        const name = path.basename(file);
+        const backup = backupCorruptJson(file);
+        console.error(`[데이터 읽기 오류] ${name}`, error);
+        if (backup) console.error(`[데이터 복구] 손상된 ${name}을 ${path.basename(backup)}로 백업했습니다.`);
+
+        // users/messages are array stores. A corrupt or empty file must never make
+        // every authenticated request throw repeatedly. Restore a valid JSON root
+        // immediately so the next request has a usable store.
+        const safeFallback = fallback === undefined ? null : fallback;
+        try {
+            fs.writeFileSync(file, JSON.stringify(safeFallback, null, 2), "utf8");
+        } catch (writeError) {
+            console.error(`[데이터 복구 저장 오류] ${name}`, writeError);
+        }
+        return safeFallback;
     }
 }
 
 function writeJsonFile(file, value) {
     ensureUserStore();
-    const temp = `${file}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify(value, null, 2), "utf8");
-    fs.renameSync(temp, file);
+    const directory = path.dirname(file);
+    const base = path.basename(file);
+    const temp = path.join(directory, `.${base}.${process.pid}.${Date.now()}.tmp`);
+    const json = JSON.stringify(value, null, 2);
+    fs.writeFileSync(temp, json, "utf8");
+    try {
+        // Readers only ever see the old complete file or the new complete file.
+        fs.renameSync(temp, file);
+    } catch (error) {
+        try { fs.rmSync(temp, { force: true }); } catch (_) {}
+        throw error;
+    }
 }
 
 function appendActivityLog(type, payload = {}) {
