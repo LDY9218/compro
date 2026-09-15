@@ -1552,277 +1552,121 @@ const WORD_CHAIN_START_WORDS = [
     "야구", "농구", "공부", "영화", "여행", "마을", "나비", "바지", "지도",
     "사진", "수박", "계란", "동생", "가수", "배우", "의사", "약국", "도서관"
 ];
-const WORD_CHAIN_DICT_TTL_MS = 10 * 60 * 1000;
-const WORD_CHAIN_CONTINUATION_TTL_MS = 5 * 60 * 1000;
+const WORD_CHAIN_DICT_TTL_MS = 30 * 60 * 1000;
+const WORD_CHAIN_CONTINUATION_TTL_MS = 30 * 60 * 1000;
 const wordChainDictionaryCache = new Map();
 const wordChainContinuationCache = new Map();
-const WORD_CHAIN_KKUKO_API = "https://kkuko-utils.vercel.app/api/words/search";
 
-// 끄투 계열 오픈DB API를 사용합니다. 일반 KKuTu 사전 HTML은 단어 난독화/동의 UI 때문에
-// 서버에서 HTML을 긁어 단어를 판정하는 방식이 불안정합니다. 이 API는 단어 검색을 JSON으로
-// 제공하고 duem=true를 공식 옵션으로 제공합니다.
-const WORD_CHAIN_FALLBACK = new Set([
-    "사과","과자","자동차","차표","표범","범고래","안경","경찰","찰떡","떡볶이","이불",
-    "불꽃","꽃병","병원","원숭이","이름","음식","식당","당근","근육","육상","상어","어항",
-    "항구","학교","교실","실내","내일","일기","기차","차량","양말","말미잘","김치","치약",
-    "약속","속담","담요","요리","리본","본능","능력","역사","사랑","종이","이야기","기린",
-    "스키","키위","위성","성공","공원","이상","상자","자전거","거미","미술","술잔","잔치",
-    "치마","마늘","늘보","보리","리더","더위","위험","험담","담배","배추","추억","억울",
-    "울음","음료","음악","악기","기분","분필","필통","통나무","무지개","개나리","리모컨","컨트롤",
-    "롤러","러시아","아이스크림","프로그램","램프","프린터","터미널","널뛰기","기상","상식","식물",
-    "물고기","기차역","역무원","원칙","영화","화분","분수","수박","박수","수영","영어","어깨",
-    "깨소금","금요일","일요일","일기장","장난감","감자","자두","두부","부엌","억새","새우",
-    "우산","산책","책상","상추","추리","리더십","십자가","가방","방학","학생","생일","일본",
-    "본사","사전","전기","기술","술집","집게","게살","살구","구두","두꺼비","비행기","린넨",
-    "넥타이","이발","발목","목걸이","이마","마스크","크레파스","스피커","커피","피아노","노트",
-    "트럭","럭비","비누","누나","나비","비상","어묵","묵직","직업","업무","무게","게임","임무",
-    "개미","미역","역전","전구","구슬","슬픔"
-]);
+// 외부 API를 매 턴마다 호출하지 않습니다. 게임 시작 전에 공개 한국어 단어 목록을
+// 한 번 받아 서버 메모리에 올리고, 이후 단어 판정은 로컬 Set에서 즉시 처리합니다.
+// 이렇게 해야 Render에서 외부 API 지연/429/CORS/프록시 장애가 게임 플레이를 막지 않습니다.
+const WORD_CHAIN_REMOTE_WORDLISTS = [
+    "https://raw.githubusercontent.com/acidsound/korean_wordlist/master/wordslistUnique.txt",
+    "https://cdn.jsdelivr.net/gh/acidsound/korean_wordlist@master/wordslistUnique.txt"
+];
+const wordChainDictionary = new Set(WORD_CHAIN_FALLBACK);
+const wordChainStartIndex = new Set();
+let wordChainDictionaryReady = false;
+let wordChainDictionaryLoading = null;
 
-function wordChainNormalizeWord(raw){
-    return String(raw||"").normalize("NFC").trim().toLowerCase().replace(/[^가-힣]/g,"");
+function wordChainIndexWord(word){
+    const normalized=wordChainNormalizeWord(word);
+    if(normalized.length<2)return;
+    wordChainDictionary.add(normalized);
+    wordChainStartIndex.add(normalized.slice(0,1));
 }
-function wordChainHangulParts(ch){
-    const code=ch.charCodeAt(0)-0xAC00;
-    if(code<0||code>11171)return null;
-    return {initial:Math.floor(code/588),medial:Math.floor((code%588)/28),final:code%28};
-}
-function wordChainCompose(initial,medial,final){ return String.fromCharCode(0xAC00+initial*588+medial*28+final); }
-function wordChainNextStarts(word){
-    const last=word.slice(-1);
-    const out=new Set([last]);
-    const p=wordChainHangulParts(last);
-    if(!p)return [...out];
+for(const w of WORD_CHAIN_FALLBACK) wordChainIndexWord(w);
 
-    // 두음법칙: ㄹ은 모음에 따라 ㄴ/ㅇ으로, ㄴ은 일부 이/ㅑ계열에서 ㅇ으로 바뀝니다.
-    // 실제 단어 존재 여부는 아래 API의 duem=true로 다시 검증합니다.
-    const medial=p.medial;
-    const rToIeung=[2,3,6,7,12,17,20]; // ㅑ ㅒ ㅕ ㅖ ㅛ ㅠ ㅣ
-    const rToNieun=[0,1,4,5,8,9,10,11,13,14,15,16,18,19];
-    if(p.initial===5){
-        if(rToIeung.includes(medial)) out.add(wordChainCompose(11,medial,p.final)); // ㄹ → ㅇ
-        else if(rToNieun.includes(medial)) out.add(wordChainCompose(2,medial,p.final)); // ㄹ → ㄴ
-    }else if(p.initial===2 && rToIeung.includes(medial)){
-        out.add(wordChainCompose(11,medial,p.final)); // ㄴ → ㅇ
-    }
-    return [...out];
-}
-function wordChainHasNoBatchim(word){
-    const p=wordChainHangulParts(word.slice(-1));
-    return Boolean(p && p.final===0);
-}
-function wordChainPickStarter(room){
-    const previous=String(room.currentWord||"");
-    const candidates=WORD_CHAIN_START_WORDS.filter(w=>w!==previous && wordChainHasNoBatchim(w));
-    return candidates[Math.floor(Math.random()*candidates.length)] || "사과";
-}
-function wordChainUniqueName(raw, room, socketId){
-    const base=String(raw||"Player").replace(/[^\p{L}\p{N}_ -]/gu," ").trim().slice(0,14)||"Player";
-    const used=new Set(room.players.filter(p=>p.id!==socketId).map(p=>p.nickname));
-    if(!used.has(base))return base;
-    for(let n=2;n<100;n++){
-        const suffix=` (${n})`;
-        const candidate=base.slice(0,Math.max(1,14-suffix.length))+suffix;
-        if(!used.has(candidate))return candidate;
-    }
-    return `Player${Math.floor(Math.random()*9000+1000)}`.slice(0,14);
-}
-function wordChainRoomCode(){
-    let code="";
-    do{ code=String(Math.floor(100000+Math.random()*900000)); }while(wordChainRooms.has(code));
-    return code;
-}
-function wordChainRoomName(raw){
-    return String(raw||"새 끝말잇기 방").replace(/[<>]/g,"").trim().slice(0,24)||"새 끝말잇기 방";
-}
-function wordChainPublicRoom(room){
-    return {
-        code:room.code, name:room.name, mode:room.mode, hostId:room.hostId, status:room.status,
-        currentWord:room.currentWord, requiredStarts:room.currentWord?wordChainNextStarts(room.currentWord):[],
-        turnPlayerId:room.turnPlayerId, turnDeadline:room.turnDeadline,
-        players:room.players.map(p=>({id:p.id,nickname:p.nickname,hp:p.hp,mistakes:p.mistakes,alive:p.alive,ready:p.ready,typing:p.typing||""})),
-        lastResult:room.lastResult||null, winnerId:room.winnerId||null, logs:room.logs.slice(-40)
-    };
-}
-function wordChainPublicLobbyRooms(){
-    return [...wordChainRooms.values()]
-        .filter(r=>r.status==="lobby" && r.players.length>0)
-        .sort((a,b)=>a.createdAt-b.createdAt)
-        .map(r=>({code:r.code,name:r.name,mode:r.mode,count:r.players.length,capacity:r.mode,hostNickname:r.players[0]?.nickname||"방장",createdAt:r.createdAt}));
-}
-function wordChainBroadcastRooms(){ io.emit("wordchain:rooms",wordChainPublicLobbyRooms()); }
-function wordChainBroadcast(room){
-    io.to(`wordchain:${room.code}`).emit("wordchain:state",wordChainPublicRoom(room));
-    wordChainBroadcastRooms();
-}
-function wordChainAddLog(room,text,type="system"){
-    room.logs.push({text:String(text),type,at:Date.now()});
-    if(room.logs.length>80)room.logs.splice(0,room.logs.length-80);
-}
-function wordChainAdvanceTurn(room){
-    const alive=room.players.filter(p=>p.alive);
-    if(alive.length<=1){
-        room.status="ended";
-        room.turnPlayerId=null;
-        room.turnDeadline=0;
-        room.winnerId=alive[0]?.id||null;
-        wordChainAddLog(room,alive[0]?`${alive[0].nickname} 승리!`:`게임 종료`,"win");
-        wordChainBroadcast(room);
-        return;
-    }
-    const currentIndex=room.players.findIndex(p=>p.id===room.turnPlayerId);
-    for(let step=1;step<=room.players.length;step++){
-        const p=room.players[(currentIndex+step+room.players.length)%room.players.length];
-        if(p?.alive){
-            room.turnPlayerId=p.id;
-            p.mistakes=0;
-            p.typing="";
-            room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS;
-            break;
-        }
-    }
-    wordChainBroadcast(room);
-}
-function wordChainResetStarter(room,reason){
-    const next=wordChainPickStarter(room);
-    room.currentWord=next;
-    room.usedWords=new Set([next]);
-    room.lastResult={ok:true,source:"starter",word:next};
-    wordChainAddLog(room,`새 제시어 「${next}」 · ${reason}`,"system");
-}
-function wordChainApplyPenalty(room,player,reason="6번 틀림"){
-    player.hp=Math.max(0,player.hp-1);
-    player.mistakes=0;
-    player.typing="";
-    if(player.hp<=0){
-        player.alive=false;
-        wordChainAddLog(room,`${player.nickname} 탈락! (${reason})`,"lose");
-    }else{
-        wordChainAddLog(room,`${player.nickname} 체력 -1 · 다음 턴으로 넘어갑니다. (${reason})`,"penalty");
-    }
-    const alive=room.players.filter(p=>p.alive);
-    if(alive.length<=1){
-        wordChainAdvanceTurn(room);
-        return;
-    }
-    // 페널티가 발생한 경우 기존 단어를 이어받지 않고, 다음 플레이어에게 새 제시어를 줍니다.
-    wordChainResetStarter(room,"페널티 후 새 라운드");
-    wordChainAdvanceTurn(room);
-}
-
-function wordChainExtractApiWords(payload){
-    const list=Array.isArray(payload)?payload:(Array.isArray(payload?.data)?payload.data:[]);
-    return list.map(x=>({word:wordChainNormalizeWord(x?.word||x),nextWordCount:Number(x?.nextWordCount||0)})).filter(x=>x.word.length>=2);
-}
-async function wordChainKkukoSearch(q,{limit=100,duem=true,mode="kor-start"}={}){
-    // Kkuko Utils Open API: https://kkuko-utils.vercel.app/openapi/word
-    // 중요: 이 API는 결과 수가 지나치게 크면 서버/프록시에서 실패할 수 있으므로
-    // 게임 판정에서는 100개 단위로 요청합니다. 끄투사전의 '매너'와 두음법칙을
-    // 동일하게 요청하고, 반환 JSON에서 정확한 단어를 찾습니다.
-    const query=wordChainNormalizeWord(q).slice(0,1);
-    if(!query)return {ok:false,words:[],message:"검색어가 없습니다."};
-    const safeLimit=Math.min(100,Math.max(20,Number(limit)||100));
-    const params=new URLSearchParams({
-        mode,
-        q:query,
-        manner:"man",
-        limit:String(safeLimit),
-        sortBy:"abc",
-        duem:duem ? "true" : "false",
-        minLength:"2",
-        maxLength:"100",
-        ingjung:"true"
-    });
-    const target=`https://kkuko-utils.vercel.app/api/words/search?${params.toString()}`;
-    const targets=[
-        {url:target,label:"Kkuko OpenDB"},
-        // Render에서 Vercel 서버로 직접 outbound 요청이 막히는 경우를 위한
-        // 읽기 전용 HTTP 프록시. 원본은 동일한 Kkuko OpenDB API입니다.
-        {url:`https://r.jina.ai/${target}`,label:"Kkuko OpenDB proxy"}
-    ];
-    let lastError="network";
-    for(const endpoint of targets){
-        try{
-            const response=await fetch(endpoint.url,{
-                headers:{
-                    "accept":"application/json,text/plain;q=0.9,*/*;q=0.8",
-                    "user-agent":"COMTIME-PRO-WordChain/6.0"
-                },
-                signal:AbortSignal.timeout(endpoint.label.includes("proxy") ? 15000 : 9000)
-            });
-            const text=await response.text();
-            if(!response.ok)throw new Error(`HTTP ${response.status}`);
-            let payload;
-            try{ payload=JSON.parse(text); }
-            catch{
-                // Jina가 JSON을 markdown code fence로 감싼 경우도 안전하게 처리
-                const match=text.match(/\[[\s\S]*\]/);
-                if(!match)throw new Error("JSON 응답 형식 오류");
-                payload=JSON.parse(match[0]);
+async function wordChainLoadLocalDictionary(){
+    if(wordChainDictionaryReady)return true;
+    if(wordChainDictionaryLoading)return wordChainDictionaryLoading;
+    wordChainDictionaryLoading=(async()=>{
+        const localFile=path.join(DATA_DIR,"wordchain-words.txt");
+        const addText=(text)=>{
+            let count=0;
+            for(const line of String(text||"").split(/\\r?\\n/)){
+                const word=wordChainNormalizeWord(line);
+                if(word.length<2 || word.length>30)continue;
+                // 단어 목록 파일에 설명/마크업 등이 섞여 있어도 한글 단어만 통과시킵니다.
+                if(!/^[가-힣]+$/.test(word))continue;
+                wordChainIndexWord(word); count++;
             }
-            const words=wordChainExtractApiWords(payload);
-            return {ok:true,words,message:`끄투 계열 OpenDB 확인 완료 · 두음법칙 ${duem ? "ON" : "OFF"}`,via:endpoint.label};
+            return count;
+        };
+        try{
+            if(fs.existsSync(localFile)){
+                const text=fs.readFileSync(localFile,"utf8");
+                const count=addText(text);
+                if(count>1000){
+                    wordChainDictionaryReady=true;
+                    console.log(`[끝말잇기 사전] 로컬 DB 로드 완료: ${wordChainDictionary.size.toLocaleString()}개`);
+                    return true;
+                }
+            }
         }catch(error){
-            lastError=`${endpoint.label}: ${error?.message||error}`;
-            console.error(`[끝말잇기 사전] ${query} ${lastError}`);
+            console.warn(`[끝말잇기 사전] 로컬 DB 읽기 실패: ${error?.message||error}`);
         }
-    }
-    return {ok:false,words:[],message:`사전 서버에 연결하지 못했습니다. (${lastError})`};
+        for(const url of WORD_CHAIN_REMOTE_WORDLISTS){
+            try{
+                const response=await fetch(url,{headers:{"user-agent":"COMTIME-PRO-WordChain/7.0"},signal:AbortSignal.timeout(12000)});
+                if(!response.ok)throw new Error(`HTTP ${response.status}`);
+                const text=await response.text();
+                const count=addText(text);
+                if(count<1000)throw new Error(`단어 ${count}개만 읽음`);
+                try{
+                    fs.mkdirSync(DATA_DIR,{recursive:true});
+                    fs.writeFileSync(localFile,text,"utf8");
+                }catch(saveError){
+                    console.warn(`[끝말잇기 사전] 로컬 캐시 저장 실패: ${saveError?.message||saveError}`);
+                }
+                wordChainDictionaryReady=true;
+                console.log(`[끝말잇기 사전] 공개 한국어 DB 로드 완료: ${wordChainDictionary.size.toLocaleString()}개`);
+                return true;
+            }catch(error){
+                console.warn(`[끝말잇기 사전] 공개 DB 로드 실패: ${url} · ${error?.message||error}`);
+            }
+        }
+        wordChainDictionaryReady=true;
+        console.warn(`[끝말잇기 사전] 외부 DB를 불러오지 못해 내장 안전 사전 ${wordChainDictionary.size.toLocaleString()}개로 시작합니다.`);
+        return false;
+    })().finally(()=>{wordChainDictionaryLoading=null;});
+    return wordChainDictionaryLoading;
 }
+
+// 서버가 켜질 때 미리 로드합니다. 게임 중에는 네트워크 요청을 하지 않습니다.
+wordChainLoadLocalDictionary();
+
+function wordChainExtractApiWords(payload){ return []; }
+async function wordChainKkukoSearch(){ return {ok:false,words:[],message:"게임 중 외부 사전 조회를 사용하지 않습니다."}; }
+
 async function wordChainDictionaryCheck(word){
     const normalized=wordChainNormalizeWord(word);
     if(normalized.length<2)return {ok:false,source:"rule",message:"두 글자 이상의 단어를 입력하세요."};
     const cached=wordChainDictionaryCache.get(normalized);
     if(cached && Date.now()-cached.at<WORD_CHAIN_DICT_TTL_MS)return cached.result;
-
-    // 첫 글자 검색 + 끝 글자 검색을 각각 수행합니다. 하나의 큰 검색 결과에
-    // 의존하지 않고 정확한 단어가 양쪽 조건 중 하나에서 발견되는지 확인합니다.
-    const first=normalized.slice(0,1);
-    const last=normalized.slice(-1);
-    const queries=[{q:first,mode:"kor-start"}];
-    if(last!==first)queries.push({q:last,mode:"kor-end"});
-    const results=[];
-    for(const item of queries){
-        const result=await wordChainKkukoSearch(item.q,{limit:100,duem:true,mode:item.mode});
-        if(result.ok)results.push(result);
-    }
-    const exists=results.some(result=>result.words.some(x=>x.word===normalized));
-    if(exists){
-        const finalResult={ok:true,source:"kkutu",message:"끄투코리아 계열 사전 확인 완료 · 두음법칙 ON"};
-        wordChainDictionaryCache.set(normalized,{at:Date.now(),result:finalResult});
-        return finalResult;
-    }
-    if(results.length>0){
-        const finalResult={ok:false,source:"kkutu",message:"끄투코리아 단어사전에 없는 단어입니다."};
-        wordChainDictionaryCache.set(normalized,{at:Date.now(),result:finalResult});
-        return finalResult;
-    }
-    const finalResult={ok:false,source:"dictionary-unreachable",message:"끄투코리아 단어사전에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요."};
-    return finalResult;
+    await wordChainLoadLocalDictionary();
+    const ok=wordChainDictionary.has(normalized);
+    const result=ok
+        ? {ok:true,source:"local-dictionary",message:"한국어 로컬 단어 DB 확인 완료 · 두음법칙 ON"}
+        : {ok:false,source:"local-dictionary",message:"단어사전에 없는 단어입니다."};
+    wordChainDictionaryCache.set(normalized,{at:Date.now(),result});
+    return result;
 }
+
 async function wordChainHasContinuation(word){
+    await wordChainLoadLocalDictionary();
     const starts=wordChainNextStarts(word);
     const key=starts.join("|");
     const cached=wordChainContinuationCache.get(key);
     if(cached && Date.now()-cached.at<WORD_CHAIN_CONTINUATION_TTL_MS)return cached.result;
-
-    let reachable=false;
     for(const start of starts){
-        const result=await wordChainKkukoSearch(start,{limit:100,duem:true,mode:"kor-start"});
-        if(!result.ok)continue;
-        reachable=true;
-        if(result.words.some(x=>x.nextWordCount>0)){
-            const final={ok:true,source:"kkutu"};
+        if(wordChainStartIndex.has(start)){
+            const final={ok:true,source:"local-dictionary"};
             wordChainContinuationCache.set(key,{at:Date.now(),result:final});
             return final;
         }
     }
-    if(!reachable){
-        const final={ok:null,source:"dictionary-unreachable",message:"끄투코리아 사전에서 후속 단어를 확인하지 못했습니다."};
-        wordChainContinuationCache.set(key,{at:Date.now(),result:final});
-        return final;
-    }
-    const final={ok:false,source:"kkutu",message:"한방단어는 사용할 수 없습니다."};
+    const final={ok:false,source:"local-dictionary",message:"한방단어는 사용할 수 없습니다."};
     wordChainContinuationCache.set(key,{at:Date.now(),result:final});
     return final;
 }
@@ -2241,7 +2085,7 @@ io.on("connection", (socket) => {
         if(p.mistakes>=WORD_CHAIN_MAX_MISTAKES){
             wordChainApplyPenalty(room,p,"6번 틀림");
         }else{
-            room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS;
+            // 오답 제출은 남은 턴 시간을 그대로 유지합니다. 제출할 때마다 20초가 다시 시작되지 않습니다.
             wordChainBroadcast(room);
         }
     });
