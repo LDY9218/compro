@@ -280,7 +280,7 @@
                 <div class="game-card-body">
                     <span class="game-card-tag">REALTIME WORD BATTLE</span>
                     <strong>끝말잇기</strong>
-                    <small>두음법칙 · 끄투 사전 검증 · 2인전 / 4인전 · 실시간 입력 대결</small>
+                    <small>두음법칙 · 5종 공개 사전 검증 · 2인전 / 4인전 · 실시간 입력 대결</small>
                 </div>
                 <span class="game-card-arrow">›</span>
             </button>
@@ -357,7 +357,7 @@
             <div>
                 <span class="wordchain-eyebrow">COMTIME WORD BATTLE</span>
                 <h2>끝말잇기</h2>
-                <p>두음법칙을 적용하고 온라인 끄투 계열 오픈DB와 공개 한국어 단어 목록을 이용해 긴 단어까지 검증합니다.</p>
+                <p>두음법칙을 적용하고 5종의 공개/GitHub 한국어 단어 DB를 합쳐 긴 단어까지 검증합니다. 한방 단어도 첫 턴부터 허용합니다.</p>
             </div>
             <button id="closeWordChainBtn" class="game-close-btn wordchain-mobile-close" type="button" aria-label="끝말잇기 닫기">×</button>
         </header>
@@ -393,9 +393,10 @@
             <div class="wordchain-rules">
                 <strong>게임 규칙</strong>
                 <ul>
-                    <li>단어는 온라인 끄투 계열 오픈DB를 우선 검색하고 공개 한국어 단어 DB를 보조로 사용합니다.</li>
+                    <li>단어는 GitHub 및 공개 한국어 단어 DB 5종을 합친 통합 사전에서 검증합니다.</li>
                     <li>두음법칙을 적용하여 이어질 수 있는 시작 글자를 판정합니다.</li>
-                    <li>게임 시작 시 제시어가 나오고 그 끝 글자로 이어갑니다.</li>
+                    <li>게임 시작 시 제시어가 나오고 그 끝 글자로 이어갑니다. 두음법칙을 적용합니다.</li>
+                    <li>한방 단어는 첫 턴부터 사용할 수 있으며, 이미 사용한 단어만 다시 사용할 수 없습니다.</li>
                     <li>틀린 단어를 6번 제출하면 체력 2 중 1이 감소하고 다음 턴으로 넘어갑니다.</li>
                     <li>체력이 0이 되면 탈락하며 마지막 생존자가 승리합니다.</li>
                     <li>입력 중인 글자는 다른 참가자에게 실시간으로 표시되며 최대 100글자 장문을 지원합니다.</li>
@@ -427,7 +428,7 @@
             <div class="wordchain-input-meta">
                 <span id="wordChainMistakes">틀린 횟수 0 / 6</span>
                 <span id="wordChainTimer">--</span>
-                <span id="wordChainDictionaryStatus">끄투 사전 대기</span>
+                <span id="wordChainDictionaryStatus">5종 공개 단어 DB 대기</span>
             </div>
             <div id="wordChainLog" class="wordchain-log"></div>
             <div id="wordChainEndPanel" class="wordchain-end-panel" hidden>
@@ -880,6 +881,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/app.js?v=30"></script>
 <script src="/multiplayer.js?v=30"></script>
-<script src="/wordchain.js?v=1000"></script>
+<script src="/wordchain.js?v=1200"></script>
 </body>
 </html>
