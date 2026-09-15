@@ -58,6 +58,12 @@
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
     }[c]));
 
+    // 방 번호 입력창에는 maxlength를 두지 않습니다. 공백/하이픈만 허용 형태로 정리한 뒤
+    // 실제 참가 요청에서만 정확한 6자리 숫자인지 검증합니다.
+    function normalizeRoomCode(value) {
+        return String(value ?? '').replace(/[\s-]/g, '').replace(/[^0-9]/g, '');
+    }
+
     function setLobbyStatus(text, kind = '') {
         if (!lobbyStatus) return;
         lobbyStatus.textContent = text || '';
@@ -122,6 +128,11 @@
         setLobbyStatus('', '');
     }
 
+    backdrop?.addEventListener('click', close);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && modal.classList.contains('active')) close();
+    });
+
     function connect() {
         if (typeof window.io !== 'function') {
             setLobbyStatus('실시간 서버 연결 기능을 불러오지 못했습니다.', 'error');
@@ -158,14 +169,14 @@
         });
 
         socket.on('wordchain:created', ({ code, mode: serverMode, name }) => {
-            roomCode = String(code || '').replace(/\D/g, '').slice(0, 6);
+            roomCode = normalizeRoomCode(code);
             mode = Number(serverMode) === 4 ? 4 : 2;
             if (createRoomName && name) createRoomName.value = name;
             setLobbyStatus(`방 ${roomCode} 생성 완료 · ${mode}명이 모두 입장하면 시작할 수 있습니다.`, 'ok');
         });
 
         socket.on('wordchain:joined', ({ code, mode: serverMode, name }) => {
-            const normalizedCode = String(code || '').replace(/\D/g, '').slice(0, 6);
+            const normalizedCode = normalizeRoomCode(code);
             if (normalizedCode.length !== 6) {
                 setLobbyStatus('서버에서 올바르지 않은 방 코드를 받았습니다. 방 목록을 새로고침합니다.', 'error');
                 socket.emit('wordchain:list');
@@ -225,8 +236,10 @@
             return;
         }
         roomList.innerHTML = filtered.map(r => {
-            const count = Number.isFinite(Number(r?.count)) ? Number(r.count) : 0;
-            const capacity = Number(r?.capacity) === 4 ? 4 : 2;
+            const rawCount = Number(r?.count);
+            const count = Number.isFinite(rawCount) && rawCount >= 0 ? Math.floor(rawCount) : 0;
+            const rawCapacity = Number(r?.capacity ?? r?.maxPlayers ?? r?.mode);
+            const capacity = rawCapacity === 4 ? 4 : 2;
             const full = count >= capacity;
             return `<button type="button" class="wordchain-room-item ${full ? 'full' : ''}" data-room-code="${esc(r.code)}" ${full ? 'disabled' : ''}>
                 <span class="wordchain-room-item-main"><strong>${esc(r.name || '끝말잇기 방')}</strong><small>ROOM ${esc(r.code)} · ${esc(r.hostNickname || '방장')}</small></span>
@@ -252,8 +265,8 @@
     function joinRoom(explicitCode = '') {
         if (endPanel) { endPanel.hidden = true; endPanel.style.display = 'none'; }
         if (!socket || !connected) return setLobbyStatus('서버에 연결하는 중입니다. 잠시만 기다려 주세요.', 'error');
-        const code = String(explicitCode || roomCodeInput?.value || '').trim();
-        if (!/^\d{6}$/.test(code)) return setLobbyStatus('방 코드는 숫자 6자리입니다.', 'error');
+        const code = normalizeRoomCode(explicitCode || roomCodeInput?.value || '');
+        if (!/^\d{6}$/.test(code)) return setLobbyStatus('방 코드는 숫자 6자리입니다. 입력창에는 길이 제한이 없으며, 참가할 때만 확인합니다.', 'error');
         if (Number(code) < 100000 || Number(code) > 999999) return setLobbyStatus('올바른 6자리 방 코드를 입력하세요.', 'error');
         const selected = lobbyRooms.find(r => String(r.code) === code);
         if (selected && Number(selected.mode) !== mode) {
