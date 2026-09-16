@@ -7,6 +7,7 @@
 
     const backdrop = $('wordChainBackdrop');
     const closeBtn = $('closeWordChainBtn');
+    const closeLobbyBtn = $('closeWordChainLobbyBtn');
     const lobby = $('wordChainLobby');
     const room = $('wordChainRoom');
     const tabs = [...document.querySelectorAll('.wordchain-mode-tab')];
@@ -85,6 +86,8 @@
         if (submitBtn) submitBtn.disabled = true;
         if (lobby) { lobby.hidden = false; lobby.scrollTop = 0; }
         if (room) room.hidden = true;
+        if (closeLobbyBtn) closeLobbyBtn.hidden = false;
+        if (closeBtn) closeBtn.classList.remove('wordchain-game-close-visible');
         if (endPanel) { endPanel.hidden = true; endPanel.style.display = 'none'; }
         if (playersEl) playersEl.innerHTML = '';
         if (logEl) logEl.innerHTML = '';
@@ -98,7 +101,7 @@
         if (roomCodeLabel) roomCodeLabel.textContent = '------';
         if (roomModeLabel) roomModeLabel.textContent = '2인전';
         if (roomNameLabel) roomNameLabel.textContent = '새 끝말잇기 방';
-        setDictionaryStatus('5종 공개 단어 DB 대기', '');
+        setDictionaryStatus('25종 공개 단어 DB 대기', '');
         if (message) setLobbyStatus(message, '');
         renderRoomList();
     }
@@ -188,7 +191,7 @@
         });
 
         socket.on('wordchain:dictionary-loading', ({ message }) => {
-            setDictionaryStatus(message || '5종 공개 단어 DB 준비 중...', 'loading');
+            setDictionaryStatus(message || '25종 공개 단어 DB 준비 중...', 'loading');
         });
 
         socket.on('wordchain:error', ({ message }) => {
@@ -223,6 +226,8 @@
             if (next.status === 'playing') gameSessionStarted = true;
             lobby.hidden = next.status !== 'lobby';
             room.hidden = next.status === 'lobby';
+            if (closeLobbyBtn) closeLobbyBtn.hidden = next.status !== 'lobby';
+            if (closeBtn) closeBtn.classList.toggle('wordchain-game-close-visible', next.status !== 'lobby');
             if (next.status !== 'ended' && endPanel) {
                 endPanel.hidden = true;
                 endPanel.style.display = 'none';
@@ -344,7 +349,7 @@
         }
         if (state.lastResult) {
             const source = state.lastResult.source;
-            if (source === 'local-dictionary') setDictionaryStatus(state.lastResult.ok ? '5종 공개 단어 DB 확인 완료 · 두음법칙 ON' : '단어사전에 없음', state.lastResult.ok ? 'ok' : 'bad');
+            if (source === 'local-dictionary') setDictionaryStatus(state.lastResult.ok ? '25종 공개 단어 DB 확인 완료 · 두음법칙 ON' : '단어사전에 없음', state.lastResult.ok ? 'ok' : 'bad');
             else if (source === 'fallback') setDictionaryStatus('내장 안전 단어 목록', state.lastResult.ok ? 'ok' : 'bad');
             else if (source === 'dictionary-unreachable') setDictionaryStatus('로컬 단어 DB 확인 실패', 'bad');
             else if (source === 'starter') setDictionaryStatus('안전한 새 제시어', 'ok');
@@ -402,7 +407,7 @@
         socket.emit('wordchain:submit', { word });
         input.value = '';
         socket.emit('wordchain:typing', { text: '' });
-        setDictionaryStatus('5종 공개 단어 DB 확인 중...', 'loading');
+        setDictionaryStatus('25종 공개 단어 DB 확인 중...', 'loading');
     }
 
     function sendTyping() {
@@ -448,6 +453,7 @@
 
     hubBtn?.addEventListener('click', open);
     closeBtn?.addEventListener('click', close);
+    closeLobbyBtn?.addEventListener('click', close);
     backdrop?.addEventListener('click', close);
     createBtn?.addEventListener('click', createRoom);
     joinBtn?.addEventListener('click', () => joinRoom());
