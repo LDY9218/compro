@@ -1666,9 +1666,8 @@ function wordChainBroadcastRooms(){
 function wordChainBroadcast(room){ io.to(`wordchain:${room.code}`).emit("wordchain:state",wordChainPublicRoom(room)); wordChainBroadcastRooms(); }
 function wordChainAddLog(room,text,type="system"){ room.logs.push({text:String(text),type,at:Date.now()}); if(room.logs.length>80)room.logs.splice(0,room.logs.length-80); }
 function wordChainAdvanceTurn(room,resetStarter=false){
-    // firstTurn은 "게임의 첫 턴"이라는 뜻이 아니라, 한방 단어를 잠시 막는 보호 턴인지 나타냅니다.
-    // 정상 단어 입력으로 넘어갈 때는 false, 체력 감소로 새 제시어를 만들 때는 true입니다.
-    room.firstTurn=false;
+    // 일반 턴은 한방 단어 제한을 풀고, 체력 감소로 새 제시어를 뽑는 턴만 다시 보호합니다.
+    room.firstTurn=Boolean(resetStarter);
     const alive=room.players.filter(p=>p.alive);
     if(alive.length<=1){
         room.status="ended"; room.turnPlayerId=null; room.turnDeadline=0; room.roundMoveCount=room.roundMoveCount||0; room.winnerId=alive[0]?.id||null;
@@ -1681,7 +1680,6 @@ function wordChainAdvanceTurn(room,resetStarter=false){
         room.usedWords.add(starter);
         room.roundMoveCount=0;
         wordChainAddLog(room,`새 라운드 시작 · 제시어 「${starter}」`,"system");
-        room.firstTurn=true;
     }
     const currentIndex=room.players.findIndex(p=>p.id===room.turnPlayerId);
     for(let step=1;step<=room.players.length;step++){
@@ -1700,7 +1698,7 @@ function wordChainApplyPenalty(room,player,reason="6번 틀림"){
 // =========================================================
 // ULTIMATE WORD DICTIONARY ENGINE
 // =========================================================
-// 25개 공개/GitHub 계열 단어 데이터셋을 병렬로 수집하고 하나의 메모리 인덱스로 합칩니다.
+// 29개 공개/GitHub 계열 단어 데이터셋을 병렬로 수집하고 하나의 메모리 인덱스로 합칩니다.
 // 게임 중에는 네트워크를 다시 조회하지 않아 20초 턴을 지연시키지 않습니다.
 //
 // 1) acidsound/korean_wordlist       - 표준국어대사전 계열 대형 단어 목록
@@ -1711,8 +1709,7 @@ function wordChainApplyPenalty(room,player,reason="6번 틀림"){
 //
 // + 기존 data/wordchain-words.txt는 오프라인 안전망으로 유지합니다.
 // + 션샤인은 명시적으로 금지합니다.
-// + 한방 단어 보호 턴은 게임 시작 직후의 첫 제시어 턴과 체력 감소 후 새 제시어가 주어진 턴에만 적용합니다.
-// + 그 보호 턴에서 정상 단어가 한 번 입력되면 이후 일반 턴에서는 한방 단어를 허용합니다.
+// + 한방 단어는 게임 시작 직후 자동으로 주어지는 첫 제시어에만 예외가 있고, 플레이어가 입력하는 단어에서는 첫 턴부터 금지합니다.
 const WORD_CHAIN_DICTIONARY_TIMEOUT_MS = 20_000;
 const WORD_CHAIN_MAX_LENGTH = 100;
 const WORD_CHAIN_DICTIONARY_MIN_SOURCE_WORDS = 10;
@@ -1742,7 +1739,11 @@ const WORD_CHAIN_DICTIONARY_SOURCES = [
 {id:"bip39-ko",name:"BIP39 Korean wordlist",parser:"json-korean-array",urls:["https://raw.githubusercontent.com/bgrid-maps/bip39/main/wordlist/bip39-ko.json"]},
 {id:"nikl-stdict",name:"NIKL 표준국어대사전 XML mirror",parser:"xml-headword",urls:["https://raw.githubusercontent.com/spellcheck-ko/korean-dict-nikl-stdict/master/240000.xml"]},
 {id:"nikl-krdict",name:"NIKL 한국어기초사전 XML mirror",parser:"xml-headword",urls:["https://raw.githubusercontent.com/spellcheck-ko/korean-dict-nikl-krdict/master/krdict_1.xml"]},
-{id:"nikl-krdict-51947",name:"NIKL 한국어기초사전 51,947 XML",parser:"xml-headword",urls:["https://raw.githubusercontent.com/spellcheck-ko/korean-dict-nikl-krdict/master/51947.xml"]}
+{id:"nikl-krdict-51947",name:"NIKL 한국어기초사전 51,947 XML",parser:"xml-headword",urls:["https://raw.githubusercontent.com/spellcheck-ko/korean-dict-nikl-krdict/master/51947.xml"]},
+{id:"wordler-6000",name:"Wordler 한국어 6,000단어",parser:"line",urls:["https://raw.githubusercontent.com/iamlemec/wordler/master/6000_korean_words.txt"]},
+{id:"polyglot-ko",name:"Polyglot Dictionaries Korean",parser:"csv-first",urls:["https://raw.githubusercontent.com/appsinacup/polyglot-dictionaries/main/1000_words/words_ko.csv"]},
+{id:"chosung-crossword",name:"한글 초성 크로스워드 NIKL 어휘",parser:"csv-first",urls:["https://raw.githubusercontent.com/shilph/chosung_crossword/master/dict_data.csv"]},
+{id:"korean-frequent",name:"Korean Frequent Dictionary",parser:"line",urls:["https://raw.githubusercontent.com/zogondragon/kor2eng_keystroke/master/korean_frequent_dic.txt"]}
 ];
 const wordChainDictionary=new Set();
 const wordChainStartIndex=new Set();
@@ -1869,7 +1870,7 @@ async function wordChainLoadLocalDictionary(){
             console.warn(`[끝말잇기 사전] 로컬 안전망 실패: ${error?.message||error}`);
         }
 
-        // 25개 공개 사전을 동시에 받아 부팅 시간을 줄입니다.
+        // 여러 공개 사전을 동시에 받아 부팅 시간을 줄입니다.
         const results=await Promise.all(WORD_CHAIN_DICTIONARY_SOURCES.map(wordChainFetchSource));
         results.forEach((result,index)=>{
             const source=WORD_CHAIN_DICTIONARY_SOURCES[index];
@@ -1900,9 +1901,9 @@ async function wordChainDictionaryCheck(word, room=null){
     if(WORD_CHAIN_BLOCKED_WORDS.has(normalized))return {ok:false,source:"blocked",message:"사용할 수 없는 단어입니다."};
     if(normalized.length>WORD_CHAIN_MAX_LENGTH)return {ok:false,source:"rule",message:"단어는 최대 100글자까지 입력할 수 있습니다."};
 
-    if(room?.firstTurn===true && WORD_CHAIN_ONE_SHOT_SET.has(normalized))return {ok:false,source:"one-shot-blocked",message:"지금 제시어가 새로 나온 보호 턴에는 한방 단어를 사용할 수 없습니다."};
+    if(room?.firstTurn===true && WORD_CHAIN_ONE_SHOT_SET.has(normalized))return {ok:false,source:"one-shot-blocked",message:"첫 턴에는 한방 단어를 사용할 수 없습니다."};
     await wordChainLoadLocalDictionary();
-    if(wordChainDictionary.has(normalized))return {ok:true,source:"public-dictionaries",message:"25종 공개 단어 DB 확인 완료"};
+    if(wordChainDictionary.has(normalized))return {ok:true,source:"public-dictionaries",message:"29종 공개 단어 DB 확인 완료"};
     return {ok:false,source:"public-dictionaries",message:"공개 단어 DB에 없는 단어입니다."};
 }
 
@@ -1920,7 +1921,7 @@ function wordChainCleanupRoom(room){
 async function wordChainStart(room,hostSocket){
     if(room.status!=="lobby")return;
     if(room.players.length!==room.mode){hostSocket.emit("wordchain:error",{message:`${room.mode}인전은 ${room.mode}명이 모두 입장해야 시작할 수 있습니다.`});return;}
-    hostSocket.emit("wordchain:dictionary-loading",{message:"25종 공개 단어 DB를 준비하는 중입니다..."});
+    hostSocket.emit("wordchain:dictionary-loading",{message:"29종 공개 단어 DB를 준비하는 중입니다..."});
     await wordChainLoadLocalDictionary();
     room.status="playing";room.currentWord=wordChainPickStarter(room);room.usedWords=new Set([room.currentWord]);room.roundMoveCount=0;room.firstTurn=true;room.turnPlayerId=room.players[0].id;room.turnDeadline=Date.now()+WORD_CHAIN_TURN_MS;room.lastResult={ok:true,source:"starter",word:room.currentWord};room.winnerId=null;
     room.players.forEach(p=>{p.ready=true;p.mistakes=0;p.hp=2;p.alive=true;p.typing="";});
@@ -2290,7 +2291,7 @@ io.on("connection", (socket) => {
             source=check.source;
             if(!check.ok) failure=check.message;
             else{
-                // 한방 단어 보호 턴이 끝나는 것은 정상 단어 입력을 성공한 순간입니다.
+                // 한방 단어 제한은 게임 시작 직후 제시어 턴과 체력 감소 직후 새 제시어 턴에만 적용합니다.
                 if(!failure){
                     room.usedWords.add(normalized);
                     room.currentWord=normalized;
