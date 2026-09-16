@@ -67,6 +67,7 @@ const hubWormGame = document.getElementById("hubWormGame");
 const wormGameModal = document.getElementById("wormGameModal");
 const wormGameBackdrop = document.getElementById("wormGameBackdrop");
 const closeWormGameBtn = document.getElementById("closeWormGameBtn");
+const closeWormStageBtn = document.getElementById("closeWormStageBtn");
 const wormGameCanvas = document.getElementById("wormGameCanvas");
 const wormCenterMessage = document.getElementById("wormCenterMessage");
 const wormStartBtn = document.getElementById("wormStartBtn");
@@ -2139,7 +2140,7 @@ function wormRender(now){
     if(me&&me.mass>wormBestMass){wormBestMass=me.mass;localStorage.setItem('comtime_worm_best_mass',String(Math.floor(wormBestMass)));}
     if(wormLengthEl)wormLengthEl.textContent=Math.floor(me?.length||0);
     if(wormOnlineCountEl){const humans=(state.players||[]).filter(p=>!p.isBot).length;wormOnlineCountEl.textContent=`${humans} ONLINE · ${state.players.length} IN ARENA`;}
-    if(wormLeaderboardEl && now-wormLeaderboardEl._renderedAt>500){wormLeaderboardEl._renderedAt=now;const top=sorted.slice(0,8);wormLeaderboardEl.innerHTML='<div class="worm-leader-title">TOP PLAYERS · BEST '+Math.floor(wormBestMass)+'</div>'+top.map((p,i)=>`<div class="worm-row rank-${i+1}"><span class="rank">${i<3?'♛':i+1}</span><span class="dot" style="background:${p.color}"></span><span class="name">${wormEscapeHtml(p.nickname)}</span><span class="mass">${Math.floor(p.mass)}</span></div>`).join('');}
+    if(wormLeaderboardEl && now-wormLeaderboardEl._renderedAt>500){wormLeaderboardEl._renderedAt=now;const top=(Array.isArray(state.leaderboard)&&state.leaderboard.length?state.leaderboard:sorted).slice(0,8);wormLeaderboardEl.innerHTML='<div class="worm-leader-title">TOP PLAYERS · BEST '+Math.floor(wormBestMass)+'</div>'+top.map((p,i)=>`<div class="worm-row rank-${i+1} ${p.id===state.me?"is-me":""}"><span class="rank">${i<3?'♛':i+1}</span><span class="dot" style="background:${p.color}"></span><span class="name">${wormEscapeHtml(p.nickname)}${p.id===state.me?" <b>YOU</b>":""}</span><span class="mass">${Math.floor(p.mass)}</span></div>`).join('');}
     requestAnimationFrame(wormRender);
 }
 
@@ -2165,6 +2166,7 @@ if(wormGameModal){
     });
     wormRestartBtn?.addEventListener("click",()=>{wormDeathPanel.hidden=true;wormStart();});
     closeWormGameBtn?.addEventListener("click",wormClose);
+    closeWormStageBtn?.addEventListener("click",wormClose);
     wormGameBackdrop?.addEventListener("click",wormClose);
     wormGameCanvas?.addEventListener("pointermove",e=>{ if(e.pointerType!=="touch") wormSetAimFromPointer(e.clientX,e.clientY); });
     wormGameCanvas?.addEventListener("pointerdown",e=>{ if(e.pointerType!=="touch"){wormBoosting=true;wormBoostBtn?.classList.add("active");wormSendInput();} });
