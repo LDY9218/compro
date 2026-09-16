@@ -280,7 +280,7 @@
                 <div class="game-card-body">
                     <span class="game-card-tag">REALTIME WORD BATTLE</span>
                     <strong>끝말잇기</strong>
-                    <small>두음법칙 · 5종 공개 사전 검증 · 2인전 / 4인전 · 실시간 입력 대결</small>
+                    <small>두음법칙 · 29종 공개 사전 검증 · 2인전 / 4인전 · 실시간 입력 대결</small>
                 </div>
                 <span class="game-card-arrow">›</span>
             </button>
@@ -357,11 +357,12 @@
             <div>
                 <span class="wordchain-eyebrow">COMTIME WORD BATTLE</span>
                 <h2>끝말잇기</h2>
-                <p>두음법칙을 적용하고 5종의 공개/GitHub 한국어 단어 DB를 합쳐 긴 단어까지 검증합니다. 한방 단어도 첫 턴부터 허용합니다.</p>
+                <p>두음법칙을 적용하고 29종의 공개/GitHub 한국어 단어 DB를 합쳐 단어를 확인합니다. 시작할 때는 쉬운 단어가 먼저 나옵니다.</p>
             </div>
             <button id="closeWordChainBtn" class="game-close-btn wordchain-mobile-close" type="button" aria-label="끝말잇기 닫기">×</button>
         </header>
 
+        <button id="closeWordChainLobbyBtn" class="wordchain-floating-close" type="button" aria-label="끝말잇기 닫기">×</button>
         <section id="wordChainLobby" class="wordchain-lobby">
             <div class="wordchain-mode-tabs">
                 <button type="button" class="wordchain-mode-tab active" data-wc-mode="2">2인전</button>
@@ -393,10 +394,10 @@
             <div class="wordchain-rules">
                 <strong>게임 규칙</strong>
                 <ul>
-                    <li>단어는 GitHub 및 공개 한국어 단어 DB 5종을 합친 통합 사전에서 검증합니다.</li>
+                    <li>단어는 GitHub 및 공개 한국어 단어 DB 29종을 합친 통합 사전에서 검증합니다.</li>
                     <li>두음법칙을 적용하여 이어질 수 있는 시작 글자를 판정합니다.</li>
                     <li>게임 시작 시 제시어가 나오고 그 끝 글자로 이어갑니다. 두음법칙을 적용합니다.</li>
-                    <li>한방 단어는 첫 턴부터 사용할 수 있으며, 이미 사용한 단어만 다시 사용할 수 없습니다.</li>
+                    <li>한방 단어는 게임 시작 직후와 체력이 깎여 새 제시어가 나온 직후에만 사용할 수 없습니다. 일반 턴에서는 사용할 수 있습니다. 처음 나오는 제시어는 받침 없는 쉬운 단어로 고릅니다.</li>
                     <li>틀린 단어를 6번 제출하면 체력 2 중 1이 감소하고 다음 턴으로 넘어갑니다.</li>
                     <li>체력이 0이 되면 탈락하며 마지막 생존자가 승리합니다.</li>
                     <li>입력 중인 글자는 다른 참가자에게 실시간으로 표시되며 최대 100글자 장문을 지원합니다.</li>
@@ -412,7 +413,7 @@
                     <small id="wordChainRoomModeLabel">2인전</small>
                     <span id="wordChainRoomNameLabel" class="wordchain-room-name-label">새 끝말잇기 방</span>
                 </div>
-                <div class="wordchain-room-actions"><button id="wordChainStartBtn" class="wordchain-primary compact" type="button" hidden>게임 시작</button><button id="wordChainLeaveBtn" class="wordchain-leave" type="button">방 나가기</button></div>
+                <div class="wordchain-room-actions"><button id="wordChainStartBtn" class="wordchain-primary compact" type="button" hidden>게임 시작</button><button id="wordChainLeaveBtn" class="wordchain-leave" type="button">방 나가기</button><button id="closeWordChainRoomBtn" class="wordchain-room-close" type="button" aria-label="끝말잇기 게임 닫기">×</button></div>
             </div>
             <div id="wordChainPlayers" class="wordchain-players"></div>
             <div id="wordChainWordBoard" class="wordchain-word-board">
@@ -428,7 +429,7 @@
             <div class="wordchain-input-meta">
                 <span id="wordChainMistakes">틀린 횟수 0 / 6</span>
                 <span id="wordChainTimer">--</span>
-                <span id="wordChainDictionaryStatus">5종 공개 단어 DB 대기</span>
+                <span id="wordChainDictionaryStatus">29종 공개 단어 DB 대기</span>
             </div>
             <div id="wordChainLog" class="wordchain-log"></div>
             <div id="wordChainEndPanel" class="wordchain-end-panel" hidden>
@@ -451,7 +452,8 @@
             <div class="worm-status"><span id="wormOnlineCount">0 ONLINE</span><span id="wormPing">●</span></div>
         </div>
         <button id="closeWormGameBtn" class="worm-floating-close" type="button" aria-label="Worm Arena 닫기">×</button>
-        <div class="worm-stage">
+        <button id="closeWormStageBtn" class="worm-stage-close" type="button" aria-label="게임 닫기">×</button>
+            <div class="worm-stage">
             <canvas id="wormGameCanvas"></canvas>
             <div class="worm-hud-left">
                 <div class="worm-score-card"><span>YOUR MASS</span><strong id="wormMass">10</strong></div>
@@ -462,7 +464,7 @@
                 <div class="worm-start-panel">
                     <div class="worm-big-icon">🪱</div>
                     <h3>WORM ARENA</h3>
-                    <p>실시간 아레나에서 먹고 성장하세요.<br>다른 지렁이의 몸통에 머리가 닿으면 탈락합니다.</p>
+                    <p>먹이를 먹고 몸집을 키워보세요.<br>다른 지렁이에게 부딪히면 끝입니다.</p>
                     <input id="wormNickname" maxlength="14" placeholder="닉네임" value="Player">
                     <button id="wormStartBtn" type="button">ENTER</button>
                     <small>PC: 마우스로 조종 · Space/클릭: 부스트<br>모바일: 화면 드래그 · 부스트 버튼</small>
@@ -881,6 +883,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/app.js?v=30"></script>
 <script src="/multiplayer.js?v=30"></script>
-<script src="/wordchain.js?v=1200"></script>
+<script src="/wordchain.js?v=1600"></script>
 </body>
 </html>
