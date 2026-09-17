@@ -8307,6 +8307,13 @@ async function initAuth() {
     showAuthModal("login");
 }
 
+window.addEventListener("pagehide",()=>{
+    try{
+        if(currentUser?.username==="guest") saveGuestSession();
+        if(currentUser?.username && currentUser.username!=="guest") localStorage.setItem(AUTH_USER_CACHE_KEY,JSON.stringify(currentUser));
+    }catch(_){}
+});
+
 function appendClientLog(type, payload = {}) {
     console.log(`[사용자 활동] ${type}`, payload);
 }
