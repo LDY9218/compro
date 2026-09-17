@@ -90,6 +90,9 @@
         modal.setAttribute("aria-hidden", "true");
     }
 
+    window.openCarGameModal = openGame;
+    window.closeCarGameModal = closeGame;
+
     function resetLocalRoom() {
         roomCode = null;
         inRoom = false;
