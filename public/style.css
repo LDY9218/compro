@@ -3919,3 +3919,11 @@ body:has(.wordchain-modal.active) header{display:none!important;}
 
 .wordchain-game-close-visible{display:flex!important;position:absolute;right:18px;top:18px;z-index:30;width:42px;height:42px;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.16);border-radius:50%;background:rgba(10,12,24,.78);color:#fff;font-size:27px;line-height:1;cursor:pointer;backdrop-filter:blur(12px);}
 @media(max-width:760px){.wordchain-game-close-visible{right:12px;top:12px;width:38px;height:38px;font-size:24px;}}
+
+/* V18 game-entry polish */
+.worm-start-panel{position:relative;z-index:20}
+.worm-big-icon{font-size:38px;margin-bottom:2px}
+.worm-name-label{display:block;text-align:left;color:#9bc6ad;font-size:10px;font-weight:700;letter-spacing:.08em;margin:0 0 6px}
+.worm-start-panel input{margin-bottom:9px}
+.worm-start-panel button{position:relative;z-index:21;font-size:13px;min-height:44px}
+.worm-center-message{z-index:10}
