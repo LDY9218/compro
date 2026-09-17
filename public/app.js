@@ -1856,8 +1856,16 @@ function wormOpen(){
     wormGameModal.classList.add('active');
     wormGameModal.classList.remove('worm-live');
     wormGameModal.setAttribute('aria-hidden','false');
-    wormCenterMessage.hidden = false;
-    wormDeathPanel.hidden = true;
+    // Entry screen is deliberately forced visible until the player actually submits the nickname.
+    // This prevents a stale game state / CSS override from leaving only the icon and title visible.
+    if(wormCenterMessage){
+        wormCenterMessage.hidden = false;
+        wormCenterMessage.style.display = 'flex';
+        wormCenterMessage.style.visibility = 'visible';
+        wormCenterMessage.style.opacity = '1';
+        wormCenterMessage.style.pointerEvents = 'auto';
+    }
+    if(wormDeathPanel) wormDeathPanel.hidden = true;
     wormRunning = false;
     wormLocalMode = false;
     wormState = null;
@@ -2020,6 +2028,11 @@ function wormConnect(){
 
 function wormStart(){
     const name=(wormNickname?.value||'Player').trim().slice(0,14)||'Player';
+    // Only hide the entry screen after a real start request has been made.
+    if(wormCenterMessage){
+        wormCenterMessage.hidden = false;
+        wormCenterMessage.style.display = 'flex';
+    }
     wormPendingJoinName=name;
     wormJoinSent=false;
     wormLastServerState=0;
