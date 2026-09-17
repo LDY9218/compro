@@ -3927,3 +3927,32 @@ body:has(.wordchain-modal.active) header{display:none!important;}
 .worm-start-panel input{margin-bottom:9px}
 .worm-start-panel button{position:relative;z-index:21;font-size:13px;min-height:44px}
 .worm-center-message{z-index:10}
+
+/* WORM ARENA V19 — entry screen visibility / accessibility hardening */
+.worm-center-message{z-index:100!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;}
+.worm-center-message[hidden]{display:none!important;}
+.worm-start-panel{position:relative!important;z-index:101!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:center!important;width:min(460px,calc(100vw - 36px))!important;max-height:calc(100% - 36px)!important;box-sizing:border-box!important;padding:32px 34px 28px!important;margin:auto!important;overflow:auto!important;visibility:visible!important;opacity:1!important;color:#effff6!important;background:rgba(3,12,8,.97)!important;border:1px solid rgba(117,255,186,.34)!important;box-shadow:0 30px 90px rgba(0,0,0,.72),0 0 55px rgba(49,255,164,.12)!important;}
+.worm-entry-badge{display:block!important;align-self:center!important;margin:0 0 10px!important;padding:6px 10px!important;border-radius:999px!important;background:rgba(49,233,147,.1)!important;border:1px solid rgba(49,233,147,.2)!important;color:#74efad!important;font-size:9px!important;font-weight:800!important;letter-spacing:.16em!important;line-height:1!important;}
+.worm-big-icon{display:block!important;font-size:64px!important;line-height:1.05!important;margin:0 0 4px!important;opacity:1!important;visibility:visible!important;}
+.worm-start-panel h3{display:block!important;color:#f3fff8!important;font-size:27px!important;line-height:1.15!important;margin:7px 0 8px!important;visibility:visible!important;opacity:1!important;}
+.worm-entry-description{display:block!important;color:#b5cfc1!important;font-size:13px!important;line-height:1.75!important;margin:0 0 20px!important;visibility:visible!important;opacity:1!important;}
+.worm-entry-form{display:block!important;width:100%!important;}
+.worm-name-label{display:block!important;color:#b8d9c8!important;font-size:11px!important;font-weight:800!important;letter-spacing:.1em!important;margin:0 0 7px!important;text-align:left!important;}
+.worm-start-panel input#wormNickname{display:block!important;width:100%!important;height:50px!important;box-sizing:border-box!important;padding:0 15px!important;margin:0 0 10px!important;border:1px solid rgba(164,255,207,.28)!important;border-radius:13px!important;background:#071812!important;color:#fff!important;font-size:14px!important;visibility:visible!important;opacity:1!important;}
+.worm-start-panel input#wormNickname::placeholder{color:#769989!important;opacity:1!important;}
+.worm-start-panel button#wormStartBtn{display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;min-height:54px!important;box-sizing:border-box!important;padding:14px 18px!important;margin:0!important;border:1px solid rgba(255,255,255,.08)!important;border-radius:13px!important;background:linear-gradient(135deg,#42f5a3,#12a767)!important;color:#02150c!important;font-size:15px!important;font-weight:900!important;letter-spacing:.02em!important;cursor:pointer!important;visibility:visible!important;opacity:1!important;position:relative!important;z-index:102!important;pointer-events:auto!important;}
+.worm-start-panel button#wormStartBtn:hover{filter:brightness(1.08)!important;transform:translateY(-1px)!important;}
+.worm-start-panel button#wormStartBtn:active{transform:translateY(0)!important;filter:brightness(.98)!important;}
+.worm-entry-features{display:flex!important;flex-wrap:wrap!important;justify-content:center!important;gap:7px 14px!important;margin:15px 0 4px!important;color:#88b29d!important;font-size:10px!important;line-height:1.5!important;visibility:visible!important;opacity:1!important;}
+.worm-start-panel small{display:block!important;color:#719383!important;font-size:10px!important;line-height:1.65!important;margin:10px 0 0!important;visibility:visible!important;opacity:1!important;}
+.worm-game-modal:not(.worm-live) .worm-center-message{display:flex!important;}
+.worm-game-modal:not(.worm-live) .worm-start-panel{display:flex!important;}
+@media(max-width:800px){
+  .worm-center-message{padding:16px!important;box-sizing:border-box!important;overflow:auto!important;align-items:center!important;}
+  .worm-start-panel{width:min(440px,calc(100vw - 24px))!important;max-height:calc(100dvh - 90px)!important;padding:24px 20px 20px!important;border-radius:22px!important;}
+  .worm-big-icon{font-size:54px!important;}
+  .worm-start-panel h3{font-size:23px!important;}
+  .worm-entry-description{font-size:12px!important;margin-bottom:15px!important;}
+  .worm-start-panel input#wormNickname{height:48px!important;}
+  .worm-start-panel button#wormStartBtn{min-height:52px!important;font-size:14px!important;}
+}
