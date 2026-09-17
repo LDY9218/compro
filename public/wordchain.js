@@ -102,7 +102,7 @@
         if (roomCodeLabel) roomCodeLabel.textContent = '------';
         if (roomModeLabel) roomModeLabel.textContent = '2인전';
         if (roomNameLabel) roomNameLabel.textContent = '새 끝말잇기 방';
-        setDictionaryStatus('29종 공개 단어 DB 대기', '');
+        setDictionaryStatus('33종 공개 단어 DB 대기', '');
         if (message) setLobbyStatus(message, '');
         renderRoomList();
     }
@@ -192,7 +192,7 @@
         });
 
         socket.on('wordchain:dictionary-loading', ({ message }) => {
-            setDictionaryStatus(message || '29종 공개 단어 DB 준비 중...', 'loading');
+            setDictionaryStatus(message || '33종 공개 단어 DB 준비 중...', 'loading');
         });
 
         socket.on('wordchain:error', ({ message }) => {
@@ -350,7 +350,7 @@
         }
         if (state.lastResult) {
             const source = state.lastResult.source;
-            if (source === 'local-dictionary') setDictionaryStatus(state.lastResult.ok ? '29종 공개 단어 DB 확인 완료 · 두음법칙 ON' : '단어사전에 없음', state.lastResult.ok ? 'ok' : 'bad');
+            if (source === 'local-dictionary') setDictionaryStatus(state.lastResult.ok ? '33종 공개 단어 DB 확인 완료 · 두음법칙 ON' : '단어사전에 없음', state.lastResult.ok ? 'ok' : 'bad');
             else if (source === 'fallback') setDictionaryStatus('내장 안전 단어 목록', state.lastResult.ok ? 'ok' : 'bad');
             else if (source === 'dictionary-unreachable') setDictionaryStatus('로컬 단어 DB 확인 실패', 'bad');
             else if (source === 'starter') setDictionaryStatus('안전한 새 제시어', 'ok');
@@ -408,7 +408,7 @@
         socket.emit('wordchain:submit', { word });
         input.value = '';
         socket.emit('wordchain:typing', { text: '' });
-        setDictionaryStatus('29종 공개 단어 DB 확인 중...', 'loading');
+        setDictionaryStatus('33종 공개 단어 DB 확인 중...', 'loading');
     }
 
     function sendTyping() {
@@ -450,7 +450,12 @@
         tabs.forEach(x => x.classList.toggle('active', x === tab));
         setLobbyStatus(`${mode}인전 모드가 선택되었습니다.`, '');
         renderRoomList();
+        if (connected) socket?.emit('wordchain:list');
     }));
+
+    setInterval(() => {
+        if (connected && modal.classList.contains('active') && !roomCode) socket?.emit('wordchain:list');
+    }, 1200);
 
     hubBtn?.addEventListener('click', open);
     closeBtn?.addEventListener('click', close);
