@@ -461,13 +461,19 @@
             </div>
             <div class="worm-leaderboard" id="wormLeaderboard"><div class="worm-leader-title">TOP PLAYERS</div></div>
             <div class="worm-center-message" id="wormCenterMessage">
-                <div class="worm-start-panel">
+                <div class="worm-start-panel" id="wormStartPanel">
+                    <div class="worm-entry-badge">REALTIME MULTIPLAYER</div>
                     <div class="worm-big-icon">🪱</div>
                     <h3>WORM ARENA</h3>
-                    <p>닉네임을 정하고 바로 아레나에 들어가세요.<br>먹이를 먹어 몸집을 키우고 다른 지렁이와 경쟁합니다.</p>
-                    <label class="worm-name-label" for="wormNickname">닉네임</label>
-                    <input id="wormNickname" maxlength="14" placeholder="닉네임을 입력하세요" value="Player" autocomplete="nickname">
-                    <button id="wormStartBtn" type="button">게임 들어가기</button>
+                    <p class="worm-entry-description">닉네임을 정하고 바로 아레나에 들어가세요.<br>먹이를 먹어 몸집을 키우고 다른 지렁이와 경쟁합니다.</p>
+                    <div class="worm-entry-form">
+                        <label class="worm-name-label" for="wormNickname">닉네임</label>
+                        <input id="wormNickname" maxlength="14" placeholder="닉네임을 입력하세요" value="Player" autocomplete="nickname">
+                        <button id="wormStartBtn" type="button">게임 들어가기</button>
+                    </div>
+                    <div class="worm-entry-features">
+                        <span>● 실시간 대전</span><span>● 먹이 수집</span><span>● 부스트</span>
+                    </div>
                     <small>PC: 마우스로 조종 · Space/클릭: 부스트<br>모바일: 화면 드래그 · 부스트 버튼</small>
                 </div>
             </div>
