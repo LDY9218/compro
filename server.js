@@ -1588,6 +1588,12 @@ const wordChainDictionary=new Set();
 const wordChainStartIndex=new Set();
 const wordChainDictionarySourceStats=new Map();
 const wordChainDictionaryMeta={loadedAt:0,total:0,sources:[]};
+
+// IMPORTANT: this constant must exist before the local fallback is indexed.
+// Node.js let/const bindings are in the temporal dead zone until initialization.
+// The previous build indexed WORD_CHAIN_FALLBACK before this declaration.
+const WORD_CHAIN_MAX_LENGTH = 100;
+
 let wordChainDictionaryReady=false;
 let wordChainDictionaryLoading=null;
 
@@ -1968,7 +1974,6 @@ function wordChainApplyPenalty(room,player,reason="6번 틀림"){
 // + 션샤인은 명시적으로 금지합니다.
 // + 한방 단어는 게임 시작 직후 자동으로 주어지는 첫 제시어에만 예외가 있고, 플레이어가 입력하는 단어에서는 첫 턴부터 금지합니다.
 const WORD_CHAIN_DICTIONARY_TIMEOUT_MS = 20_000;
-const WORD_CHAIN_MAX_LENGTH = 100;
 const WORD_CHAIN_DICTIONARY_MIN_SOURCE_WORDS = 10;
 const WORD_CHAIN_DICTIONARY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
