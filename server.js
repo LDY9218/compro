@@ -1602,8 +1602,6 @@ function wordChainIndexWord(word){
     return wordChainDictionary.size!==before;
 }
 
-for(const w of WORD_CHAIN_FALLBACK)wordChainIndexWord(w);
-
 function wordChainAddText(text, parser="line"){
     let count=0; const seen=new Set(); let candidates=[]; const raw=String(text||"").replace(/^\uFEFF/,"");
     if(parser==="json-korean"){
@@ -1815,6 +1813,10 @@ const WORD_CHAIN_FALLBACK = new Set([
     "럭비","비누","누나","나비","비상","어묵","묵직","직업","업무","무게","게임","임무",
     "개미","미역","역전","전구","구슬","슬픔"
 ].filter(w => /^[가-힣]{2,30}$/.test(w)));
+
+// IMPORTANT: fallback must be initialized before it is indexed.
+// This prevents the Node.js temporal-dead-zone ReferenceError seen in V18.
+for(const w of WORD_CHAIN_FALLBACK) wordChainIndexWord(w);
 
 function wordChainNormalizeWord(raw){
     return String(raw||"").normalize("NFC").trim().toLowerCase().replace(/[^가-힣]/g,"");
